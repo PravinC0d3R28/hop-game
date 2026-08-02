@@ -5,6 +5,9 @@ import {
   MeshBasicMaterial,
   MeshToonMaterial,
   SphereGeometry,
+  TorusGeometry,
+  DoubleSide,
+  AdditiveBlending,
   type Scene,
   type Vector3
 } from 'three';
@@ -24,6 +27,10 @@ export class BallEntity {
   private blobMesh: Mesh;
   private blobMaterial: MeshBasicMaterial;
   private meshMaterial: MeshToonMaterial;
+  private shieldShell: Mesh;
+  private shieldShellMat: MeshBasicMaterial;
+  private shieldRing: Mesh;
+  private shieldRingMat: MeshBasicMaterial;
 
   constructor(private scene: Scene) {
     const ballGeo = new SphereGeometry(GAME_CONFIG.BALL_RADIUS, 24, 16);
@@ -43,10 +50,37 @@ export class BallEntity {
     this.blobMesh = new Mesh(blobGeo, this.blobMaterial);
     this.blobMesh.position.set(0.06, 0.08, -0.04);
 
+    // Shield visuals (FR-4.4): translucent glow shell + energy ring, hidden until setShield.
+    this.shieldShellMat = new MeshBasicMaterial({
+      color: 0x66ccff,
+      transparent: true,
+      opacity: 0.22,
+      depthWrite: false,
+      side: DoubleSide,
+      blending: AdditiveBlending
+    });
+    this.shieldShell = new Mesh(new SphereGeometry(GAME_CONFIG.BALL_RADIUS * 1.28, 16, 12), this.shieldShellMat);
+
+    this.shieldRingMat = new MeshBasicMaterial({
+      color: 0x88ddff,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false
+    });
+    this.shieldRing = new Mesh(
+      new TorusGeometry(GAME_CONFIG.BALL_RADIUS * 1.4, 0.02, 6, 24),
+      this.shieldRingMat
+    );
+    this.shieldRing.rotation.x = Math.PI / 2;
+    this.shieldShell.visible = false;
+    this.shieldRing.visible = false;
+
     this.group = new Group();
     this.group.add(this.mesh);
     this.group.add(this.outlineMesh);
     this.group.add(this.blobMesh);
+    this.group.add(this.shieldShell);
+    this.group.add(this.shieldRing);
     this.group.position.set(0, GAME_CONFIG.PLATFORM_HEIGHT / 2 + GAME_CONFIG.BALL_RADIUS, 0);
     scene.add(this.group);
   }
@@ -60,6 +94,23 @@ export class BallEntity {
 
   setSkinColor(color: number): void {
     this.meshMaterial.color.setHex(color);
+  }
+
+  /** Show/hide the shield glow shell + ring. */
+  setShield(active: boolean): void {
+    this.shieldShell.visible = active;
+    this.shieldRing.visible = active;
+    if (active) {
+      gsap.killTweensOf(this.shieldShellMat);
+      gsap.killTweensOf(this.shieldRingMat);
+      this.shieldShellMat.opacity = 0.22;
+      this.shieldRingMat.opacity = 0.85;
+      gsap.to(this.shieldShellMat, { opacity: 0.34, duration: 0.5, yoyo: true, repeat: 1 });
+      gsap.to(this.shieldRingMat, { opacity: 0.35, duration: 0.5, yoyo: true, repeat: 1 });
+    } else {
+      gsap.killTweensOf(this.shieldShellMat);
+      gsap.killTweensOf(this.shieldRingMat);
+    }
   }
 
   reset(): void {
@@ -146,11 +197,17 @@ export class BallEntity {
   dispose(): void {
     gsap.killTweensOf(this.group.position);
     gsap.killTweensOf(this.group.scale);
+    gsap.killTweensOf(this.shieldShellMat);
+    gsap.killTweensOf(this.shieldRingMat);
     this.mesh.geometry.dispose();
     (this.mesh.material as MeshBasicMaterial).dispose();
     this.blobMesh.geometry.dispose();
     this.blobMaterial.dispose();
     (this.outlineMesh.material as MeshBasicMaterial).dispose();
+    (this.shieldShell.geometry as SphereGeometry).dispose();
+    this.shieldShellMat.dispose();
+    (this.shieldRing.geometry as TorusGeometry).dispose();
+    this.shieldRingMat.dispose();
     this.scene.remove(this.group);
   }
 

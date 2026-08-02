@@ -43,6 +43,8 @@ export interface GameConfig {
   // Scoring
   PERFECT_THRESHOLD: number;
   PERFECT_DOT_RADIUS: number;
+  // Streak reward (simplified, v1): single tier at STREAK_FIRE perfects
+  STREAK_FIRE: number;
   // Visual effects
   DOTS_SCALE: number;
   DOTS_STRENGTH: number;
@@ -114,6 +116,8 @@ export const GAME_CONFIG: GameConfig = {
 
   PERFECT_THRESHOLD: 0.5,
   PERFECT_DOT_RADIUS: 0.18,
+
+  STREAK_FIRE: 10,
 
   DOTS_SCALE: 0.3,
   DOTS_STRENGTH: 0.25,

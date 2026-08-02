@@ -109,7 +109,9 @@ describe('reset / flow state', () => {
       xTarget: 0,
       ballX: 0,
       perfectStreak: 0,
-      roundCoins: 0
+      roundCoins: 0,
+      shieldActive: false,
+      shieldAwarded: false
     });
   });
 

@@ -4,6 +4,7 @@ import {
   CircleGeometry,
   Mesh,
   MeshBasicMaterial,
+  PlaneGeometry,
   RingGeometry,
   SphereGeometry,
   Vector3,
@@ -256,6 +257,104 @@ export class EffectsSystem {
       (s.mesh.material as MeshBasicMaterial).dispose();
     }
     this.speedLines = [];
+  }
+
+  /** Streak 10 (FR-4): fire particle burst around the ball. */
+  playFireBurst(x: number, y: number, z: number): void {
+    const colors = [0xff4d00, 0xff8c00, 0xffd700];
+    for (let i = 0; i < 16; i++) {
+      const color = colors[i % colors.length];
+      const mat = new MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false });
+      const burst = new Mesh(burstGeo, mat);
+      const radius = 0.3 + Math.random() * 0.25;
+      const phi = Math.random() * Math.PI * 2;
+      burst.position.set(x + Math.cos(phi) * radius, y + 0.3 + Math.random() * 0.3, z + Math.sin(phi) * radius);
+      const speed = 2.2 + Math.random() * 1.6;
+      const ang = (i / 16) * Math.PI * 2 + Math.random() * 0.5;
+      this.scene.add(burst);
+      this.particles.push({
+        mesh: burst,
+        vx: Math.cos(ang) * speed * 0.6,
+        vy: 0,
+        vz: Math.sin(ang) * speed * 0.6,
+        life: 0.7,
+        maxLife: 0.7,
+        startSize: 1
+      });
+    }
+  }
+
+  /** Shield consumed: bright ring shatter at the miss point. */
+  playShieldBreak(x: number, z: number): void {
+    const mat = new MeshBasicMaterial({
+      color: 0x88ddff,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+      side: DoubleSide
+    });
+    const ring = new Mesh(ringGeo, mat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(x, GAME_CONFIG.PLATFORM_HEIGHT / 2 + 0.02, z);
+    this.scene.add(ring);
+    gsap.to(ring.scale, { x: 8, y: 8, z: 1, duration: 0.35, ease: 'power2.out' });
+    gsap.to(mat, {
+      opacity: 0,
+      duration: 0.35,
+      onComplete: () => {
+        this.scene.remove(ring);
+        mat.dispose();
+      }
+    });
+    for (let i = 0; i < 10; i++) {
+      const bm = new MeshBasicMaterial({ color: 0x66ccff, transparent: true, opacity: 0.9, depthWrite: false });
+      const burst = new Mesh(burstGeo, bm);
+      burst.position.set(x, GAME_CONFIG.PLATFORM_HEIGHT / 2 + 0.1, z);
+      const ang = (i / 10) * Math.PI * 2;
+      const speed = 2 + Math.random();
+      this.scene.add(burst);
+      this.particles.push({
+        mesh: burst,
+        vx: Math.cos(ang) * speed,
+        vy: 0.5 + Math.random(),
+        vz: Math.sin(ang) * speed,
+        life: 0.45,
+        maxLife: 0.45,
+        startSize: 1
+      });
+    }
+  }
+
+  /** Shield save: a faint glass pane appears where the ball is caught mid-air,
+   *  holds just long enough to stand on, then dissolves. */
+  playGlassFloor(x: number, z: number): void {
+    const geo = new PlaneGeometry(2.4, 2.4);
+    const mat = new MeshBasicMaterial({
+      color: 0x88ddff,
+      transparent: true,
+      opacity: 0.4,
+      depthWrite: false,
+      side: DoubleSide
+    });
+    const pane = new Mesh(geo, mat);
+    pane.rotation.x = -Math.PI / 2;
+    pane.position.set(x, GAME_CONFIG.PLATFORM_HEIGHT / 2 + 0.005, z);
+    this.scene.add(pane);
+    gsap.fromTo(
+      pane.scale,
+      { x: 0.5, y: 0.5 },
+      { x: 1.15, y: 1.15, duration: 0.18, ease: 'power2.out', yoyo: true, repeat: 1 }
+    );
+    gsap.to(mat, {
+      opacity: 0,
+      duration: 0.45,
+      delay: 0.15,
+      onComplete: () => {
+        this.scene.remove(pane);
+        geo.dispose();
+        mat.dispose();
+      }
+    });
   }
 
   clearParticles(): void {

@@ -42,6 +42,7 @@ export const GAME_EVENTS = {
   SKIN_CHANGED: 'skin-changed',
   GEM_COLLECTED: 'gem-collected',
   PERFECT_HIT: 'perfect-hit',
+  STREAK_MILESTONE: 'streak-milestone',
   GAME_OVER: 'game-over',
   GAME_START: 'game-start',
   GAME_RESET: 'game-reset',

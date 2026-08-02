@@ -21,6 +21,8 @@ export interface GameState {
   ballX: number;
   perfectStreak: number;
   roundCoins: number;
+  shieldActive: boolean;
+  shieldAwarded: boolean;
 }
 
 export interface JumpParams {

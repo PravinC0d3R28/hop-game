@@ -179,9 +179,12 @@ export class Game {
     st.roundCoins = 0;
     st.isWaitingForTap = false;
     st.perfectStreak = 0;
+    st.shieldActive = false;
+    st.shieldAwarded = false;
 
     this.ui.hideGameOver();
     this.ui.clearConfetti();
+    this.ui.setStreakGlow('off');
     this.ui.refreshBestScore();
     this.ui.setScore(0);
     this.ui.showScoreUI(false);
@@ -191,6 +194,7 @@ export class Game {
 
     PlatformEntity.randomizePaletteStart();
     this.ball.reset();
+    this.ball.setShield(false);
     this.platforms.reset();
     this.camera.reset();
     this.background.reset();
@@ -206,6 +210,8 @@ export class Game {
     st.isFailed = true;
     this.audio.playGameOver();
     this.effects.clearSpeedLines();
+    this.ui.setStreakGlow('off');
+    this.ball.setShield(false);
 
     this.camera.shake();
     gsap.to(this.ball.group.position, { y: this.ball.group.position.y - 5, duration: 0.6, ease: 'power2.in' });
@@ -255,8 +261,15 @@ export class Game {
           const f = target.platformX + (target.swayOffset || 0);
           const d = Math.abs(st.ballX - f);
           if (d > GAME_CONFIG.HIT_THRESHOLD) {
-            this.gameOver();
-            return;
+            if (this.state.consumeShield()) {
+              this.ball.setShield(false);
+              this.audio.playShieldBreak();
+              this.effects.playShieldBreak(this.ball.group.position.x, this.ball.group.position.z);
+              this.effects.playGlassFloor(this.ball.group.position.x, this.ball.group.position.z);
+            } else {
+              this.gameOver();
+              return;
+            }
           }
           for (const gem of target.gems) {
             if (!gem.collected && d < GAME_CONFIG.GEM_COLLECT_THRESHOLD) {
@@ -274,12 +287,14 @@ export class Game {
             st.score += st.perfectStreak;
             this.audio.playPerfect(st.perfectStreak);
             this.perfectHit(target);
+            this.totalStreakReward();
           } else {
             st.perfectStreak = 0;
             this.audio.playJump(st.score);
           }
           this.ui.setScore(st.score);
           gsap.fromTo(this.ui.scoreElement, { scale: 1.15 }, { scale: 1, duration: 0.2, ease: 'back.out(2)' });
+          this.updateStreakGlow();
           this.checkWorldTransition();
           this.platforms.recycle();
           this.jump();
@@ -332,6 +347,23 @@ export class Game {
   private checkWorldTransition(): void {
     const world = this.state.evaluateWorldChange();
     if (world) this.events.emit(GAME_EVENTS.WORLD_CHANGED, world);
+  }
+
+  /** Fire reward (simplified v1): the run's first 10-perfect reached grants shield
+   *  + FIRE banner/burst. The flame glow is live — it stays only while the
+   *  streak holds and drops the moment a non-perfect breaks it. */
+  private totalStreakReward(): void {
+    const milestone = this.state.checkStreakMilestone();
+    if (milestone !== 'fire' || !this.state.grantShield()) return;
+    this.ball.setShield(true);
+    this.audio.playMilestone();
+    this.effects.playFireBurst(this.ball.group.position.x, this.ball.group.position.y, this.ball.group.position.z);
+    this.events.emit(GAME_EVENTS.STREAK_MILESTONE, { milestone, shield: true });
+  }
+
+  /** Flame glow mirrors the fire streak: ≥10 perfects on, anything else off. */
+  private updateStreakGlow(): void {
+    this.ui.setStreakGlow(this.state.getState().perfectStreak >= GAME_CONFIG.STREAK_FIRE ? 'fire' : 'off');
   }
 
   private applySkin(skinId: string): void {

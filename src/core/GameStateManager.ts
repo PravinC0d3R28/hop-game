@@ -25,8 +25,12 @@ export const DEFAULT_STATE: GameState = {
   xTarget: 0,
   ballX: 0,
   perfectStreak: 0,
-  roundCoins: 0
+  roundCoins: 0,
+  shieldActive: false,
+  shieldAwarded: false
 };
+
+export type StreakMilestone = 'fire';
 
 /**
  * Pure game logic: difficulty curves, scoring, economy, persistence sanitizing.
@@ -168,6 +172,32 @@ export class GameStateManager {
   addPerfectStreak(): number {
     this.state.perfectStreak++;
     return this.state.perfectStreak;
+  }
+
+  /** Single-shot fire reward (simplified v1): fires once at exactly STREAK_FIRE
+   *  perfects — any score, any world. */
+  checkStreakMilestone(): StreakMilestone | null {
+    if (this.state.perfectStreak === GAME_CONFIG.STREAK_FIRE) return 'fire';
+    return null;
+  }
+
+  getShieldActive(): boolean {
+    return this.state.shieldActive;
+  }
+
+  /** One shield per run (FR-4.4): returns true only on first reach of streak 5. */
+  grantShield(): boolean {
+    if (this.state.shieldAwarded) return false;
+    this.state.shieldAwarded = true;
+    this.state.shieldActive = true;
+    return true;
+  }
+
+  /** Consume shield on a miss. Returns true if it absorbed the hit. */
+  consumeShield(): boolean {
+    if (!this.state.shieldActive) return false;
+    this.state.shieldActive = false;
+    return true;
   }
 
   resetPerfectStreak(): void {

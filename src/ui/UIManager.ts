@@ -35,6 +35,7 @@ export class UIManager {
   private confettiContainer = this.el<HTMLElement>('confetti-container');
   private splashScreen = this.el<HTMLElement>('splash-screen');
   private shopBtn = this.el<HTMLButtonElement>('shop-btn');
+  private streakGlow: HTMLElement | null = null;
 
   constructor(
     private state: GameStateManager,
@@ -47,6 +48,9 @@ export class UIManager {
     this.bind();
     this.events.on(GAME_EVENTS.WORLD_CHANGED, (world) =>
       this.showWorldBanner(world as WorldConfig)
+    );
+    this.events.on(GAME_EVENTS.STREAK_MILESTONE, (payload) =>
+      this.showStreakBanner(payload as { milestone: 'fire'; shield: boolean })
     );
   }
 
@@ -294,38 +298,76 @@ export class UIManager {
     // CSS handles responsive sizing; nothing to do.
   }
 
+  /** Constant flame corner glow (v1 simplified): on once the fire reward fires,
+   *  held for the rest of the run, cleared on game over/reset. */
+  setStreakGlow(level: 'off' | 'fire'): void {
+    const el = this.ensureStreakGlow();
+    gsap.killTweensOf(el);
+    el.classList.toggle('fire', level === 'fire');
+    if (level === 'off') {
+      gsap.to(el, { opacity: 0, duration: 0.45, ease: 'power2.out' });
+      return;
+    }
+    gsap.to(el, { opacity: 1, duration: 0.5, ease: 'power2.out' });
+  }
+
+  private ensureStreakGlow(): HTMLElement {
+    if (this.streakGlow) return this.streakGlow;
+    const el = document.createElement('div');
+    el.className = 'streak-corners';
+    el.innerHTML =
+      '<span class="c c-tl"></span><span class="c c-tr"></span>' +
+      '<span class="c c-bl"></span><span class="c c-br"></span>';
+    document.getElementById('ui-overlay')?.appendChild(el);
+    this.streakGlow = el;
+    return el;
+  }
+
   /** Show "entered world" banner: header + tagline + white flash overlay. */
   private showWorldBanner(world: WorldConfig): void {
+    this.showBanner(world.name, world.tagline, 'world-banner', 2.0, true);
+  }
+
+  /** Show the fire reward banner (simplified v1): shield + constant glow. */
+  private showStreakBanner(payload: { milestone: 'fire'; shield: boolean }): void {
+    if (payload.milestone !== 'fire') return;
+    this.showBanner('FIRE!', 'Shield raised — one free miss', 'streak-banner fire', 2.4, true);
+  }
+
+  /** Generic banner: title + tagline, entrance/exit tweens, optional white flash. */
+  private showBanner(title: string, tagline: string, cssClass: string, hold = 2.0, flash = false): void {
     const overlay = document.getElementById('ui-overlay');
     if (!overlay) return;
-    gsap.killTweensOf('.world-banner');
-    overlay.querySelector('.world-banner')?.remove();
+    gsap.killTweensOf('.' + cssClass);
+    overlay.querySelector('.' + cssClass)?.remove();
 
     const banner = document.createElement('div');
-    banner.className = 'world-banner';
-    const title = document.createElement('div');
-    title.className = 'world-banner-title';
-    title.textContent = world.name;
-    const tag = document.createElement('div');
-    tag.className = 'world-banner-tag';
-    tag.textContent = world.tagline;
-    banner.append(title, tag);
+    banner.className = cssClass;
+    const titleEl = document.createElement('div');
+    titleEl.className = 'world-banner-title';
+    titleEl.textContent = title;
+    const tagEl = document.createElement('div');
+    tagEl.className = 'world-banner-tag';
+    tagEl.textContent = tagline;
+    banner.append(titleEl, tagEl);
     overlay.appendChild(banner);
 
-    const flash = document.createElement('div');
-    flash.className = 'world-flash';
-    overlay.appendChild(flash);
-    gsap.fromTo(
-      flash,
-      { autoAlpha: 0 },
-      {
-        autoAlpha: 1,
-        duration: 0.3,
-        yoyo: true,
-        repeat: 1,
-        onComplete: () => flash.remove()
-      }
-    );
+    if (flash) {
+      const flashEl = document.createElement('div');
+      flashEl.className = 'world-flash';
+      overlay.appendChild(flashEl);
+      gsap.fromTo(
+        flashEl,
+        { autoAlpha: 0 },
+        {
+          autoAlpha: 1,
+          duration: 0.3,
+          yoyo: true,
+          repeat: 1,
+          onComplete: () => flashEl.remove()
+        }
+      );
+    }
 
     gsap.fromTo(
       banner,
@@ -335,7 +377,7 @@ export class UIManager {
     gsap.to(banner, {
       autoAlpha: 0,
       duration: 0.5,
-      delay: 2.0,
+      delay: hold - 0.4,
       ease: 'power2.in',
       onComplete: () => banner.remove()
     });
