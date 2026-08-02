@@ -1,6 +1,8 @@
 import { GAME_CONFIG } from '../config/GameConfig';
 import { THEMES, type ThemeName } from '../config/Themes';
 import type { GameStateManager } from '../core/GameStateManager';
+import { EventBus, GAME_EVENTS } from '../core/EventBus';
+import type { WorldConfig } from '../config/Worlds';
 import type { RendererSystem } from '../systems/RendererSystem';
 import type { ShadowSystem } from '../systems/ShadowSystem';
 import type { BackgroundSystem } from '../systems/BackgroundSystem';
@@ -36,12 +38,16 @@ export class UIManager {
 
   constructor(
     private state: GameStateManager,
+    private events: EventBus,
     private renderer: RendererSystem,
     private shadow: ShadowSystem,
     private background: BackgroundSystem,
     private ball: BallEntity
   ) {
     this.bind();
+    this.events.on(GAME_EVENTS.WORLD_CHANGED, (world) =>
+      this.showWorldBanner(world as WorldConfig)
+    );
   }
 
   private el<T extends HTMLElement>(id: string): T {
@@ -286,6 +292,53 @@ export class UIManager {
 
   private onResize(): void {
     // CSS handles responsive sizing; nothing to do.
+  }
+
+  /** Show "entered world" banner: header + tagline + white flash overlay. */
+  private showWorldBanner(world: WorldConfig): void {
+    const overlay = document.getElementById('ui-overlay');
+    if (!overlay) return;
+    gsap.killTweensOf('.world-banner');
+    overlay.querySelector('.world-banner')?.remove();
+
+    const banner = document.createElement('div');
+    banner.className = 'world-banner';
+    const title = document.createElement('div');
+    title.className = 'world-banner-title';
+    title.textContent = world.name;
+    const tag = document.createElement('div');
+    tag.className = 'world-banner-tag';
+    tag.textContent = world.tagline;
+    banner.append(title, tag);
+    overlay.appendChild(banner);
+
+    const flash = document.createElement('div');
+    flash.className = 'world-flash';
+    overlay.appendChild(flash);
+    gsap.fromTo(
+      flash,
+      { autoAlpha: 0 },
+      {
+        autoAlpha: 1,
+        duration: 0.3,
+        yoyo: true,
+        repeat: 1,
+        onComplete: () => flash.remove()
+      }
+    );
+
+    gsap.fromTo(
+      banner,
+      { autoAlpha: 0, scale: 0.8, y: 14 },
+      { autoAlpha: 1, scale: 1, y: 0, duration: 0.45, ease: 'back.out(1.6)', delay: 0.15 }
+    );
+    gsap.to(banner, {
+      autoAlpha: 0,
+      duration: 0.5,
+      delay: 2.0,
+      ease: 'power2.in',
+      onComplete: () => banner.remove()
+    });
   }
 
   dispose(): void {

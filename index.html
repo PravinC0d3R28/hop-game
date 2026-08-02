@@ -40,6 +40,47 @@
       pointer-events: none;
       font-family: 'Arial Black', 'Impact', sans-serif;
     }
+    .world-banner {
+      position: absolute;
+      top: 30%; left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      color: #fff;
+      white-space: nowrap;
+      z-index: 20;
+      visibility: hidden;
+    }
+    .world-banner-title {
+      font-size: clamp(40px, 12vmin, 88px);
+      font-weight: 900;
+      letter-spacing: 2px;
+      line-height: 1.1;
+      text-shadow:
+        -2px -2px 0 #111,
+        2px -2px 0 #111,
+        -2px 2px 0 #111,
+        2px 2px 0 #111,
+        4px 4px 0 #111;
+    }
+    .world-banner-tag {
+      font-size: clamp(16px, 4vmin, 28px);
+      font-weight: 700;
+      opacity: 0.92;
+      margin-top: 6px;
+      letter-spacing: 1px;
+      text-shadow:
+        -1px -1px 0 #111,
+        1px -1px 0 #111,
+        -1px 1px 0 #111,
+        1px 1px 0 #111;
+    }
+    .world-flash {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0) 70%);
+      opacity: 0;
+      pointer-events: none;
+    }
     #score {
       position: absolute;
       top: clamp(12px, 4vh, 40px);

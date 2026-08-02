@@ -41,6 +41,7 @@ export class GameStateManager {
   private worldOverride: WorldId | null = null;
   private unlockAllWorlds = false;
   private totalScore = 0;
+  private lastWorldId: WorldId = 'sunrise';
 
   // ---- state ----
   getState(): Readonly<GameState> {
@@ -87,6 +88,19 @@ export class GameStateManager {
     return getWorldForScore(this.state.score, unlockScore);
   }
 
+  /**
+   * Detects crossing into a new world since the last call (single-shot).
+   * Returns the newly entered world exactly once, otherwise null.
+   */
+  evaluateWorldChange(): WorldConfig | null {
+    const active = this.getActiveWorld();
+    if (active.id !== this.lastWorldId) {
+      this.lastWorldId = active.id;
+      return active;
+    }
+    return null;
+  }
+
   // ---- difficulty curves (world ramps over tier score) ----
   getJumpDuration(): number {
     const world = this.getActiveWorld();
@@ -130,6 +144,7 @@ export class GameStateManager {
   // ---- scoring ----
   resetGame(): void {
     this.state = { ...DEFAULT_STATE };
+    this.lastWorldId = 'sunrise';
   }
 
   startGame(): void {

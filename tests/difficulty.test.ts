@@ -137,3 +137,48 @@ describe('world control via unlock score and overrides', () => {
     expect(gm.getActiveWorld().id).toBe('void');
   });
 });
+
+describe('world transition detection (evaluateWorldChange)', () => {
+  it('returns the new world exactly once at each gate crossing', () => {
+    const gm = new GameStateManager();
+    gm.setUnlockAllWorlds(true);
+    gm.setScore(99);
+    expect(gm.evaluateWorldChange()).toBeNull();
+    gm.setScore(100);
+    expect(gm.evaluateWorldChange()?.id).toBe('dusk');
+    gm.setScore(105);
+    expect(gm.evaluateWorldChange()).toBeNull();
+    gm.setScore(249);
+    expect(gm.evaluateWorldChange()).toBeNull();
+    gm.setScore(250);
+    expect(gm.evaluateWorldChange()?.id).toBe('void');
+    gm.setScore(251);
+    expect(gm.evaluateWorldChange()).toBeNull();
+  });
+
+  it('locked next world: no transition past the gate', () => {
+    const gm = new GameStateManager();
+    gm.setScore(300);
+    expect(gm.evaluateWorldChange()).toBeNull();
+    gm.setScore(600);
+    expect(gm.evaluateWorldChange()).toBeNull();
+  });
+
+  it('skips earlier worlds when a run starts already past a gate', () => {
+    const gm = new GameStateManager();
+    gm.setTotalScore(6000);
+    gm.setScore(260);
+    expect(gm.evaluateWorldChange()?.id).toBe('void');
+    expect(gm.evaluateWorldChange()).toBeNull();
+  });
+
+  it('resetGame re-arms detection back at sunrise', () => {
+    const gm = new GameStateManager();
+    gm.setUnlockAllWorlds(true);
+    gm.setScore(100);
+    expect(gm.evaluateWorldChange()?.id).toBe('dusk');
+    gm.resetGame();
+    gm.setScore(50);
+    expect(gm.evaluateWorldChange()).toBeNull();
+  });
+});

@@ -92,6 +92,16 @@ No iteration is "a feature branch" — every layer sits on top of a working game
   (run stays in current world when next is locked).
 - **DoD:** with bypass flags, crossing 100/250 shows the banner; without unlock, no gate.
 
+**Status: DONE — commit `0f2f3ab`**
+- `GameStateManager.evaluateWorldChange()` — single-shot world-crossing detection
+  (`lastWorldId` tracking, re-armed to `sunrise` on `resetGame`).
+- `Game.ts` emits `WORLD_CHANGED` (EventBus) from both score paths (landing + gem).
+- `UIManager.showWorldBanner()` — dynamic DOM banner (name + tagline) + white flash,
+  gsap entrance/exit, self-cleaning; `dispose()` kills tweens.
+- Tests: `difficulty.test.ts` +4 (79→80 total); typecheck + build green.
+- Browser-verified at http://localhost:3000: banner + flash fire on gate cross;
+  screenshot `docs/shots/iter3-banner-void.png` (shot via forceWorld('void')).
+
 ## Iteration 4 — Sway platforms (W2 mechanic)
 
 **Goal:** world 2+ platforms move; world 1 untouched.

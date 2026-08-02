@@ -45,6 +45,7 @@ export const GAME_EVENTS = {
   GAME_OVER: 'game-over',
   GAME_START: 'game-start',
   GAME_RESET: 'game-reset',
+  WORLD_CHANGED: 'world-changed',
   DATA_SAVED: 'data-saved',
   AUDIO_JUMP: 'audio-jump',
   AUDIO_PERFECT: 'audio-perfect',

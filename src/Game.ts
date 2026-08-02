@@ -1,7 +1,9 @@
 import { gsap } from 'gsap';
 import { GAME_CONFIG } from './config/GameConfig';
 import type { ThemeName } from './config/Themes';
+import type { WorldConfig } from './config/Worlds';
 import { GameStateManager } from './core/GameStateManager';
+import { EventBus, GAME_EVENTS } from './core/EventBus';
 import { RendererSystem } from './systems/RendererSystem';
 import { CameraController } from './systems/CameraController';
 import { ShadowSystem } from './systems/ShadowSystem';
@@ -33,6 +35,7 @@ export class Game {
   private ball: BallEntity;
   private platforms: PlatformManager;
   private ui!: UIManager;
+  private events = new EventBus();
 
   private gameContainer: HTMLElement;
 
@@ -71,6 +74,7 @@ export class Game {
   private buildUI(): void {
     this.ui = new UIManager(
       this.state,
+      this.events,
       this.renderer,
       this.shadow,
       this.background,
@@ -276,6 +280,7 @@ export class Game {
           }
           this.ui.setScore(st.score);
           gsap.fromTo(this.ui.scoreElement, { scale: 1.15 }, { scale: 1, duration: 0.2, ease: 'back.out(2)' });
+          this.checkWorldTransition();
           this.platforms.recycle();
           this.jump();
         }
@@ -320,6 +325,13 @@ export class Game {
 
     st.score++;
     this.ui.setScore(st.score);
+    this.checkWorldTransition();
+  }
+
+  /** Fires a banner when the run crosses into a newly unlocked world. */
+  private checkWorldTransition(): void {
+    const world = this.state.evaluateWorldChange();
+    if (world) this.events.emit(GAME_EVENTS.WORLD_CHANGED, world);
   }
 
   private applySkin(skinId: string): void {
