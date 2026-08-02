@@ -92,7 +92,7 @@ No iteration is "a feature branch" — every layer sits on top of a working game
   (run stays in current world when next is locked).
 - **DoD:** with bypass flags, crossing 100/250 shows the banner; without unlock, no gate.
 
-**Status: DONE — commit `0f2f3ab`**
+**Status: DONE — commit `2333d72`**
 - `GameStateManager.evaluateWorldChange()` — single-shot world-crossing detection
   (`lastWorldId` tracking, re-armed to `sunrise` on `resetGame`).
 - `Game.ts` emits `WORLD_CHANGED` (EventBus) from both score paths (landing + gem).
@@ -107,11 +107,21 @@ No iteration is "a feature branch" — every layer sits on top of a working game
 **Goal:** world 2+ platforms move; world 1 untouched.
 
 - `PlatformManager` fills the existing `swayOffset` hook: sin-wave sway from
-  `WorldConfig.swayParams` (amplitude, speed; erratic in W3 = higher amp/speed +
-  phase jitter); applied in `Game.jump()` hit check (already consumes swayOffset).
-- Hit-zone stays fair: PERFECT threshold relative to *landing* position.
-- Tests: sway offset range/phase per world; miss/perfect classification with sway.
-- **DoD:** W1 static; W2+ sways; perfects remain achievable.
+  `WorldConfig.sway` (amplitude, speed); applied per-frame in `Game.gameLoop`.
+- Sunrise (amp 0) keeps exact parity — platforms stay pinned to `platformX`.
+- Sway moves `group.position.x` **and** `swayOffset`, so the existing landing
+  hit-check (`platformX + swayOffset`) already consumes the shifted target.
+- **Status: DONE — commit `5eec6c1`**
+- `PlatformManager.updateSway(now)` — `sin(t·speed + index·1.7)·amp` per platform,
+  de-phased by index; wire call in `gameLoop`.
+- Per-world sway mix: `sway.ratio` (0..1) keeps every ~1/(1-ratio) platform static
+  (deterministic cadence). Sunrise: amp 0 → untouched; Dusk: 1-in-3 static;
+  Void: 1-in-4 static, wider+faster.
+- Tests: `platforms.test.ts` sway suite (W1 still, locked-world continuity, dusk
+  exact formula + cadence, void envelope + sparse cadence, gate-cross flip) → 87
+  total.
+- typecheck + test + build green; runtime clean; screenshot
+  `docs/shots/iter4-sway-dusk.png`. Playtest sign-off: look good (incl. mix).
 
 ## Iteration 5 — Streak tiers + Shield
 
