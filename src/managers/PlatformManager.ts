@@ -5,6 +5,14 @@ import { PlatformEntity, type PlatformData } from '../entities/PlatformEntity';
 import type { GameStateManager } from '../core/GameStateManager';
 import { gsap } from 'gsap';
 
+const SWAY_PHASE_STEP = 1.7;
+
+/** Every Nth platform stays static (1 = all static). ratio ≥ 1 → 0 (never static). */
+function staticCadence(ratio: number): number {
+  if (ratio >= 1) return 0;
+  return Math.max(1, Math.round(1 / (1 - ratio)));
+}
+
 /**
  * Pool of VISIBLE_STEPS platforms. Mirrors the original `cr` array + `Ay()`
  * recycling and `by()` initialization.
@@ -91,6 +99,30 @@ export class PlatformManager {
           0.15 +
           Math.sin(now * 0.004) * 0.08;
       }
+    }
+  }
+
+  /**
+   * Per-world sway. Platforms sways with a deterministic cadence derived from
+   * `sway.ratio` (every Nth stays static); Sunrise (amp 0) stays perfectly still
+   * = exact parity with the legacy game.
+   */
+  updateSway(now: number): void {
+    const sway = this.state.getActiveWorld().sway;
+    const staticEvery = staticCadence(sway.ratio);
+    const t = now * 0.001;
+    for (const platform of this.platforms) {
+      const isStatic = sway.amplitude <= 0 || (staticEvery > 0 && platform.index % staticEvery === 0);
+      if (isStatic) {
+        if (platform.swayOffset !== 0) {
+          platform.swayOffset = 0;
+          platform.group.position.x = platform.platformX;
+        }
+        continue;
+      }
+      const offset = Math.sin(t * sway.speed + platform.index * SWAY_PHASE_STEP) * sway.amplitude;
+      platform.swayOffset = offset;
+      platform.group.position.x = platform.platformX + offset;
     }
   }
 

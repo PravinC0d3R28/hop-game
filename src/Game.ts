@@ -364,6 +364,7 @@ export class Game {
       st.isFailed
     );
     this.platforms.updateGems(delta, Date.now());
+    this.platforms.updateSway(Date.now());
     this.background.update(this.renderer.camera.position.z);
     MaterialFactory.updateLightDirection(this.renderer.directional);
   }

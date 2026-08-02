@@ -13,6 +13,8 @@ export interface RampOverrides {
 export interface SwayParams {
   amplitude: number;
   speed: number;
+  /** 0..1 — fraction of platforms that sway; the rest stay static (deterministic cadence). */
+  ratio: number;
 }
 
 export interface WorldConfig {
@@ -47,7 +49,7 @@ export const WORLDS: WorldConfig[] = [
       jumpDurationMin: 0.35,
       sizeRamp: 0.00012
     },
-    sway: { amplitude: 0, speed: 0 }
+    sway: { amplitude: 0, speed: 0, ratio: 0 }
   },
   {
     id: 'dusk',
@@ -64,7 +66,7 @@ export const WORLDS: WorldConfig[] = [
       jumpDurationMin: 0.33,
       sizeRamp: 0.00012
     },
-    sway: { amplitude: 0.6, speed: 1.6 }
+    sway: { amplitude: 0.6, speed: 1.6, ratio: 0.66 }
   },
   {
     id: 'void',
@@ -81,6 +83,6 @@ export const WORLDS: WorldConfig[] = [
       jumpDurationMin: 0.31,
       sizeRamp: 0.00012
     },
-    sway: { amplitude: 0.9, speed: 2.4 }
+    sway: { amplitude: 0.9, speed: 2.4, ratio: 0.75 }
   }
 ];

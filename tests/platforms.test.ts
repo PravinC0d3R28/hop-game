@@ -95,3 +95,101 @@ describe('platform z stays forward across sawtooth gates', () => {
     expect(platforms.getNextZ()).toBeGreaterThan(newFront);
   });
 });
+
+describe('per-world sway (updateSway)', () => {
+  it('sunrise (amp 0) stays perfectly still at any time — parity', () => {
+    const { platforms } = setup();
+    for (const now of [0, 5000, 123456]) {
+      platforms.updateSway(now);
+      for (const p of platforms.getPlatforms()) {
+        expect(p.swayOffset).toBe(0);
+        expect(p.group.position.x).toBeCloseTo(p.platformX, 10);
+      }
+    }
+  });
+
+  it('locked dusk: score past the gate but world locked still yields no sway', () => {
+    const { state, platforms } = setup();
+    state.setScore(150);
+    expect(state.getActiveWorld().id).toBe('sunrise');
+    platforms.updateSway(5000);
+    for (const p of platforms.getPlatforms()) {
+      expect(p.swayOffset).toBe(0);
+      expect(p.group.position.x).toBeCloseTo(p.platformX, 10);
+    }
+  });
+
+  it('dusk: offset = sin(t*speed + i*1.7) * 0.6, every 3rd platform stays static', () => {
+    const { state, platforms } = setup();
+    state.setUnlockAllWorlds(true);
+    state.setScore(100);
+    const now = 1234;
+    platforms.updateSway(now);
+    expect(state.getActiveWorld().id).toBe('dusk');
+    for (const p of platforms.getPlatforms()) {
+      if (p.index % 3 === 0) {
+        expect(p.swayOffset).toBe(0);
+        expect(p.group.position.x).toBeCloseTo(p.platformX, 10);
+        continue;
+      }
+      const expected = Math.sin(now * 0.001 * 1.6 + p.index * 1.7) * 0.6;
+      expect(p.swayOffset).toBeCloseTo(expected, 10);
+      expect(p.group.position.x).toBeCloseTo(p.platformX + expected, 10);
+      expect(Math.abs(p.swayOffset)).toBeLessThanOrEqual(0.6);
+    }
+  });
+
+  it('sway ratio cadence: the static subset exactly matches 1/N of the pool', () => {
+    const { state, platforms } = setup();
+    state.setUnlockAllWorlds(true);
+    state.setScore(100);
+    expect(state.getActiveWorld().sway.ratio).toBe(0.66);
+    platforms.updateSway(0);
+    const pool = platforms.getPlatforms();
+    const staticCount = pool.filter((p) => p.swayOffset === 0).length;
+    const swayCount = pool.length - staticCount;
+    expect(staticCount).toBe(2); // indices 0 and 3 (1 in 3)
+    expect(swayCount).toBe(4);
+    const sways = pool.filter((p) => p.swayOffset !== 0);
+    for (const p of sways) expect(p.index % 3).not.toBe(0);
+  });
+
+  it('void cadence leaves fewer static platforms (1 in 4)', () => {
+    const { state, platforms } = setup();
+    state.setUnlockAllWorlds(true);
+    state.setScore(250);
+    expect(state.getActiveWorld().sway.ratio).toBe(0.75);
+    platforms.updateSway(0);
+    const staticCount = platforms.getPlatforms().filter((p) => p.swayOffset === 0).length;
+    expect(staticCount).toBeLessThanOrEqual(2); // indices 0 (and 4 if in pool) stay static
+  });
+
+  it('void widens the sway envelope beyond dusk', () => {
+    const { state, platforms } = setup();
+    state.setUnlockAllWorlds(true);
+    state.setScore(250);
+    expect(state.getActiveWorld().id).toBe('void');
+    platforms.updateSway(0);
+    const sways = platforms.getPlatforms().filter((p) => p.swayOffset !== 0);
+    expect(sways.length).toBeGreaterThan(0);
+    const maxAmp = Math.max(...sways.map((p) => Math.abs(p.swayOffset)));
+    expect(maxAmp).toBeGreaterThan(0.6);
+    for (const p of sways) {
+      expect(Math.abs(p.swayOffset)).toBeLessThanOrEqual(0.9);
+    }
+  });
+
+  it('crossing the gate flips previously-still platforms into sway', () => {
+    const { state, platforms } = setup();
+    state.setUnlockAllWorlds(true);
+    state.setScore(99);
+    platforms.updateSway(0);
+    for (const p of platforms.getPlatforms()) expect(p.swayOffset).toBe(0);
+
+    state.setScore(100);
+    platforms.updateSway(0);
+    const p1 = platforms.getPlatforms().find((p) => p.index === 1)!;
+    expect(Math.abs(p1.swayOffset)).toBeGreaterThan(0.5);
+    expect(p1.group.position.x).toBeCloseTo(p1.platformX + p1.swayOffset, 10);
+  });
+});
