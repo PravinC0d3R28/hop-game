@@ -1,6 +1,9 @@
 import { GAME_CONFIG } from '../config/GameConfig';
 import type { GameState, PlayerData } from './Types';
 import type { ThemeName } from '../config/Themes';
+import { getTierScore, getWorldForScore } from './WorldLogic';
+import { WORLDS } from '../config/Worlds';
+import type { WorldConfig, WorldId } from '../config/Worlds';
 
 export const DEFAULT_PLAYER_DATA: PlayerData = {
   totalCoins: 0,
@@ -33,6 +36,9 @@ export class GameStateManager {
     ...DEFAULT_PLAYER_DATA,
     purchasedSkins: [...DEFAULT_PLAYER_DATA.purchasedSkins]
   };
+  private worldOverride: WorldId | null = null;
+  private unlockAllWorlds = false;
+  private totalScore = 0;
 
   // ---- state ----
   getState(): Readonly<GameState> {
@@ -55,34 +61,61 @@ export class GameStateManager {
     this.playerData = sanitizePlayerData(data);
   }
 
-  // ---- difficulty curves (verified formulas) ----
+  // ---- world ----
+  setWorldOverride(id: WorldId | null): void {
+    this.worldOverride = id;
+  }
+
+  setUnlockAllWorlds(enabled: boolean): void {
+    this.unlockAllWorlds = enabled;
+  }
+
+  /** Cumulative lifetime score for unlock checks (wired from persistence). */
+  setTotalScore(total: number): void {
+    this.totalScore = total;
+  }
+
+  getActiveWorld(): WorldConfig {
+    if (this.worldOverride) {
+      const override = WORLDS.find((w) => w.id === this.worldOverride);
+      if (override) return override;
+    }
+    const unlockScore = this.unlockAllWorlds ? Number.POSITIVE_INFINITY : this.totalScore;
+    return getWorldForScore(this.state.score, unlockScore);
+  }
+
+  // ---- difficulty curves (world ramps over tier score) ----
   getJumpDuration(): number {
+    const world = this.getActiveWorld();
     return Math.max(
-      GAME_CONFIG.JUMP_DURATION_MIN,
-      GAME_CONFIG.JUMP_DURATION_BASE - this.state.score * GAME_CONFIG.JUMP_DURATION_RAMP
+      world.ramps.jumpDurationMin,
+      GAME_CONFIG.JUMP_DURATION_BASE - getTierScore(this.state.score, world) * world.ramps.jumpDurationRamp
     );
   }
 
   getPlatformSpacing(): number {
+    const world = this.getActiveWorld();
     return Math.min(
-      GAME_CONFIG.PLATFORM_SPACING_Z_MAX,
-      GAME_CONFIG.PLATFORM_SPACING_Z + this.state.score * GAME_CONFIG.PLATFORM_SPACING_Z_RAMP
+      world.ramps.spacingMax,
+      GAME_CONFIG.PLATFORM_SPACING_Z + getTierScore(this.state.score, world) * world.ramps.spacingRamp
     );
   }
 
   getXRange(): number {
+    const world = this.getActiveWorld();
     return Math.min(
-      GAME_CONFIG.PLATFORM_X_RANGE_MAX,
-      GAME_CONFIG.PLATFORM_X_RANGE + this.state.score * GAME_CONFIG.PLATFORM_X_RANGE_RAMP
+      world.ramps.xRangeMax,
+      GAME_CONFIG.PLATFORM_X_RANGE + getTierScore(this.state.score, world) * world.ramps.xRangeRamp
     );
   }
 
   getPlatformScale(): number {
+    const world = this.getActiveWorld();
     return (
       1 -
       Math.min(
         1 - GAME_CONFIG.PLATFORM_SIZE_MIN,
-        this.state.score * GAME_CONFIG.PLATFORM_SIZE_RAMP
+        getTierScore(this.state.score, world) * world.ramps.sizeRamp
       )
     );
   }

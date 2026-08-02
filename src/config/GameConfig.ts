@@ -1,3 +1,5 @@
+import type { WorldId } from './Worlds';
+
 export interface Skin {
   id: string;
   name: string;
@@ -73,6 +75,8 @@ export interface GameConfig {
     invincible: boolean;
     unlockAllSkins: boolean;
     infiniteCoins: boolean;
+    unlockAllWorlds: boolean;
+    forceWorld: WorldId | null;
   };
 }
 
@@ -160,6 +164,8 @@ export const GAME_CONFIG: GameConfig = {
     showFPS: false,
     invincible: false,
     unlockAllSkins: false,
-    infiniteCoins: false
+    infiniteCoins: false,
+    unlockAllWorlds: false,
+    forceWorld: null
   }
 };

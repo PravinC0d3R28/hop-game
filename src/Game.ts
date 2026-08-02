@@ -39,6 +39,8 @@ export class Game {
   constructor(container: HTMLElement) {
     this.gameContainer = container;
     this.state = new GameStateManager();
+    this.state.setUnlockAllWorlds(GAME_CONFIG.DEBUG.unlockAllWorlds);
+    this.state.setWorldOverride(GAME_CONFIG.DEBUG.forceWorld);
     this.persistence = new PersistenceManager();
     MaterialFactory.init();
 
