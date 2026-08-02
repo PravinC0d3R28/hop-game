@@ -232,7 +232,7 @@ export class Game {
     const target = this.platforms.getPlatformByIndex(t);
     const y = GAME_CONFIG.PLATFORM_HEIGHT / 2 + GAME_CONFIG.BALL_RADIUS;
     const startZ = current ? current.z : r * GAME_CONFIG.PLATFORM_SPACING_Z;
-    const endZ = target ? target.z : t * this.state.getPlatformSpacing();
+    const endZ = target ? target.z : this.platforms.getNextZ();
 
     this.ball.performJump(
       { startZ, endZ, startY: y, endY: y, bounceHeight: bounce, duration },

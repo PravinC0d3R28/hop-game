@@ -12,12 +12,14 @@ import { gsap } from 'gsap';
 export class PlatformManager {
   private platforms: PlatformData[] = [];
   private lastIndex: number;
+  private lastZ: number;
 
   constructor(
     private scene: Scene,
     private state: GameStateManager
   ) {
     this.lastIndex = GAME_CONFIG.VISIBLE_STEPS - 1;
+    this.lastZ = this.lastIndex * GAME_CONFIG.PLATFORM_SPACING_Z;
   }
 
   getPlatforms(): PlatformData[] {
@@ -26,6 +28,14 @@ export class PlatformManager {
 
   getPlatformByIndex(index: number): PlatformData | undefined {
     return this.platforms.find((p) => p.index === index);
+  }
+
+  /**
+   * Frontmost platform z + current spacing. Always strictly ahead of every
+   * existing platform, regardless of spacing changes (sawtooth gates).
+   */
+  getNextZ(): number {
+    return this.lastZ + this.state.getPlatformSpacing();
   }
 
   private randomPlatformX(index: number): number {
@@ -38,6 +48,7 @@ export class PlatformManager {
   initializePlatforms(): void {
     this.platforms = [];
     this.lastIndex = GAME_CONFIG.VISIBLE_STEPS - 1;
+    this.lastZ = this.lastIndex * GAME_CONFIG.PLATFORM_SPACING_Z;
     for (let i = 0; i < GAME_CONFIG.VISIBLE_STEPS; i++) {
       const z = i * GAME_CONFIG.PLATFORM_SPACING_Z;
       const x = this.randomPlatformX(i);
@@ -58,8 +69,9 @@ export class PlatformManager {
     for (const platform of this.platforms) {
       if (platform.index < currentStep - 3) {
         this.lastIndex++;
+        this.lastZ += this.state.getPlatformSpacing();
         const newIndex = this.lastIndex;
-        const z = newIndex * this.state.getPlatformSpacing();
+        const z = this.lastZ;
         const x = this.randomPlatformX(newIndex);
         const scale = this.state.getPlatformScale();
         PlatformEntity.recycle(platform, newIndex, x, z, scale, this.scene);
@@ -85,6 +97,7 @@ export class PlatformManager {
   /** Reset for a new run (original `Vy` platform block). */
   reset(): void {
     this.lastIndex = GAME_CONFIG.VISIBLE_STEPS - 1;
+    this.lastZ = this.lastIndex * GAME_CONFIG.PLATFORM_SPACING_Z;
     for (let i = 0; i < this.platforms.length; i++) {
       const platform = this.platforms[i];
       PlatformEntity.clearGems(platform);
