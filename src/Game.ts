@@ -208,6 +208,8 @@ export class Game {
     gsap.to(this.ball.group.scale, { x: 0.5, y: 0.5, z: 0.5, duration: 0.6 });
 
     const isNewBest = this.state.updateBestScore(st.score);
+    this.state.updateBestPerWorld(st.score);
+    this.state.bankTotalScore();
     void this.persistence.save(this.state.getMutablePlayerData());
 
     setTimeout(() => {

@@ -6,6 +6,8 @@ export interface PlayerData {
   purchasedSkins: string[];
   selectedSkin: string;
   theme: ThemeName;
+  totalScore: number;
+  bestPerWorld: number[];
 }
 
 export interface GameState {

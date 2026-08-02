@@ -10,7 +10,9 @@ export const DEFAULT_PLAYER_DATA: PlayerData = {
   bestScore: 0,
   purchasedSkins: ['default'],
   selectedSkin: 'default',
-  theme: 'light'
+  theme: 'light',
+  totalScore: 0,
+  bestPerWorld: [0, 0, 0]
 };
 
 export const DEFAULT_STATE: GameState = {
@@ -59,6 +61,7 @@ export class GameStateManager {
 
   loadPlayerData(data: PlayerData): void {
     this.playerData = sanitizePlayerData(data);
+    this.setTotalScore(this.playerData.totalScore);
   }
 
   // ---- world ----
@@ -202,6 +205,27 @@ export class GameStateManager {
     }
     return false;
   }
+
+  /** Index of the active world (for per-world bests). */
+  getActiveWorldIndex(): number {
+    return Math.max(0, WORLDS.indexOf(this.getActiveWorld()));
+  }
+
+  updateBestPerWorld(score: number): boolean {
+    const index = this.getActiveWorldIndex();
+    if (score > this.playerData.bestPerWorld[index]) {
+      this.playerData.bestPerWorld[index] = score;
+      return true;
+    }
+    return false;
+  }
+
+  /** Add the current run's final score to the lifetime ledger exactly once per call. */
+  bankTotalScore(): number {
+    this.playerData.totalScore += this.state.score;
+    this.setTotalScore(this.playerData.totalScore);
+    return this.playerData.totalScore;
+  }
 }
 
 /**
@@ -220,15 +244,31 @@ export function sanitizePlayerData(raw: Partial<PlayerData> | null | undefined):
     raw?.theme === 'dark' || raw?.theme === 'light' ? raw.theme : 'light';
 
   return {
-    totalCoins: typeof raw?.totalCoins === 'number' ? raw.totalCoins : 0,
-    bestScore: typeof raw?.bestScore === 'number' ? raw.bestScore : 0,
+    totalCoins: typeof raw?.totalCoins === 'number' && raw.totalCoins >= 0 ? raw.totalCoins : 0,
+    bestScore: typeof raw?.bestScore === 'number' && raw.bestScore >= 0 ? raw.bestScore : 0,
     purchasedSkins: purchased,
     selectedSkin:
       typeof raw?.selectedSkin === 'string' && purchased.includes(raw.selectedSkin)
         ? raw.selectedSkin
         : 'default',
-    theme
+    theme,
+    totalScore: typeof raw?.totalScore === 'number' && raw.totalScore >= 0 ? raw.totalScore : 0,
+    bestPerWorld: sanitizeBestPerWorld(raw?.bestPerWorld)
   };
+}
+
+/**
+ * Per-world bests as a fixed length-3 array of non-negative numbers.
+ * Legacy saves (no field) default to zeros; corrupt shapes are reset.
+ */
+function sanitizeBestPerWorld(raw: unknown, size: number = WORLDS.length): number[] {
+  if (!Array.isArray(raw)) return Array(size).fill(0);
+  const out: number[] = [];
+  for (let i = 0; i < size; i++) {
+    const v = raw[i];
+    out.push(typeof v === 'number' && v >= 0 ? v : 0);
+  }
+  return out;
 }
 
 /**
@@ -246,6 +286,10 @@ export function mergePlayerData(base: PlayerData, incoming: PlayerData): PlayerD
     bestScore: Math.max(base.bestScore, incoming.bestScore),
     purchasedSkins: purchased,
     selectedSkin: purchased.includes(incoming.selectedSkin) ? incoming.selectedSkin : base.selectedSkin,
-    theme: incoming.theme
+    theme: incoming.theme,
+    totalScore: Math.max(base.totalScore, incoming.totalScore),
+    bestPerWorld: WORLDS.map((_, i) =>
+      Math.max(base.bestPerWorld[i] ?? 0, incoming.bestPerWorld[i] ?? 0)
+    )
   };
 }

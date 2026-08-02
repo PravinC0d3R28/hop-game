@@ -43,6 +43,37 @@ describe('sanitizePlayerData (mirrors original QM)', () => {
     expect(out.totalCoins).toBe(0);
     expect(out.bestScore).toBe(0);
   });
+
+  it('defaults the new progression fields for legacy saves', () => {
+    const out = sanitizePlayerData({
+      totalCoins: 7,
+      bestScore: 50,
+      purchasedSkins: ['default'],
+      selectedSkin: 'default',
+      theme: 'light'
+    } as never);
+    expect(out.totalScore).toBe(0);
+    expect(out.bestPerWorld).toEqual([0, 0, 0]);
+  });
+
+  it('coerces totalScore', () => {
+    expect(sanitizePlayerData({ totalScore: 999 } as never).totalScore).toBe(999);
+    expect(sanitizePlayerData({ totalScore: -5 } as never).totalScore).toBe(0);
+    expect(sanitizePlayerData({ totalScore: 'abc' } as never).totalScore).toBe(0);
+  });
+
+  it('sanitizes bestPerWorld to three non-negative numbers', () => {
+    expect(sanitizePlayerData({ bestPerWorld: [10, 40, 90] } as never).bestPerWorld).toEqual([
+      10, 40, 90
+    ]);
+    expect(sanitizePlayerData({ bestPerWorld: ['x', -1, 5] } as never).bestPerWorld).toEqual([
+      0, 0, 5
+    ]);
+    expect(sanitizePlayerData({ bestPerWorld: [1, 2] } as never).bestPerWorld).toEqual([1, 2, 0]);
+    expect(sanitizePlayerData({ bestPerWorld: [1, 2, 3, 4] } as never).bestPerWorld).toEqual([
+      1, 2, 3
+    ]);
+  });
 });
 
 describe('mergePlayerData (mirrors original cloud-merge)', () => {
@@ -65,6 +96,20 @@ describe('mergePlayerData (mirrors original cloud-merge)', () => {
     const base = { ...DEFAULT_PLAYER_DATA, theme: 'light' as const };
     const incoming = { ...DEFAULT_PLAYER_DATA, theme: 'dark' as const };
     expect(mergePlayerData(base, incoming).theme).toBe('dark');
+  });
+
+  it('takes max totalScore, never sums', () => {
+    const base = { ...DEFAULT_PLAYER_DATA, totalScore: 10 };
+    const incoming = { ...DEFAULT_PLAYER_DATA, totalScore: 25 };
+    expect(mergePlayerData(base, incoming).totalScore).toBe(25);
+    const other = { ...DEFAULT_PLAYER_DATA, totalScore: 60 };
+    expect(mergePlayerData(other, base).totalScore).toBe(60);
+  });
+
+  it('merges bestPerWorld element-wise by max', () => {
+    const base = { ...DEFAULT_PLAYER_DATA, bestPerWorld: [100, 40, 70] };
+    const incoming = { ...DEFAULT_PLAYER_DATA, bestPerWorld: [50, 80, 10] };
+    expect(mergePlayerData(base, incoming).bestPerWorld).toEqual([100, 80, 70]);
   });
 });
 
