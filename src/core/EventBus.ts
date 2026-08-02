@@ -1,0 +1,53 @@
+type Handler<T extends unknown[]> = (...args: T) => void;
+
+/**
+ * Minimal typed pub/sub used for cross-system communication.
+ * Events map to payload tuples; subscription returns an unsubscribe fn.
+ */
+export class EventBus {
+  private listeners = new Map<string, Set<Handler<unknown[]>>>();
+
+  on<T extends unknown[]>(event: string, handler: Handler<T>): () => void {
+    let set = this.listeners.get(event);
+    if (!set) {
+      set = new Set();
+      this.listeners.set(event, set);
+    }
+    set.add(handler as Handler<unknown[]>);
+    return () => this.off(event, handler as Handler<unknown[]>);
+  }
+
+  off<T extends unknown[]>(event: string, handler: Handler<T>): void {
+    this.listeners.get(event)?.delete(handler as Handler<unknown[]>);
+  }
+
+  emit<T extends unknown[]>(event: string, ...args: T): void {
+    const set = this.listeners.get(event);
+    if (!set) return;
+    for (const handler of [...set]) {
+      (handler as Handler<T>)(...args);
+    }
+  }
+
+  clear(): void {
+    this.listeners.clear();
+  }
+}
+
+export const GAME_EVENTS = {
+  SCORE_CHANGED: 'score-changed',
+  COIN_CHANGED: 'coin-changed',
+  BEST_SCORE_CHANGED: 'best-score-changed',
+  THEME_CHANGED: 'theme-changed',
+  SKIN_CHANGED: 'skin-changed',
+  GEM_COLLECTED: 'gem-collected',
+  PERFECT_HIT: 'perfect-hit',
+  GAME_OVER: 'game-over',
+  GAME_START: 'game-start',
+  GAME_RESET: 'game-reset',
+  DATA_SAVED: 'data-saved',
+  AUDIO_JUMP: 'audio-jump',
+  AUDIO_PERFECT: 'audio-perfect',
+  AUDIO_GEM: 'audio-gem',
+  AUDIO_GAMEOVER: 'audio-gameover'
+} as const;

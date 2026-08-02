@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>HOP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Fredoka', sans-serif; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #2a2a2a; }
+    body.game-paused * { pointer-events: none !important; }
+
+    #layout {
+      display: flex;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Game container */
+    #game-container {
+      position: relative;
+      flex: 1;
+      height: 100%;
+      background: #2a2a2a;
+      overflow: hidden;
+    }
+    #game-container canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+
+    #ui-overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      font-family: 'Arial Black', 'Impact', sans-serif;
+    }
+    #score {
+      position: absolute;
+      top: clamp(12px, 4vh, 40px);
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: clamp(36px, 10vmin, 72px);
+      font-weight: 900;
+      color: #fff;
+      text-shadow:
+        -2px -2px 0 #111,
+        2px -2px 0 #111,
+        -2px 2px 0 #111,
+        2px 2px 0 #111,
+        3px 3px 0 #111,
+        0 0 12px rgba(0,0,0,0.15);
+      line-height: 1.2;
+      user-select: none;
+      letter-spacing: 2px;
+      transform-origin: center center;
+      display: none;
+    }
+    #start-screen {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding-top: clamp(16px, 4vh, 40px);
+      pointer-events: auto;
+    }
+    #start-screen h1 {
+      font-size: clamp(32px, 8vmin, 56px);
+      color: #fff;
+      text-shadow:
+        -2px -2px 0 #111,
+        2px -2px 0 #111,
+        -2px 2px 0 #111,
+        2px 2px 0 #111,
+        4px 4px 0 #111;
+      line-height: 1.2;
+      margin-bottom: 6px;
+      letter-spacing: 3px;
+    }
+    #best-score {
+      font-size: clamp(14px, 3vmin, 22px);
+      font-weight: 900;
+      color: #111;
+      margin-bottom: clamp(8px, 2vh, 22px);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      opacity: 0.7;
+    }
+    #best-score .crown { font-size: 0.9em; }
+    #theme-btn {
+      margin-top: clamp(4px, 1vh, 8px);
+      width: clamp(40px, 8vmin, 56px);
+      height: clamp(40px, 8vmin, 56px);
+      padding: 0;
+      background: #8838c8;
+      border: clamp(3px, 0.6vmin, 4px) solid #111;
+      border-radius: 50%;
+      cursor: pointer;
+      pointer-events: auto;
+      box-shadow: 3px 3px 0 #111;
+      transition: transform 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #theme-btn:hover { transform: translateY(-2px); box-shadow: 4px 4px 0 #111; }
+    #theme-btn:active { transform: translateY(1px); box-shadow: 2px 2px 0 #111; }
+    .theme-icon { font-size: clamp(18px, 4vmin, 28px); line-height: 1; }
+    #start-screen p {
+      font-size: clamp(16px, 3.5vmin, 24px);
+      color: #333;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* Drag hint */
+    .finger-hint {
+      margin-top: clamp(8px, 2vh, 18px);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      width: clamp(140px, 28vmin, 220px);
+      height: clamp(50px, 10vmin, 80px);
+      pointer-events: none;
+    }
+    .finger-hint-icon {
+      width: clamp(36px, 8vmin, 56px);
+      height: clamp(36px, 8vmin, 56px);
+      position: absolute;
+      animation: dragHint 2s ease-in-out infinite;
+      filter: drop-shadow(2px 2px 0 rgba(0,0,0,0.3));
+    }
+    .finger-hint-line {
+      width: 80%;
+      height: clamp(4px, 0.8vmin, 6px);
+      background: #111;
+      border-radius: 3px;
+      opacity: 0.35;
+    }
+    @keyframes dragHint {
+      0%, 100% { left: 5%; opacity: 0.6; }
+      50% { left: 60%; opacity: 1; }
+    }
+    .burst {
+      position: absolute;
+      font-size: clamp(20px, 4vmin, 32px);
+      font-weight: 900;
+      color: #111;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .perfect-burst {
+      color: #FFD700 !important;
+      filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.6));
+    }
+    .burst-bg {
+      position: absolute;
+      width: 60px; height: 60px;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: -1;
+    }
+
+    /* Coin counter - top right */
+    #coin-counter {
+      position: absolute;
+      top: clamp(12px, 4vh, 40px);
+      right: clamp(12px, 3vw, 30px);
+      display: none;
+      align-items: center;
+      gap: 4px;
+      font-size: clamp(20px, 5vmin, 36px);
+      font-weight: 900;
+      color: #FFD700;
+      text-shadow:
+        -1px -1px 0 #111,
+        1px -1px 0 #111,
+        -1px 1px 0 #111,
+        1px 1px 0 #111,
+        2px 2px 0 #111;
+      line-height: 1.2;
+      user-select: none;
+    }
+    .coin-icon {
+      display: inline-block;
+      width: 0.9em;
+      height: 0.9em;
+      vertical-align: middle;
+      position: relative;
+    }
+    .coin-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    /* Middle group: hint + shop centered vertically */
+    .start-middle {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Shop button on menu — ball icon, bottom center */
+    #shop-btn {
+      position: absolute !important;
+      left: 50% !important;
+      bottom: clamp(20px, 4vh, 40px);
+      transform: translateX(-50%) !important;
+      width: clamp(64px, 12vmin, 100px);
+      height: clamp(64px, 12vmin, 100px);
+      padding: 0;
+      background: #8838c8;
+      border: clamp(4px, 1vmin, 6px) solid #111;
+      border-radius: 50%;
+      cursor: pointer;
+      pointer-events: auto;
+      box-shadow: 5px 5px 0 #111;
+      transition: box-shadow 0.1s, margin-top 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 0 !important;
+    }
+    #shop-btn:hover {
+      box-shadow: 7px 7px 0 #111;
+    }
+    #shop-btn:active {
+      box-shadow: 3px 3px 0 #111;
+    }
+    .shop-coin {
+      width: clamp(32px, 6vmin, 52px);
+      height: clamp(32px, 6vmin, 52px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .shop-coin img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    /* Game Over screen */
+    #gameover-screen {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding-top: clamp(16px, 4vh, 40px);
+      pointer-events: auto;
+      z-index: 50;
+      background: rgba(0, 0, 0, 0.5);
+    }
+    #gameover-screen h1 {
+      font-size: clamp(36px, 9vmin, 64px);
+      color: #fff;
+      text-shadow:
+        -2px -2px 0 #111,
+        2px -2px 0 #111,
+        -2px 2px 0 #111,
+        2px 2px 0 #111,
+        4px 4px 0 #111;
+      line-height: 1.2;
+      letter-spacing: 3px;
+      margin-bottom: clamp(4px, 1vh, 12px);
+    }
+    #go-score-label {
+      font-size: clamp(12px, 2.5vmin, 18px);
+      font-weight: 900;
+      color: #ddd;
+      opacity: 0.7;
+      letter-spacing: 4px;
+      margin-bottom: 2px;
+    }
+    #go-score {
+      font-size: clamp(48px, 14vmin, 100px);
+      font-weight: 900;
+      color: #fff;
+      text-shadow:
+        -2px -2px 0 #111,
+        2px -2px 0 #111,
+        -2px 2px 0 #111,
+        2px 2px 0 #111,
+        4px 4px 0 #111;
+      line-height: 1.2;
+      margin-bottom: clamp(4px, 1vh, 10px);
+    }
+    #go-best-score {
+      font-size: clamp(14px, 3vmin, 22px);
+      font-weight: 900;
+      color: #fff;
+      opacity: 0.7;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: clamp(6px, 1.5vh, 14px);
+    }
+    #go-best-score .crown { font-size: 0.9em; }
+    #go-new-best {
+      font-size: clamp(18px, 4vmin, 28px);
+      font-weight: 900;
+      color: #FFD700;
+      text-shadow:
+        -1px -1px 0 #111,
+        1px -1px 0 #111,
+        -1px 1px 0 #111,
+        1px 1px 0 #111,
+        2px 2px 0 #111;
+      line-height: 1.2;
+      margin-bottom: clamp(6px, 1.5vh, 14px);
+      animation: newBestPulse 0.6s ease-in-out infinite alternate;
+    }
+    @keyframes newBestPulse {
+      0% { transform: scale(1); }
+      100% { transform: scale(1.08); }
+    }
+    #go-coins-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: clamp(22px, 5vmin, 36px);
+      font-weight: 900;
+      color: #FFD700;
+      text-shadow:
+        -1px -1px 0 #111,
+        1px -1px 0 #111,
+        -1px 1px 0 #111,
+        1px 1px 0 #111,
+        2px 2px 0 #111;
+      line-height: 1.2;
+      margin-bottom: clamp(4px, 1vh, 8px);
+    }
+    #go-total-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: clamp(14px, 3vmin, 20px);
+      font-weight: 900;
+      color: #fff;
+      opacity: 0.6;
+      margin-bottom: clamp(12px, 3vh, 24px);
+    }
+    #go-total-row .coin-icon {
+      width: 0.9em;
+      height: 0.9em;
+      -webkit-text-stroke: 0;
+    }
+    /* Continue button — bottom of game over */
+    .go-bottom {
+      margin-top: auto;
+      margin-bottom: clamp(40px, 10vh, 80px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    #go-continue-btn {
+      width: clamp(128px, 24vmin, 200px);
+      height: clamp(128px, 24vmin, 200px);
+      padding: 0;
+      background: #8838c8;
+      border: clamp(6px, 1.5vmin, 10px) solid #111;
+      border-radius: 50%;
+      cursor: pointer;
+      pointer-events: auto;
+      box-shadow: 5px 5px 0 #111;
+      transition: transform 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #go-continue-btn:hover { transform: translateY(-2px); box-shadow: 7px 7px 0 #111; }
+    #go-continue-btn:active { transform: translateY(1px); box-shadow: 3px 3px 0 #111; }
+    .go-arrow {
+      font-size: clamp(56px, 12vmin, 88px);
+      font-weight: 900;
+      color: #fff;
+      line-height: 1;
+      margin-left: 4px;
+    }
+    #confetti-container {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: -1;
+    }
+    .confetti-piece {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      top: -10px;
+      border-radius: 2px;
+      pointer-events: none;
+    }
+
+    /* Shop overlay */
+    #shop-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: none;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      pointer-events: auto;
+      z-index: 10000;
+    }
+    .shop-container {
+      background: #f5f5f5;
+      border: 5px solid #111;
+      border-radius: 14px;
+      width: 90%;
+      max-width: 420px;
+      max-height: 75vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 6px 6px 0 rgba(0,0,0,0.35);
+    }
+    .shop-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: clamp(10px, 2vmin, 16px) clamp(12px, 2.5vmin, 20px);
+      border-bottom: 4px solid #111;
+    }
+    .shop-header h2 {
+      font-family: 'Arial Black', 'Impact', sans-serif;
+      font-size: clamp(20px, 4vmin, 28px);
+      color: #111;
+      margin: 0;
+    }
+    .shop-close {
+      font-size: clamp(22px, 4vmin, 28px);
+      font-weight: 900;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #111;
+      line-height: 1;
+      padding: 4px 8px;
+    }
+    .shop-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: clamp(8px, 2vmin, 16px);
+    }
+    .shop-item {
+      display: flex;
+      align-items: center;
+      gap: clamp(8px, 1.5vmin, 14px);
+      padding: clamp(8px, 1.5vmin, 14px);
+      margin-bottom: 8px;
+      background: #fff;
+      border: 3px solid #111;
+      border-radius: 10px;
+    }
+    .shop-item.selected {
+      background: #d4f4dd;
+      border-color: #28a858;
+    }
+    .shop-item-preview {
+      width: clamp(36px, 6vmin, 52px);
+      height: clamp(36px, 6vmin, 52px);
+      border-radius: 50%;
+      border: 3px solid #111;
+      flex-shrink: 0;
+    }
+    .shop-item-info {
+      flex: 1;
+    }
+    .shop-item-name {
+      font-family: 'Arial Black', sans-serif;
+      font-size: clamp(14px, 2.5vmin, 18px);
+      font-weight: 900;
+      color: #111;
+    }
+    .shop-item-status {
+      font-size: clamp(11px, 1.8vmin, 13px);
+      color: #888;
+      margin-top: 2px;
+    }
+    .shop-item-btn {
+      padding: clamp(6px, 1vmin, 8px) clamp(10px, 2vmin, 16px);
+      font-family: 'Arial Black', sans-serif;
+      font-size: clamp(11px, 2vmin, 14px);
+      font-weight: 900;
+      color: #fff;
+      background: #8838c8;
+      border: 3px solid #111;
+      border-radius: 8px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .shop-item-btn:disabled {
+      background: #bbb;
+      color: #777;
+      cursor: not-allowed;
+    }
+    .shop-item-btn.equipped {
+      background: #28a858;
+    }
+    .shop-footer {
+      padding: clamp(8px, 1.5vmin, 12px) clamp(12px, 2.5vmin, 20px);
+      border-top: 4px solid #111;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      font-family: 'Arial Black', sans-serif;
+      font-size: clamp(18px, 3.5vmin, 24px);
+      font-weight: 900;
+      color: #FFD700;
+      text-shadow:
+        -1px -1px 0 #111,
+        1px -1px 0 #111,
+        -1px 1px 0 #111,
+        1px 1px 0 #111;
+      line-height: 1.2;
+    }
+
+    /* Splash screen */
+    #splash-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      transition: opacity 0.5s;
+    }
+    #splash-screen.fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+    #splash-screen img {
+      max-width: 80%;
+      max-height: 80%;
+      object-fit: contain;
+    }
+
+  </style>
+</head>
+<body>
+  <div id="splash-screen">
+    <img src="splash.png" alt="HOP">
+  </div>
+  <div id="layout">
+    <div id="game-container">
+      <div id="ui-overlay">
+        <div id="score">0</div>
+        <div id="coin-counter"><span class="coin-icon"><img src="Coin.png" alt="coin"></span><span id="coin-amount">0</span></div>
+        <div id="start-screen">
+          <img src="Logo.png" alt="HOP" style="width: clamp(144px, 36vmin, 288px); height: auto; margin-bottom: 8px;">
+          <div id="best-score"><span class="crown">&#x1F451;</span> <span id="best-score-val">0</span></div>
+          <button id="theme-btn" title="Toggle light/dark mode"><span class="theme-icon" id="theme-icon">&#x2600;</span></button>
+          <div class="start-middle">
+            <div class="finger-hint">
+              <div class="finger-hint-line"></div>
+              <img class="finger-hint-icon" src="indicator.png" alt="tap">
+            </div>
+          </div>
+          <button id="shop-btn"><span class="shop-coin"><img src="cart.png" alt="shop"></span></button>
+        </div>
+        <div id="gameover-screen">
+          <h1>GAME OVER</h1>
+          <div id="go-score-label">SCORE</div>
+          <div id="go-score">0</div>
+          <div id="go-best-score"><span class="crown">&#x1F451;</span> <span id="go-best-val">0</span></div>
+          <div id="go-new-best" style="display:none">&#x1F451; NEW BEST!</div>
+          <div id="go-coins-row">
+            <span class="coin-icon"><img src="Coin.png" alt="coin"></span>
+            <span id="go-round-coins">+0</span>
+          </div>
+          <div id="go-total-row">
+            TOTAL <span class="coin-icon"><img src="Coin.png" alt="coin"></span>
+            <span id="go-total-coins">0</span>
+          </div>
+          <div class="go-bottom">
+            <button id="go-continue-btn"><span class="go-arrow">→</span></button>
+          </div>
+          <div id="confetti-container"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="shop-overlay">
+    <div class="shop-container">
+      <div class="shop-header">
+        <h2>BALL SHOP</h2>
+        <button class="shop-close" id="shop-close">&#x2715;</button>
+      </div>
+      <div id="shop-scroll" class="shop-scroll"></div>
+      <div class="shop-footer">
+        <span class="coin-icon"><img src="Coin.png" alt="coin"></span>
+        <span id="shop-coin-display">0</span>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
