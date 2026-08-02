@@ -83,6 +83,31 @@
     .streak-banner .world-banner-title { color: #ffd54d; }
     .streak-banner .world-banner-tag { color: #ffe9a8; }
     .streak-banner { z-index: 21; }
+    .mission-toast {
+      position: absolute;
+      top: 12%; left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      white-space: nowrap;
+      font-size: clamp(14px, 3.2vmin, 22px);
+      padding: 10px 22px;
+      border-radius: 12px;
+      background: rgba(255, 215, 90, 0.16);
+      border: 2px solid rgba(255, 215, 90, 0.5);
+      backdrop-filter: blur(2px);
+      z-index: 22;
+    }
+    .mission-toast .world-banner-title {
+      font-size: clamp(20px, 5vmin, 30px);
+      color: #ffe27a;
+      text-shadow: none;
+    }
+    .mission-toast .world-banner-tag {
+      font-size: clamp(12px, 2.6vmin, 18px);
+      color: #fff3c4;
+      text-shadow: none;
+      margin-top: 2px;
+    }
     .streak-corners {
       position: absolute;
       inset: 0;

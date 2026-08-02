@@ -4,6 +4,8 @@ import type { ThemeName } from '../config/Themes';
 import { getTierScore, getWorldForScore } from './WorldLogic';
 import { WORLDS } from '../config/Worlds';
 import type { WorldConfig, WorldId } from '../config/Worlds';
+import { getActiveMissions } from '../config/Missions';
+import type { MissionMetric, MissionReward } from '../config/Missions';
 
 export const DEFAULT_PLAYER_DATA: PlayerData = {
   totalCoins: 0,
@@ -12,7 +14,11 @@ export const DEFAULT_PLAYER_DATA: PlayerData = {
   selectedSkin: 'default',
   theme: 'light',
   totalScore: 0,
-  bestPerWorld: [0, 0, 0]
+  bestPerWorld: [0, 0, 0],
+  totalGems: 0,
+  totalPerfects: 0,
+  bestStreak: 0,
+  completedMissions: []
 };
 
 export const DEFAULT_STATE: GameState = {
@@ -27,7 +33,10 @@ export const DEFAULT_STATE: GameState = {
   perfectStreak: 0,
   roundCoins: 0,
   shieldActive: false,
-  shieldAwarded: false
+  shieldAwarded: false,
+  runPerfects: 0,
+  runGems: 0,
+  maxStreak: 0
 };
 
 export type StreakMilestone = 'fire';
@@ -40,12 +49,15 @@ export class GameStateManager {
   private state: GameState = { ...DEFAULT_STATE };
   private playerData: PlayerData = {
     ...DEFAULT_PLAYER_DATA,
-    purchasedSkins: [...DEFAULT_PLAYER_DATA.purchasedSkins]
+    purchasedSkins: [...DEFAULT_PLAYER_DATA.purchasedSkins],
+    completedMissions: []
   };
   private worldOverride: WorldId | null = null;
   private unlockAllWorlds = false;
   private totalScore = 0;
   private lastWorldId: WorldId = 'sunrise';
+  private pendingMissionCoins = 0;
+  private runCompletedMissions = new Set<string>();
 
   // ---- state ----
   getState(): Readonly<GameState> {
@@ -149,6 +161,12 @@ export class GameStateManager {
   resetGame(): void {
     this.state = { ...DEFAULT_STATE };
     this.lastWorldId = 'sunrise';
+    this.runCompletedMissions.clear();
+  }
+
+  /** Clear the per-run mission-completion guard between runs. */
+  clearRunMissions(): void {
+    this.runCompletedMissions.clear();
   }
 
   startGame(): void {
@@ -207,6 +225,87 @@ export class GameStateManager {
   addRoundCoin(): void {
     this.state.roundCoins++;
     this.playerData.totalCoins++;
+  }
+
+  // ---- mission tracking (Iteration 6) ----
+
+  /** Called on a perfect landing: run + lifetime perfects, best streak roll-ups. */
+  trackPerfectLanding(): void {
+    const st = this.state;
+    st.runPerfects++;
+    this.playerData.totalPerfects++;
+    if (st.perfectStreak > st.maxStreak) st.maxStreak = st.perfectStreak;
+    if (st.maxStreak > this.playerData.bestStreak) this.playerData.bestStreak = st.maxStreak;
+  }
+
+  /** Called on a gem collect: run + lifetime gem counters. */
+  trackGemCollected(): void {
+    this.state.runGems++;
+    this.playerData.totalGems++;
+  }
+
+  /** Current value of a mission metric. */
+  metricValue(metric: MissionMetric): number {
+    switch (metric) {
+      case 'gems':
+        return this.state.runGems;
+      case 'perfects':
+        return this.state.runPerfects;
+      case 'streak':
+        return this.state.maxStreak;
+      case 'totalGems':
+        return this.playerData.totalGems;
+      case 'totalPerfects':
+        return this.playerData.totalPerfects;
+      case 'bestStreak':
+        return this.playerData.bestStreak;
+      case 'totalScore':
+        return this.playerData.totalScore;
+      case 'score':
+      default:
+        return this.state.score;
+    }
+  }
+
+  /**
+   * Completes any active, not-yet-done missions whose target is met.
+   * Rewards accrue to `pendingMissionCoins` (banked at game over).
+   * Returns the newly completed missions for toasts.
+   *
+   * One-time semantics differ by kind:
+   * - lifetime: recorded in `completedMissions` (persisted forever) and can
+   *   only fire once in the game's lifetime.
+   * - general / world: scoped to a single run via `runCompletedMissions`;
+   *   they re-complete (and re-toast) on every run that meets their target.
+   */
+  evaluateMissions(): MissionReward[] {
+    const completed: MissionReward[] = [];
+    for (const mission of getActiveMissions(this.state.score)) {
+      const done = mission.kind === 'lifetime'
+        ? this.playerData.completedMissions.includes(mission.id)
+        : this.runCompletedMissions.has(mission.id);
+      if (done) continue;
+      if (this.metricValue(mission.metric) >= mission.target) {
+        if (mission.kind === 'lifetime') this.playerData.completedMissions.push(mission.id);
+        else this.runCompletedMissions.add(mission.id);
+        this.pendingMissionCoins += mission.reward;
+        completed.push({ id: mission.id, title: mission.title, reward: mission.reward, kind: mission.kind });
+      }
+    }
+    return completed;
+  }
+
+  getPendingMissionCoins(): number {
+    return this.pendingMissionCoins;
+  }
+
+  /** Bank accumulated mission coins into the wallet. Returns the amount banked. */
+  bankPendingMissionCoins(): number {
+    if (this.pendingMissionCoins <= 0) return 0;
+    this.playerData.totalCoins += this.pendingMissionCoins;
+    const amount = this.pendingMissionCoins;
+    this.pendingMissionCoins = 0;
+    return amount;
   }
 
   // ---- economy / shop ----
@@ -298,8 +397,25 @@ export function sanitizePlayerData(raw: Partial<PlayerData> | null | undefined):
         : 'default',
     theme,
     totalScore: typeof raw?.totalScore === 'number' && raw.totalScore >= 0 ? raw.totalScore : 0,
-    bestPerWorld: sanitizeBestPerWorld(raw?.bestPerWorld)
+    bestPerWorld: sanitizeBestPerWorld(raw?.bestPerWorld),
+    totalGems: typeof raw?.totalGems === 'number' && raw.totalGems >= 0 ? raw.totalGems : 0,
+    totalPerfects: typeof raw?.totalPerfects === 'number' && raw.totalPerfects >= 0 ? raw.totalPerfects : 0,
+    bestStreak: typeof raw?.bestStreak === 'number' && raw.bestStreak >= 0 ? raw.bestStreak : 0,
+    completedMissions: sanitizeCompletedMissions(raw?.completedMissions)
   };
+}
+
+/**
+ * Completed-mission ids as a length-safe array of unique strings.
+ * Legacy saves (no field) default to [].
+ */
+function sanitizeCompletedMissions(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const item of raw) {
+    if (typeof item === 'string' && !out.includes(item)) out.push(item);
+  }
+  return out;
 }
 
 /**
@@ -326,6 +442,10 @@ export function mergePlayerData(base: PlayerData, incoming: PlayerData): PlayerD
     if (!purchased.includes(s)) purchased.push(s);
   }
   if (!purchased.includes('default')) purchased.unshift('default');
+  const completedMissions = [...base.completedMissions];
+  for (const id of incoming.completedMissions) {
+    if (!completedMissions.includes(id)) completedMissions.push(id);
+  }
   return {
     totalCoins: Math.max(base.totalCoins, incoming.totalCoins),
     bestScore: Math.max(base.bestScore, incoming.bestScore),
@@ -335,6 +455,10 @@ export function mergePlayerData(base: PlayerData, incoming: PlayerData): PlayerD
     totalScore: Math.max(base.totalScore, incoming.totalScore),
     bestPerWorld: WORLDS.map((_, i) =>
       Math.max(base.bestPerWorld[i] ?? 0, incoming.bestPerWorld[i] ?? 0)
-    )
+    ),
+    totalGems: Math.max(base.totalGems, incoming.totalGems),
+    totalPerfects: Math.max(base.totalPerfects, incoming.totalPerfects),
+    bestStreak: Math.max(base.bestStreak, incoming.bestStreak),
+    completedMissions
   };
 }

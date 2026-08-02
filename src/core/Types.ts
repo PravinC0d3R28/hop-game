@@ -8,6 +8,10 @@ export interface PlayerData {
   theme: ThemeName;
   totalScore: number;
   bestPerWorld: number[];
+  totalGems: number;
+  totalPerfects: number;
+  bestStreak: number;
+  completedMissions: string[];
 }
 
 export interface GameState {
@@ -23,6 +27,9 @@ export interface GameState {
   roundCoins: number;
   shieldActive: boolean;
   shieldAwarded: boolean;
+  runPerfects: number;
+  runGems: number;
+  maxStreak: number;
 }
 
 export interface JumpParams {

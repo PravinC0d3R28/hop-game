@@ -3,6 +3,7 @@ import { THEMES, type ThemeName } from '../config/Themes';
 import type { GameStateManager } from '../core/GameStateManager';
 import { EventBus, GAME_EVENTS } from '../core/EventBus';
 import type { WorldConfig } from '../config/Worlds';
+import type { MissionReward } from '../config/Missions';
 import type { RendererSystem } from '../systems/RendererSystem';
 import type { ShadowSystem } from '../systems/ShadowSystem';
 import type { BackgroundSystem } from '../systems/BackgroundSystem';
@@ -36,6 +37,8 @@ export class UIManager {
   private splashScreen = this.el<HTMLElement>('splash-screen');
   private shopBtn = this.el<HTMLButtonElement>('shop-btn');
   private streakGlow: HTMLElement | null = null;
+  private missionQueue: MissionReward[] = [];
+  private missionBusy = false;
 
   constructor(
     private state: GameStateManager,
@@ -332,6 +335,24 @@ export class UIManager {
   private showStreakBanner(payload: { milestone: 'fire'; shield: boolean }): void {
     if (payload.milestone !== 'fire') return;
     this.showBanner('FIRE!', 'Shield raised — one free miss', 'streak-banner fire', 2.4, true);
+  }
+
+  /** Mission completed toast — one at a time, FIFO. */
+  showMissionToast(mission: MissionReward): void {
+    this.missionQueue.push(mission);
+    this.pumpMissionToasts();
+  }
+
+  private pumpMissionToasts(): void {
+    if (this.missionBusy) return;
+    const next = this.missionQueue.shift();
+    if (!next) return;
+    this.missionBusy = true;
+    this.showBanner('MISSION COMPLETE!', `${next.title} · +${next.reward} coins`, 'mission-toast', 1.8, false);
+    window.setTimeout(() => {
+      this.missionBusy = false;
+      this.pumpMissionToasts();
+    }, 2100);
   }
 
   /** Generic banner: title + tagline, entrance/exit tweens, optional white flash. */

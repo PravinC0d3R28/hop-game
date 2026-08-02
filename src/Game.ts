@@ -181,6 +181,7 @@ export class Game {
     st.perfectStreak = 0;
     st.shieldActive = false;
     st.shieldAwarded = false;
+    this.state.clearRunMissions();
 
     this.ui.hideGameOver();
     this.ui.clearConfetti();
@@ -220,6 +221,9 @@ export class Game {
     const isNewBest = this.state.updateBestScore(st.score);
     this.state.updateBestPerWorld(st.score);
     this.state.bankTotalScore();
+    this.checkMissions();
+    const banked = this.state.bankPendingMissionCoins();
+    if (banked > 0) this.ui.refreshCoins();
     void this.persistence.save(this.state.getMutablePlayerData());
 
     setTimeout(() => {
@@ -287,11 +291,13 @@ export class Game {
             st.score += st.perfectStreak;
             this.audio.playPerfect(st.perfectStreak);
             this.perfectHit(target);
+            this.state.trackPerfectLanding();
             this.totalStreakReward();
           } else {
             st.perfectStreak = 0;
             this.audio.playJump(st.score);
           }
+          this.checkMissions();
           this.ui.setScore(st.score);
           gsap.fromTo(this.ui.scoreElement, { scale: 1.15 }, { scale: 1, duration: 0.2, ease: 'back.out(2)' });
           this.updateStreakGlow();
@@ -334,12 +340,14 @@ export class Game {
 
     const st = this.state.getMutableState();
     st.roundCoins++;
+    this.state.trackGemCollected();
     this.state.getMutablePlayerData().totalCoins++;
     void this.persistence.save(this.state.getMutablePlayerData());
     this.ui.refreshCoins();
 
     st.score++;
     this.ui.setScore(st.score);
+    this.checkMissions();
     this.checkWorldTransition();
   }
 
@@ -364,6 +372,14 @@ export class Game {
   /** Flame glow mirrors the fire streak: ≥10 perfects on, anything else off. */
   private updateStreakGlow(): void {
     this.ui.setStreakGlow(this.state.getState().perfectStreak >= GAME_CONFIG.STREAK_FIRE ? 'fire' : 'off');
+  }
+
+  /** Evaluate missions; toast any that just completed and persist the one-time marks. */
+  private checkMissions(): void {
+    const completed = this.state.evaluateMissions();
+    if (completed.length === 0) return;
+    for (const c of completed) this.ui.showMissionToast(c);
+    void this.persistence.save(this.state.getMutablePlayerData());
   }
 
   private applySkin(skinId: string): void {
