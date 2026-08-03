@@ -158,6 +158,39 @@ No iteration is "a feature branch" — every layer sits on top of a working game
 - Tests for any new pure formatting/derivation logic.
 - **DoD:** start screen communicates everything; game over shows run contribution.
 
+**Status: DONE — commit `61f3a33`** (+ UX feedback round, same iteration)
+- `src/core/Progression.ts` — pure derivation: `getLedgerInfo` (percent, next
+  unlock), `getWorldProgress` (unlock chips + per-world bests), `getMetricValue`
+  (shared by `GameStateManager.metricValue`), `getMissionProgressList` (rows per
+  tab; world missions outside the run ladder locked).
+- **Daily mission economy** (`src/config/Missions.ts`): General missions replaced
+  by a date-seeded daily set — `GENERAL_POOL` (20 missions: 7 easy / 7 medium /
+  6 hard) → `getDailyMissions(dateKey)` draws 2 easy + 2 medium + 1 hard per day
+  (deterministic via FNV-1a + mulberry32), so the coin economy stays in check and
+  no mission repeats daily. `getActiveMissions` / `evaluateMissions` /
+  `getMissionProgressList` are date-aware (`todayKey()` default).
+- `GameStateManager` — `runMissionRewards` accumulates completions per run
+  (cleared with `clearRunMissions`), exposed for the game-over summary.
+- `UIManager` — `renderStartScreen()`: ledger bar + world chips (missions panel
+  removed from the start screen); `showGameOver()`: "REACHED <world>" + mission
+  reward summary. Missions tab (`#missions-btn`, bullseye icon next to shop):
+  General/World/Lifetime tabs, gold check badges, staggered GSAP bar fills
+  (completed rows full/static), per-card confetti fired once per session on
+  newly completed missions, coin footer removed.
+- Mission toast: white bullseye card with gold loading bar, top-right (below the
+  coin counter), text-free, FIFO 2.4s cadence.
+- Game over continue button: rounded rectangle `PLAY AGAIN` (research: main CTA
+  for session games), replacing the oversized circle that covered the toast.
+- Fix: run-scoped stats (`runPerfects`/`runGems`/`maxStreak`) now reset between
+  runs so per-run missions can't double-count.
+- Tests: `tests/progression.test.ts` (12) + `tests/missions.test.ts` (22) →
+  130 total; typecheck + build green.
+- Browser-verified: ledger/chips on the real save (1,065/5,000), 3 tabs with
+  today's 5 daily missions (2/2/1 tier split), lifetime done rows show gold
+  check + static full bar + no confetti on reopen, per-card confetti on fresh
+  completions, toast top-right, PLAY AGAIN rectangle; screenshots
+  `docs/shots/iter7-*.png`.
+
 ## Iteration 8 — Art pass 1: per-world palettes + skies
 
 **Goal:** Dawn→Dusk identity lands on worlds.
