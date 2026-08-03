@@ -4,8 +4,9 @@ import type { ThemeName } from '../config/Themes';
 import { getTierScore, getWorldForScore } from './WorldLogic';
 import { WORLDS } from '../config/Worlds';
 import type { WorldConfig, WorldId } from '../config/Worlds';
-import { getActiveMissions } from '../config/Missions';
+import { getActiveMissions, todayKey } from '../config/Missions';
 import type { MissionMetric, MissionReward } from '../config/Missions';
+import { getMetricValue } from './Progression';
 
 export const DEFAULT_PLAYER_DATA: PlayerData = {
   totalCoins: 0,
@@ -58,6 +59,7 @@ export class GameStateManager {
   private lastWorldId: WorldId = 'sunrise';
   private pendingMissionCoins = 0;
   private runCompletedMissions = new Set<string>();
+  private runMissionRewards: MissionReward[] = [];
 
   // ---- state ----
   getState(): Readonly<GameState> {
@@ -161,12 +163,13 @@ export class GameStateManager {
   resetGame(): void {
     this.state = { ...DEFAULT_STATE };
     this.lastWorldId = 'sunrise';
-    this.runCompletedMissions.clear();
+    this.clearRunMissions();
   }
 
   /** Clear the per-run mission-completion guard between runs. */
   clearRunMissions(): void {
     this.runCompletedMissions.clear();
+    this.runMissionRewards = [];
   }
 
   startGame(): void {
@@ -244,27 +247,14 @@ export class GameStateManager {
     this.playerData.totalGems++;
   }
 
-  /** Current value of a mission metric. */
+  /** Current value of a mission metric (delegates to the pure helper). */
   metricValue(metric: MissionMetric): number {
-    switch (metric) {
-      case 'gems':
-        return this.state.runGems;
-      case 'perfects':
-        return this.state.runPerfects;
-      case 'streak':
-        return this.state.maxStreak;
-      case 'totalGems':
-        return this.playerData.totalGems;
-      case 'totalPerfects':
-        return this.playerData.totalPerfects;
-      case 'bestStreak':
-        return this.playerData.bestStreak;
-      case 'totalScore':
-        return this.playerData.totalScore;
-      case 'score':
-      default:
-        return this.state.score;
-    }
+    return getMetricValue(metric, this.playerData, {
+      score: this.state.score,
+      runPerfects: this.state.runPerfects,
+      runGems: this.state.runGems,
+      maxStreak: this.state.maxStreak
+    });
   }
 
   /**
@@ -278,9 +268,9 @@ export class GameStateManager {
    * - general / world: scoped to a single run via `runCompletedMissions`;
    *   they re-complete (and re-toast) on every run that meets their target.
    */
-  evaluateMissions(): MissionReward[] {
+  evaluateMissions(dateKey: string = todayKey()): MissionReward[] {
     const completed: MissionReward[] = [];
-    for (const mission of getActiveMissions(this.state.score)) {
+    for (const mission of getActiveMissions(this.state.score, dateKey)) {
       const done = mission.kind === 'lifetime'
         ? this.playerData.completedMissions.includes(mission.id)
         : this.runCompletedMissions.has(mission.id);
@@ -289,7 +279,9 @@ export class GameStateManager {
         if (mission.kind === 'lifetime') this.playerData.completedMissions.push(mission.id);
         else this.runCompletedMissions.add(mission.id);
         this.pendingMissionCoins += mission.reward;
-        completed.push({ id: mission.id, title: mission.title, reward: mission.reward, kind: mission.kind });
+        const reward: MissionReward = { id: mission.id, title: mission.title, reward: mission.reward, kind: mission.kind };
+        this.runMissionRewards.push(reward);
+        completed.push(reward);
       }
     }
     return completed;
@@ -297,6 +289,11 @@ export class GameStateManager {
 
   getPendingMissionCoins(): number {
     return this.pendingMissionCoins;
+  }
+
+  /** Missions completed during the current run (for the game-over summary). */
+  getRunMissionRewards(): readonly MissionReward[] {
+    return this.runMissionRewards.slice();
   }
 
   /** Bank accumulated mission coins into the wallet. Returns the amount banked. */

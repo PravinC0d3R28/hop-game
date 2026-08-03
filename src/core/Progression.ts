@@ -1,0 +1,143 @@
+import { WORLDS, type WorldConfig, type WorldId } from '../config/Worlds';
+import { MISSIONS, getActiveMissions, getDailyMissions, todayKey, type MissionConfig, type MissionMetric } from '../config/Missions';
+import type { PlayerData } from './Types';
+
+/**
+ * Pure derivation helpers for the progression UI (Iteration 7).
+ * No DOM, no three.js — fully unit-testable.
+ */
+
+/** Snapshot of run-scoped stats used by run-based mission metrics. */
+export interface RunStats {
+  score: number;
+  runPerfects: number;
+  runGems: number;
+  maxStreak: number;
+}
+
+/** Ledger goal: highest world unlock score (Deep Void at 5,000). */
+export const LEDGER_TARGET: number = Math.max(...WORLDS.map((w) => w.unlockScore));
+
+/** Value of a mission metric against a data snapshot. */
+export function getMetricValue(
+  metric: MissionMetric,
+  playerData: PlayerData,
+  run: RunStats
+): number {
+  switch (metric) {
+    case 'gems':
+      return run.runGems;
+    case 'perfects':
+      return run.runPerfects;
+    case 'streak':
+      return run.maxStreak;
+    case 'totalGems':
+      return playerData.totalGems;
+    case 'totalPerfects':
+      return playerData.totalPerfects;
+    case 'bestStreak':
+      return playerData.bestStreak;
+    case 'totalScore':
+      return playerData.totalScore;
+    case 'score':
+    default:
+      return run.score;
+  }
+}
+
+export interface LedgerInfo {
+  current: number;
+  target: number;
+  percent: number;
+  done: boolean;
+  /** First world whose unlock score exceeds the ledger (null when all open). */
+  nextUnlock: WorldConfig | null;
+}
+
+export function getLedgerInfo(totalScore: number): LedgerInfo {
+  const nextUnlock = WORLDS.find((w) => totalScore < w.unlockScore) ?? null;
+  return {
+    current: Math.max(0, totalScore),
+    target: LEDGER_TARGET,
+    percent: Math.min(100, Math.round((Math.max(0, totalScore) / LEDGER_TARGET) * 100)),
+    done: totalScore >= LEDGER_TARGET,
+    nextUnlock
+  };
+}
+
+export interface WorldProgressRow {
+  world: WorldConfig;
+  best: number;
+  unlocked: boolean;
+  isNextUnlock: boolean;
+}
+
+/** Per-world bests with unlock state for the start screen chips. */
+export function getWorldProgress(playerData: PlayerData): WorldProgressRow[] {
+  return WORLDS.map((world, index) => {
+    const unlocked = playerData.totalScore >= world.unlockScore;
+    const isNextUnlock =
+      !unlocked &&
+      WORLDS.filter((w) => w.unlockScore < world.unlockScore).every(
+        (w) => playerData.totalScore >= w.unlockScore
+      );
+    return {
+      world,
+      best: playerData.bestPerWorld[index] ?? 0,
+      unlocked,
+      isNextUnlock
+    };
+  });
+}
+
+export interface MissionProgressRow {
+  id: string;
+  title: string;
+  desc: string;
+  kind: string;
+  world: WorldId | null;
+  reward: number;
+  target: number;
+  current: number;
+  percent: number;
+  done: boolean;
+  /** World missions beyond the next unlock are shown locked on the start screen. */
+  locked: boolean;
+}
+
+/**
+ * Mission progress rows for the missions overlay, one list per tab:
+ * - general: only today's 5 daily missions (from getDailyMissions).
+ * - world: all 9 laddered missions; those beyond the run ladder are `locked`.
+ * - lifetime: all 6 persistent missions.
+ * General / world progress comes from the passed run snapshot (0 at menu);
+ * lifetime progress comes from persisted counters.
+ */
+export function getMissionProgressList(
+  playerData: PlayerData,
+  run: RunStats,
+  dateKey: string = todayKey()
+): MissionProgressRow[] {
+  const activeIds = new Set(getActiveMissions(run.score, dateKey).map((m) => m.id));
+  const deck = [...getDailyMissions(dateKey), ...MISSIONS.filter((m) => m.kind !== 'general')];
+  return deck.map((m: MissionConfig) => {
+    const current = getMetricValue(m.metric, playerData, run);
+    const done = m.kind === 'lifetime'
+      ? playerData.completedMissions.includes(m.id)
+      : current >= m.target;
+    const locked = m.kind === 'world' && !activeIds.has(m.id);
+    return {
+      id: m.id,
+      title: m.title,
+      desc: m.desc,
+      kind: m.kind,
+      world: m.world ?? null,
+      reward: m.reward,
+      target: m.target,
+      current,
+      percent: Math.min(100, Math.round((current / m.target) * 100)),
+      done,
+      locked
+    };
+  });
+}

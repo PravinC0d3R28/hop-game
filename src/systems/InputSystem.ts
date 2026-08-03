@@ -17,6 +17,8 @@ export class InputSystem {
     private gameOverScreen: HTMLElement,
     private shopOverlay: HTMLElement,
     private shopBtn: HTMLElement,
+    private missionsOverlay: HTMLElement,
+    private missionsBtn: HTMLElement,
     private state: GameStateManager
   ) {
     this.bind();
@@ -49,9 +51,11 @@ export class InputSystem {
     const paused = document.body.classList.contains('game-paused');
     const shopOpen = this.shopOverlay.style.display === 'flex';
     const isShopBtn = e.target === this.shopBtn || this.shopBtn.contains(e.target as Node);
+    const missionsOpen = this.missionsOverlay.style.display === 'flex';
+    const isMissionsBtn = e.target === this.missionsBtn || this.missionsBtn.contains(e.target as Node);
     const gameOverOpen = this.gameOverScreen.style.display === 'flex';
 
-    if (paused || shopOpen || isShopBtn || this.resetCooldown || gameOverOpen) return;
+    if (paused || shopOpen || missionsOpen || isShopBtn || isMissionsBtn || this.resetCooldown || gameOverOpen) return;
 
     if (!st.isStarted) {
       this.onGameStart();

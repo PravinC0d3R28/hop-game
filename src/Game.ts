@@ -101,6 +101,8 @@ export class Game {
     const gameOverScreen = document.getElementById('gameover-screen')!;
     const shopOverlay = document.getElementById('shop-overlay')!;
     const shopBtn = document.getElementById('shop-btn')!;
+    const missionsOverlay = document.getElementById('missions-overlay')!;
+    const missionsBtn = document.getElementById('missions-btn')!;
 
     this.input = new InputSystem(
       this.renderer.renderer.domElement,
@@ -109,6 +111,8 @@ export class Game {
       gameOverScreen,
       shopOverlay,
       shopBtn,
+      missionsOverlay,
+      missionsBtn,
       this.state
     );
     this.input.onGameStart = () => this.startGame();
@@ -125,6 +129,7 @@ export class Game {
     this.ui.applyThemeToDOM();
     this.ui.refreshCoins();
     this.ui.refreshBestScore();
+    this.ui.renderStartScreen();
   }
 
   private wireVisibility(): void {
@@ -181,12 +186,16 @@ export class Game {
     st.perfectStreak = 0;
     st.shieldActive = false;
     st.shieldAwarded = false;
+    st.runPerfects = 0;
+    st.runGems = 0;
+    st.maxStreak = 0;
     this.state.clearRunMissions();
 
     this.ui.hideGameOver();
     this.ui.clearConfetti();
     this.ui.setStreakGlow('off');
     this.ui.refreshBestScore();
+    this.ui.renderStartScreen();
     this.ui.setScore(0);
     this.ui.showScoreUI(false);
     this.ui.showCoinCounter(false);
@@ -378,7 +387,7 @@ export class Game {
   private checkMissions(): void {
     const completed = this.state.evaluateMissions();
     if (completed.length === 0) return;
-    for (const c of completed) this.ui.showMissionToast(c);
+    for (const c of completed) this.ui.showMissionToast();
     void this.persistence.save(this.state.getMutablePlayerData());
   }
 

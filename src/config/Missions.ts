@@ -3,6 +3,9 @@ import type { WorldId } from './Worlds';
 
 export type MissionKind = 'general' | 'world' | 'lifetime';
 
+/** Difficulty bucket for the daily general-mission pool (economy control). */
+export type MissionTier = 'easy' | 'medium' | 'hard';
+
 export type MissionMetric =
   | 'score' // run score
   | 'gems' // run gems collected
@@ -22,6 +25,8 @@ export interface MissionConfig {
   target: number;
   reward: number;
   world?: WorldId;
+  /** Difficulty tier — only used for the daily general pool. */
+  tier?: MissionTier;
 }
 
 export interface MissionReward {
@@ -32,19 +37,42 @@ export interface MissionReward {
 }
 
 /**
- * Iteration 6 mission deck.
- * - General: active every run, tracked from run stats.
+ * Iteration 7 mission economy.
+ * - General: a daily random set drawn from GENERAL_POOL (2 easy + 2 medium +
+ *   1 hard per day, seeded by date), active only for that day.
  * - World: active only while that world is the current or next world of the run.
  * - Lifetime: persistent counters across runs.
  */
+export const GENERAL_POOL: MissionConfig[] = [
+  // ---- easy (2 per day) ----
+  { id: 'g_first_steps', title: 'First Steps', desc: 'Reach a run score of 25', kind: 'general', metric: 'score', target: 25, reward: 10, tier: 'easy' },
+  { id: 'g_gem_grab', title: 'Gem Grab', desc: 'Collect 5 gems in one run', kind: 'general', metric: 'gems', target: 5, reward: 10, tier: 'easy' },
+  { id: 'g_clean_shots', title: 'Clean Shots', desc: 'Land 10 perfect hits in one run', kind: 'general', metric: 'perfects', target: 10, reward: 10, tier: 'easy' },
+  { id: 'g_warm_streak', title: 'Warm Up', desc: 'Reach a perfect streak of 8', kind: 'general', metric: 'streak', target: 8, reward: 12, tier: 'easy' },
+  { id: 'g_fifty', title: 'Half Century', desc: 'Reach a run score of 50', kind: 'general', metric: 'score', target: 50, reward: 15, tier: 'easy' },
+  { id: 'g_shiny_start', title: 'Shiny Start', desc: 'Collect 8 gems in one run', kind: 'general', metric: 'gems', target: 8, reward: 12, tier: 'easy' },
+  { id: 'g_perfect_ten', title: 'Perfect Ten', desc: 'Land 15 perfect hits in one run', kind: 'general', metric: 'perfects', target: 15, reward: 15, tier: 'easy' },
+
+  // ---- medium (2 per day) ----
+  { id: 'g_hundred', title: 'Century', desc: 'Reach a run score of 100', kind: 'general', metric: 'score', target: 100, reward: 20, tier: 'medium' },
+  { id: 'g_treasure', title: 'Treasure Trove', desc: 'Collect 12 gems in one run', kind: 'general', metric: 'gems', target: 12, reward: 25, tier: 'medium' },
+  { id: 'g_marksman', title: 'Marksman', desc: 'Land 20 perfect hits in one run', kind: 'general', metric: 'perfects', target: 20, reward: 25, tier: 'medium' },
+  { id: 'g_on_fire', title: 'On Fire', desc: 'Reach a perfect streak of 10', kind: 'general', metric: 'streak', target: 10, reward: 30, tier: 'medium' },
+  { id: 'g_double', title: 'Doubles', desc: 'Reach a run score of 150', kind: 'general', metric: 'score', target: 150, reward: 25, tier: 'medium' },
+  { id: 'g_gem_spree', title: 'Gem Spree', desc: 'Collect 15 gems in one run', kind: 'general', metric: 'gems', target: 15, reward: 30, tier: 'medium' },
+  { id: 'g_perfect_20', title: 'Sharpshooter', desc: 'Land 30 perfect hits in one run', kind: 'general', metric: 'perfects', target: 30, reward: 30, tier: 'medium' },
+
+  // ---- hard (1 per day) ----
+  { id: 'g_quarter', title: 'Quarter Mile', desc: 'Reach a run score of 250', kind: 'general', metric: 'score', target: 250, reward: 40, tier: 'hard' },
+  { id: 'g_gem_hoard', title: 'Gem Hoarder', desc: 'Collect 25 gems in one run', kind: 'general', metric: 'gems', target: 25, reward: 45, tier: 'hard' },
+  { id: 'g_sniper', title: 'Sniper', desc: 'Land 40 perfect hits in one run', kind: 'general', metric: 'perfects', target: 40, reward: 45, tier: 'hard' },
+  { id: 'g_streak_18', title: 'Unstoppable', desc: 'Reach a perfect streak of 18', kind: 'general', metric: 'streak', target: 18, reward: 50, tier: 'hard' },
+  { id: 'g_three_hundred', title: 'Powerhouse', desc: 'Reach a run score of 350', kind: 'general', metric: 'score', target: 350, reward: 50, tier: 'hard' },
+  { id: 'g_flawless', title: 'Flawless', desc: 'Land 60 perfect hits in one run', kind: 'general', metric: 'perfects', target: 60, reward: 50, tier: 'hard' }
+];
+
 export const MISSIONS: MissionConfig[] = [
-  // ---- general (per-run) ----
-  { id: 'g_first_steps', title: 'First Steps', desc: 'Reach a run score of 25', kind: 'general', metric: 'score', target: 25, reward: 10 },
-  { id: 'g_gem_hunter', title: 'Gem Hunter', desc: 'Collect 5 gems in one run', kind: 'general', metric: 'gems', target: 5, reward: 15 },
-  { id: 'g_clean_shots', title: 'Clean Shots', desc: 'Land 10 perfect hits in one run', kind: 'general', metric: 'perfects', target: 10, reward: 15 },
-  { id: 'g_on_fire', title: 'On Fire', desc: 'Reach a perfect streak of 10', kind: 'general', metric: 'streak', target: 10, reward: 30 },
-  { id: 'g_gatecrasher', title: 'Gatecrasher', desc: 'Cross into Dusk District (score 100)', kind: 'general', metric: 'score', target: 100, reward: 25 },
-  { id: 'g_beyond_void', title: 'Beyond the Void', desc: 'Reach a run score of 250', kind: 'general', metric: 'score', target: 250, reward: 50 },
+  ...GENERAL_POOL,
 
   // ---- world (laddered) ----
   { id: 'w1_perfects', title: 'Sunrise Steady', desc: 'Land 3 perfect hits', kind: 'world', metric: 'perfects', target: 3, reward: 10, world: 'sunrise' },
@@ -88,15 +116,71 @@ export function getNextWorldOfId(id: WorldId): WorldId | null {
   return WORLDS[index + 1].id;
 }
 
+/** Local calendar day `YYYY-MM-DD` — the daily mission seed (economy reset). */
+export function todayKey(date: Date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/** FNV-1a string hash → unsigned 32-bit seed. */
+function hashString(input: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/** Deterministic PRNG (mulberry32) so a date always yields the same set. */
+function seededShuffle<T>(items: T[], seed: number): T[] {
+  let a = seed >>> 0;
+  const rand = () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+/** How many general missions per tier are drawn each day. */
+export const DAILY_PICKS: Record<MissionTier, number> = { easy: 2, medium: 2, hard: 1 };
+
+/**
+ * The 5 general missions active today: date-seeded, stratified draw from the
+ * pool (2 easy + 2 medium + 1 hard) so the coin economy stays in check.
+ */
+export function getDailyMissions(dateKey: string): MissionConfig[] {
+  const seed = hashString(`hop-daily-${dateKey}`);
+  const picked: MissionConfig[] = [];
+  for (const tier of ['easy', 'medium', 'hard'] as const) {
+    const candidates = GENERAL_POOL.filter((m) => m.tier === tier);
+    const count = Math.min(DAILY_PICKS[tier], candidates.length);
+    picked.push(...seededShuffle(candidates, seed ^ hashString(tier)).slice(0, count));
+  }
+  return picked.sort((a, b) => a.target - b.target);
+}
+
 /**
  * Active missions for a run given its score.
- * General + lifetime are always on; world missions only when that world is the
- * current or next world of the ladder (FR-3.3).
+ * General = today's daily set; world missions only when that world is the
+ * current or next world of the ladder; lifetime is always on.
  */
-export function getActiveMissions(score: number): MissionConfig[] {
+export function getActiveMissions(score: number, dateKey: string = todayKey()): MissionConfig[] {
+  const dailyIds = new Set(getDailyMissions(dateKey).map((m) => m.id));
   const current = getRunWorldId(score);
   const next = getNextWorldOfId(current);
   return MISSIONS.filter((m) => {
+    if (m.kind === 'general') return dailyIds.has(m.id);
     if (m.kind !== 'world') return true;
     if (m.world === current) return true;
     return next !== null && m.world === next;

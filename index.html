@@ -83,31 +83,6 @@
     .streak-banner .world-banner-title { color: #ffd54d; }
     .streak-banner .world-banner-tag { color: #ffe9a8; }
     .streak-banner { z-index: 21; }
-    .mission-toast {
-      position: absolute;
-      top: 12%; left: 50%;
-      transform: translate(-50%, -50%);
-      text-align: center;
-      white-space: nowrap;
-      font-size: clamp(14px, 3.2vmin, 22px);
-      padding: 10px 22px;
-      border-radius: 12px;
-      background: rgba(255, 215, 90, 0.16);
-      border: 2px solid rgba(255, 215, 90, 0.5);
-      backdrop-filter: blur(2px);
-      z-index: 22;
-    }
-    .mission-toast .world-banner-title {
-      font-size: clamp(20px, 5vmin, 30px);
-      color: #ffe27a;
-      text-shadow: none;
-    }
-    .mission-toast .world-banner-tag {
-      font-size: clamp(12px, 2.6vmin, 18px);
-      color: #fff3c4;
-      text-shadow: none;
-      margin-top: 2px;
-    }
     .streak-corners {
       position: absolute;
       inset: 0;
@@ -232,6 +207,151 @@
       50% { opacity: 0.4; }
     }
 
+    /* Progression: ledger bar */
+    #ledger {
+      width: min(92vw, 460px);
+      margin-top: clamp(4px, 1vh, 10px);
+      pointer-events: none;
+    }
+    #ledger-track {
+      position: relative;
+      width: 100%;
+      height: clamp(14px, 3vmin, 20px);
+      background: #fff;
+      border: 3px solid #111;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25);
+    }
+    #ledger-fill {
+      position: absolute;
+      top: 0; left: 0;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #ffd700, #ffb020);
+      border-right: 2px solid #111;
+      transition: width 0.4s ease;
+    }
+    #ledger-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 3px;
+      font-size: clamp(11px, 2.2vmin, 15px);
+      font-weight: 900;
+      color: #111;
+      letter-spacing: 1px;
+    }
+    #ledger-label .ledger-total {
+      color: #b8860b;
+    }
+    #ledger-label.ledger-done .ledger-total { color: #28a858; }
+
+    /* World progress chips */
+    #world-progress {
+      display: flex;
+      gap: clamp(6px, 1.2vmin, 12px);
+      margin-top: clamp(8px, 1.6vh, 14px);
+      flex-wrap: wrap;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .world-chip {
+      padding: 4px 10px;
+      border: 3px solid #111;
+      border-radius: 10px;
+      background: #fff;
+      font-size: clamp(10px, 2vmin, 14px);
+      font-weight: 900;
+      color: #111;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25);
+    }
+    .world-chip.unlocked { background: #d4f4dd; }
+    .world-chip.next { background: #ffe9a8; }
+    .world-chip.locked { background: #eee; color: #999; }
+    .world-chip .chip-best {
+      font-size: 0.85em;
+      color: #b8860b;
+    }
+    .world-chip.locked .chip-best { display: none; }
+
+    /* Missions overlay — mission cards (rendered into #missions-list) */
+    .mission-row {
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 8px;
+      background: rgba(255, 255, 255, 0.92);
+      border: 2px solid #111;
+      border-radius: 8px;
+      box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.2);
+    }
+    .mission-row.locked {
+      opacity: 0.45;
+      background: #eee;
+    }
+    .mission-row.done {
+      background: #d4f4dd;
+      border-color: #28a858;
+    }
+    .mission-row .m-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .mission-row .m-title {
+      font-size: clamp(11px, 2.2vmin, 14px);
+      font-weight: 900;
+      color: #111;
+      line-height: 1.15;
+    }
+    .mission-row .m-desc {
+      font-size: clamp(9px, 1.8vmin, 12px);
+      color: #666;
+      line-height: 1.2;
+    }
+    .mission-row .m-metric {
+      font-size: clamp(9px, 1.8vmin, 12px);
+      font-weight: 900;
+      color: #b8860b;
+      white-space: nowrap;
+    }
+    .mission-row .m-check {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+    }
+    .m-check-svg {
+      width: clamp(18px, 3.2vmin, 24px);
+      height: clamp(18px, 3.2vmin, 24px);
+      display: block;
+    }
+    .mission-row .m-lock {
+      font-size: clamp(12px, 2.2vmin, 15px);
+      color: #999;
+      flex-shrink: 0;
+    }
+    .m-bar {
+      width: clamp(56px, 14vw, 90px);
+      height: clamp(8px, 1.6vmin, 12px);
+      background: #e5e5e5;
+      border: 2px solid #111;
+      border-radius: 6px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .m-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #ffd700, #ffb020);
+      transition: width 0.3s ease;
+    }
+    .mission-row.done .m-bar-fill { background: #28a858; }
+
     /* Drag hint */
     .finger-hint {
       margin-top: clamp(8px, 2vh, 18px);
@@ -324,12 +444,18 @@
       justify-content: center;
     }
 
-    /* Shop button on menu — ball icon, bottom center */
-    #shop-btn {
-      position: absolute !important;
-      left: 50% !important;
+    /* Menu buttons row (missions + shop) — bottom center */
+    .menu-btns {
+      position: absolute;
+      left: 50%;
       bottom: clamp(20px, 4vh, 40px);
-      transform: translateX(-50%) !important;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: clamp(18px, 4vmin, 32px);
+    }
+    #missions-btn,
+    #shop-btn {
       width: clamp(64px, 12vmin, 100px);
       height: clamp(64px, 12vmin, 100px);
       padding: 0;
@@ -339,17 +465,32 @@
       cursor: pointer;
       pointer-events: auto;
       box-shadow: 5px 5px 0 #111;
-      transition: box-shadow 0.1s, margin-top 0.1s;
+      transition: box-shadow 0.1s, transform 0.1s;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-top: 0 !important;
     }
+    #missions-btn:hover,
     #shop-btn:hover {
       box-shadow: 7px 7px 0 #111;
+      transform: translateY(-2px);
     }
+    #missions-btn:active,
     #shop-btn:active {
       box-shadow: 3px 3px 0 #111;
+      transform: translateY(1px);
+    }
+    .menu-icon {
+      width: clamp(32px, 6vmin, 52px);
+      height: clamp(32px, 6vmin, 52px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .menu-icon svg {
+      width: 100%;
+      height: 100%;
+      display: block;
     }
     .shop-coin {
       width: clamp(32px, 6vmin, 52px);
@@ -362,6 +503,43 @@
       width: 100%;
       height: 100%;
       object-fit: contain;
+    }
+
+    /* Mission toast: white card sliding in from the right (no text) */
+    .mission-card {
+      position: absolute;
+      right: clamp(12px, 3vw, 28px);
+      top: clamp(72px, 13vh, 132px);
+      width: clamp(120px, 22vmin, 170px);
+      height: clamp(120px, 22vmin, 170px);
+      background: #fff;
+      border: clamp(3px, 0.6vmin, 5px) solid #111;
+      border-radius: 16px;
+      box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.35);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(10px, 2.2vmin, 16px);
+      z-index: 22;
+    }
+    .mission-card .mc-target {
+      width: 55%;
+      height: auto;
+      display: block;
+    }
+    .mission-card .mc-bar {
+      width: 78%;
+      height: clamp(8px, 1.8vmin, 12px);
+      background: #e5e5e5;
+      border: 2px solid #111;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .mission-card .mc-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #ffd700, #ffb020);
     }
 
     /* Game Over screen */
@@ -472,6 +650,58 @@
       height: 0.9em;
       -webkit-text-stroke: 0;
     }
+    /* Game over: world reached + mission rewards summary */
+    #go-world {
+      font-size: clamp(13px, 2.6vmin, 18px);
+      font-weight: 900;
+      color: #ffd54d;
+      text-shadow:
+        -1px -1px 0 #111,
+        1px -1px 0 #111,
+        -1px 1px 0 #111,
+        1px 1px 0 #111;
+      margin-bottom: clamp(6px, 1.2vh, 12px);
+      letter-spacing: 1px;
+    }
+    #go-missions {
+      width: min(84vw, 360px);
+      max-height: 26vh;
+      overflow-y: auto;
+      display: none;
+      flex-direction: column;
+      gap: 3px;
+      margin-bottom: clamp(8px, 1.6vh, 14px);
+      scrollbar-width: thin;
+      padding: 2px;
+    }
+    #go-missions-label {
+      font-size: clamp(11px, 2.2vmin, 14px);
+      font-weight: 900;
+      color: #ffd54d;
+      text-shadow:
+        -1px -1px 0 #111,
+        1px -1px 0 #111,
+        -1px 1px 0 #111,
+        1px 1px 0 #111;
+      letter-spacing: 2px;
+      margin-bottom: 2px;
+      text-align: center;
+    }
+    .go-mission-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 4px 10px;
+      background: rgba(255, 255, 255, 0.92);
+      border: 2px solid #111;
+      border-radius: 8px;
+      font-size: clamp(11px, 2.2vmin, 14px);
+      font-weight: 900;
+      color: #111;
+    }
+    .go-mission-row .m-name { flex: 1; min-width: 0; }
+    .go-mission-row .m-coin { color: #b8860b; white-space: nowrap; }
     /* Continue button — bottom of game over */
     .go-bottom {
       margin-top: auto;
@@ -481,29 +711,28 @@
       align-items: center;
     }
     #go-continue-btn {
-      width: clamp(128px, 24vmin, 200px);
-      height: clamp(128px, 24vmin, 200px);
+      width: clamp(200px, 46vmin, 320px);
+      height: clamp(50px, 10vmin, 66px);
       padding: 0;
       background: #8838c8;
-      border: clamp(6px, 1.5vmin, 10px) solid #111;
-      border-radius: 50%;
+      border: clamp(4px, 1vmin, 6px) solid #111;
+      border-radius: 14px;
       cursor: pointer;
       pointer-events: auto;
       box-shadow: 5px 5px 0 #111;
-      transition: transform 0.1s;
+      transition: transform 0.1s, box-shadow 0.1s;
       display: flex;
       align-items: center;
       justify-content: center;
+      font-family: 'Arial Black', 'Impact', sans-serif;
+      font-size: clamp(18px, 4.5vmin, 28px);
+      font-weight: 900;
+      color: #fff;
+      letter-spacing: 2px;
+      text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.35);
     }
     #go-continue-btn:hover { transform: translateY(-2px); box-shadow: 7px 7px 0 #111; }
     #go-continue-btn:active { transform: translateY(1px); box-shadow: 3px 3px 0 #111; }
-    .go-arrow {
-      font-size: clamp(56px, 12vmin, 88px);
-      font-weight: 900;
-      color: #fff;
-      line-height: 1;
-      margin-left: 4px;
-    }
     #confetti-container {
       position: absolute;
       top: 0; left: 0;
@@ -646,6 +875,98 @@
       line-height: 1.2;
     }
 
+    /* Missions overlay */
+    #missions-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: none;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      pointer-events: auto;
+      z-index: 10000;
+    }
+    .missions-container {
+      background: #f5f5f5;
+      border: 5px solid #111;
+      border-radius: 14px;
+      width: 90%;
+      max-width: 440px;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 6px 6px 0 rgba(0,0,0,0.35);
+    }
+    .missions-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: clamp(10px, 2vmin, 16px) clamp(12px, 2.5vmin, 20px);
+      border-bottom: 4px solid #111;
+    }
+    .missions-header h2 {
+      font-family: 'Arial Black', 'Impact', sans-serif;
+      font-size: clamp(20px, 4vmin, 28px);
+      color: #111;
+      margin: 0;
+    }
+    .missions-close {
+      font-size: clamp(22px, 4vmin, 28px);
+      font-weight: 900;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #111;
+      line-height: 1;
+      padding: 4px 8px;
+    }
+    .missions-tabs {
+      display: flex;
+      gap: clamp(6px, 1.2vmin, 10px);
+      padding: clamp(8px, 1.5vmin, 12px) clamp(12px, 2.5vmin, 20px);
+      border-bottom: 4px solid #111;
+      background: #ececec;
+    }
+    .missions-tab {
+      flex: 1;
+      padding: clamp(6px, 1.2vmin, 9px) 0;
+      font-family: 'Arial Black', sans-serif;
+      font-size: clamp(11px, 2.2vmin, 14px);
+      font-weight: 900;
+      color: #111;
+      background: #fff;
+      border: 3px solid #111;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.1s, color 0.1s;
+    }
+    .missions-tab.active {
+      background: #8838c8;
+      color: #fff;
+    }
+    .missions-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: clamp(8px, 2vmin, 16px);
+      position: relative;
+    }
+    .missions-scroll::-webkit-scrollbar { width: 8px; }
+    .missions-scroll::-webkit-scrollbar-thumb {
+      background: #ccc;
+      border: 2px solid #111;
+      border-radius: 4px;
+    }
+    .m-group-title {
+      font-family: 'Arial Black', sans-serif;
+      font-size: clamp(12px, 2.4vmin, 15px);
+      font-weight: 900;
+      color: #8838c8;
+      letter-spacing: 2px;
+      margin: clamp(8px, 1.5vmin, 12px) 2px clamp(4px, 1vmin, 8px);
+    }
+    .m-group-title:first-child { margin-top: 0; }
+
     /* Splash screen */
     #splash-screen {
       position: fixed;
@@ -685,13 +1006,29 @@
           <img src="Logo.png" alt="HOP" style="width: clamp(144px, 36vmin, 288px); height: auto; margin-bottom: 8px;">
           <div id="best-score"><span class="crown">&#x1F451;</span> <span id="best-score-val">0</span></div>
           <button id="theme-btn" title="Toggle light/dark mode"><span class="theme-icon" id="theme-icon">&#x2600;</span></button>
+          <div id="ledger">
+            <div id="ledger-track"><div id="ledger-fill"></div></div>
+            <div id="ledger-label">TOTAL <span class="ledger-total" id="ledger-total">0</span> / <span id="ledger-target">5,000</span></div>
+          </div>
+          <div id="world-progress"></div>
           <div class="start-middle">
             <div class="finger-hint">
               <div class="finger-hint-line"></div>
               <img class="finger-hint-icon" src="indicator.png" alt="tap">
             </div>
           </div>
-          <button id="shop-btn"><span class="shop-coin"><img src="cart.png" alt="shop"></span></button>
+          <div class="menu-btns">
+            <button id="missions-btn" title="Missions">
+              <span class="menu-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10.5" fill="#fff" stroke="#111" stroke-width="1.6"/>
+                  <circle cx="12" cy="12" r="7" fill="none" stroke="#111" stroke-width="1.6"/>
+                  <circle cx="12" cy="12" r="3.5" fill="#ff4d4d" stroke="#111" stroke-width="1.6"/>
+                </svg>
+              </span>
+            </button>
+            <button id="shop-btn"><span class="shop-coin"><img src="cart.png" alt="shop"></span></button>
+          </div>
         </div>
         <div id="gameover-screen">
           <h1>GAME OVER</h1>
@@ -707,8 +1044,13 @@
             TOTAL <span class="coin-icon"><img src="Coin.png" alt="coin"></span>
             <span id="go-total-coins">0</span>
           </div>
+          <div id="go-world"></div>
+          <div id="go-missions">
+            <div id="go-missions-label">MISSIONS COMPLETED</div>
+            <div id="go-missions-list"></div>
+          </div>
           <div class="go-bottom">
-            <button id="go-continue-btn"><span class="go-arrow">→</span></button>
+            <button id="go-continue-btn">PLAY AGAIN</button>
           </div>
           <div id="confetti-container"></div>
         </div>
@@ -725,6 +1067,22 @@
       <div class="shop-footer">
         <span class="coin-icon"><img src="Coin.png" alt="coin"></span>
         <span id="shop-coin-display">0</span>
+      </div>
+    </div>
+  </div>
+  <div id="missions-overlay">
+    <div class="missions-container">
+      <div class="missions-header">
+        <h2>MISSIONS</h2>
+        <button class="missions-close" id="missions-close">&#x2715;</button>
+      </div>
+      <div class="missions-tabs">
+        <button class="missions-tab active" data-tab="general">GENERAL</button>
+        <button class="missions-tab" data-tab="world">WORLD</button>
+        <button class="missions-tab" data-tab="lifetime">LIFETIME</button>
+      </div>
+      <div class="missions-scroll" id="missions-scroll">
+        <div id="missions-list"></div>
       </div>
     </div>
   </div>

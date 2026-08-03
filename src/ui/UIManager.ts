@@ -3,7 +3,8 @@ import { THEMES, type ThemeName } from '../config/Themes';
 import type { GameStateManager } from '../core/GameStateManager';
 import { EventBus, GAME_EVENTS } from '../core/EventBus';
 import type { WorldConfig } from '../config/Worlds';
-import type { MissionReward } from '../config/Missions';
+import type { MissionKind, MissionReward } from '../config/Missions';
+import { getLedgerInfo, getMissionProgressList, getWorldProgress } from '../core/Progression';
 import type { RendererSystem } from '../systems/RendererSystem';
 import type { ShadowSystem } from '../systems/ShadowSystem';
 import type { BackgroundSystem } from '../systems/BackgroundSystem';
@@ -36,9 +37,33 @@ export class UIManager {
   private confettiContainer = this.el<HTMLElement>('confetti-container');
   private splashScreen = this.el<HTMLElement>('splash-screen');
   private shopBtn = this.el<HTMLButtonElement>('shop-btn');
+  private ledgerFill = this.el<HTMLElement>('ledger-fill');
+  private ledgerLabel = this.el<HTMLElement>('ledger-label');
+  private ledgerTotal = this.el<HTMLElement>('ledger-total');
+  private ledgerTarget = this.el<HTMLElement>('ledger-target');
+  private worldProgress = this.el<HTMLElement>('world-progress');
+  private missionsBtn = this.el<HTMLButtonElement>('missions-btn');
+  private missionsOverlay = this.el<HTMLElement>('missions-overlay');
+  private missionsClose = this.el<HTMLElement>('missions-close');
+  private missionsList = this.el<HTMLElement>('missions-list');
+  private missionsScroll = this.el<HTMLElement>('missions-scroll');
+  private missionsTabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.missions-tab'));
+  private goWorld = this.el<HTMLElement>('go-world');
+  private goMissions = this.el<HTMLElement>('go-missions');
+  private goMissionsList = this.el<HTMLElement>('go-missions-list');
   private streakGlow: HTMLElement | null = null;
-  private missionQueue: MissionReward[] = [];
+  private missionQueue: boolean[] = [];
   private missionBusy = false;
+  private activeMissionTab: MissionKind = 'general';
+  /** Done missions already celebrated with per-card confetti (one-time per session). */
+  private celebratedIds = new Set<string>();
+  private celebratedSeeded = false;
+
+  private static CHECK_SVG =
+    '<svg class="m-check-svg" viewBox="0 0 24 24" aria-hidden="true">' +
+    '<circle cx="12" cy="12" r="10.5" fill="#ffd700" stroke="#b8860b" stroke-width="1.4"/>' +
+    '<path d="M7 12.6l3.3 3.3 6.6-7.2" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '</svg>';
 
   constructor(
     private state: GameStateManager,
@@ -69,6 +94,28 @@ export class UIManager {
     this.shopBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       this.openShop();
+    });
+    this.missionsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.openMissions();
+    });
+    this.missionsClose.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.closeMissions();
+    });
+    this.missionsTabs.forEach((tab) =>
+      tab.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const kind = tab.dataset.tab as MissionKind | undefined;
+        if (!kind || kind === this.activeMissionTab) return;
+        this.activeMissionTab = kind;
+        this.missionsTabs.forEach((t) => t.classList.toggle('active', t === tab));
+        this.missionsScroll.scrollTop = 0;
+        this.renderMissionsOverlay();
+      })
+    );
+    this.missionsOverlay.addEventListener('click', (e) => {
+      if (e.target === this.missionsOverlay) this.closeMissions();
     });
     this.shopClose.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -122,6 +169,193 @@ export class UIManager {
   /** Mirror `io()`: best score on start screen. */
   refreshBestScore(): void {
     this.bestScoreVal.textContent = String(this.state.getPlayerData().bestScore);
+  }
+
+  /** Render the compact progression block on the start screen (Iteration 7). */
+  renderStartScreen(): void {
+    this.renderLedger();
+    this.renderWorldChips();
+  }
+
+  private renderLedger(): void {
+    const data = this.state.getPlayerData();
+    const ledger = getLedgerInfo(data.totalScore);
+    this.ledgerFill.style.width = `${ledger.percent}%`;
+    this.ledgerTotal.textContent = String(ledger.current);
+    this.ledgerTarget.textContent = ledger.target.toLocaleString();
+    this.ledgerLabel.classList.toggle('ledger-done', ledger.done);
+    this.ledgerLabel.title = ledger.nextUnlock
+      ? `Next: ${ledger.nextUnlock.name} at ${ledger.nextUnlock.unlockScore.toLocaleString()}`
+      : 'All worlds open!';
+  }
+
+  private renderWorldChips(): void {
+    const data = this.state.getPlayerData();
+    this.worldProgress.innerHTML = '';
+    for (const row of getWorldProgress(data)) {
+      const chip = document.createElement('div');
+      chip.className = `world-chip ${row.unlocked ? 'unlocked' : row.isNextUnlock ? 'next' : 'locked'}`;
+      chip.innerHTML = `<span class="chip-name">${row.unlocked ? '&#10003; ' : ''}${row.world.name}</span>`;
+      if (row.unlocked && row.best > 0) {
+        const best = document.createElement('span');
+        best.className = 'chip-best';
+        best.textContent = `BEST ${row.best}`;
+        chip.appendChild(best);
+      }
+      chip.title = row.unlocked
+        ? `Best run in ${row.world.name}: ${row.best}`
+        : `Unlocks at ${row.world.unlockScore.toLocaleString()} total`;
+      this.worldProgress.appendChild(chip);
+    }
+  }
+
+  /** Open the missions tab: render the active tab, animate bars, confetti on done. */
+  openMissions(): void {
+    this.renderMissionsOverlay();
+    this.missionsOverlay.style.display = 'flex';
+  }
+
+  closeMissions(): void {
+    this.missionsOverlay.style.display = 'none';
+  }
+
+  private renderMissionsOverlay(): void {
+    const data = this.state.getPlayerData();
+    const run = this.state.getState();
+    let rows = getMissionProgressList(data, {
+      score: run.score,
+      runPerfects: run.runPerfects,
+      runGems: run.runGems,
+      maxStreak: run.maxStreak
+    }).filter((r) => r.kind === this.activeMissionTab);
+
+    if (this.activeMissionTab === 'world') {
+      const worldOrder: Record<string, number> = { sunrise: 0, dusk: 1, void: 2 };
+      rows.sort(
+        (a, b) =>
+          (worldOrder[a.world ?? ''] ?? 9) - (worldOrder[b.world ?? ''] ?? 9) || a.target - b.target
+      );
+    } else {
+      rows.sort((a, b) => a.target - b.target);
+    }
+
+    this.missionsList.innerHTML = '';
+
+    this.seedCelebrated();
+    const celebrate: string[] = [];
+    for (const m of rows) {
+      if (!m.done || this.celebratedIds.has(m.id)) continue;
+      this.celebratedIds.add(m.id);
+      celebrate.push(m.id);
+    }
+
+    for (const m of rows) {
+      const row = document.createElement('div');
+      row.className = `mission-row${m.done ? ' done' : ''}${m.locked ? ' locked' : ''}`;
+      row.dataset.id = m.id;
+
+      const info = document.createElement('div');
+      info.className = 'm-info';
+      const title = document.createElement('div');
+      title.className = 'm-title';
+      title.textContent = m.title;
+      const desc = document.createElement('div');
+      desc.className = 'm-desc';
+      desc.textContent = m.desc;
+      info.append(title, desc);
+
+      const bar = document.createElement('div');
+      bar.className = 'm-bar';
+      const fill = document.createElement('div');
+      fill.className = 'm-bar-fill';
+      fill.dataset.width = String(m.percent);
+      bar.appendChild(fill);
+
+      const metric = document.createElement('div');
+      metric.className = 'm-metric';
+      metric.textContent = `${m.current}/${m.target}`;
+
+      row.append(info, bar, metric);
+
+      if (m.locked) {
+        const lock = document.createElement('span');
+        lock.className = 'm-lock';
+        lock.textContent = '\u{1F512}';
+        row.appendChild(lock);
+      } else if (m.done) {
+        const check = document.createElement('span');
+        check.className = 'm-check';
+        check.innerHTML = UIManager.CHECK_SVG;
+        row.appendChild(check);
+      }
+
+      this.missionsList.appendChild(row);
+    }
+
+    this.animateMissionBars(() => {
+      for (const id of celebrate) {
+        const row = this.missionsList.querySelector<HTMLElement>(`.mission-row[data-id="${id}"]`);
+        if (row) this.burstConfetti(row, 14);
+      }
+    });
+  }
+
+  /** Done missions known since session start are already celebrated (no re-fire). */
+  private seedCelebrated(): void {
+    if (this.celebratedSeeded) return;
+    this.celebratedSeeded = true;
+    for (const id of this.state.getPlayerData().completedMissions) this.celebratedIds.add(id);
+  }
+
+  /** Staggered bar fill on tab open: 0% → real progress (GSAP).
+   *  Completed rows stay full and static — no re-animation. */
+  private animateMissionBars(onDone: () => void): void {
+    const fills = Array.from(this.missionsList.querySelectorAll<HTMLElement>('.m-bar-fill'));
+    let lastDelay = 0;
+    fills.forEach((fill, i) => {
+      const target = fill.dataset.width ?? '0';
+      const row = fill.closest('.mission-row');
+      if (row && row.classList.contains('done')) {
+        fill.style.width = `${target}%`;
+        return;
+      }
+      lastDelay = 0.2 + i * 0.05;
+      gsap.fromTo(
+        fill,
+        { width: '0%' },
+        { width: `${target}%`, duration: 0.6, delay: lastDelay, ease: 'power2.out' }
+      );
+    });
+    window.setTimeout(onDone, lastDelay * 1000 + 700);
+  }
+
+  /** Confetti falls inside the completed mission card itself (one-time). */
+  private burstConfetti(target: HTMLElement, count: number): void {
+    const colors = ['#ff4d4d', '#ffd700', '#4dd4ff', '#44ff88', '#ff44aa', '#8844ff'];
+    for (let i = 0; i < count; i++) {
+      const piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+      piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+      piece.style.left = `${5 + Math.random() * 90}%`;
+      piece.style.width = `${4 + Math.random() * 5}px`;
+      piece.style.height = `${4 + Math.random() * 5}px`;
+      piece.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+      target.appendChild(piece);
+      gsap.fromTo(
+        piece,
+        { y: -6, x: 0, rotation: 0, opacity: 1 },
+        {
+          y: target.clientHeight + 8,
+          x: (Math.random() - 0.5) * 60,
+          rotation: Math.random() * 540 - 270,
+          opacity: 0,
+          duration: 0.7 + Math.random() * 0.7,
+          delay: 0.1 + Math.random() * 0.4,
+          ease: 'power1.in',
+          onComplete: () => piece.remove()
+        }
+      );
+    }
   }
 
   /** Render the ball shop (`uc`). */
@@ -218,6 +452,31 @@ export class UIManager {
     this.goNewBest.style.display = isNewBest ? 'block' : 'none';
     this.goRoundCoins.textContent = `+${roundCoins}`;
 
+    this.goWorld.textContent = `REACHED ${this.state.getActiveWorld().name.toUpperCase()}`;
+
+    const rewards = this.state.getRunMissionRewards();
+    const missionCoins = rewards.reduce((sum, r) => sum + r.reward, 0);
+    this.goMissionsList.innerHTML = '';
+    if (rewards.length > 0) {
+      for (const r of rewards) {
+        const item = document.createElement('div');
+        item.className = 'go-mission-row';
+        const name = document.createElement('span');
+        name.className = 'm-name';
+        name.textContent = r.title;
+        const coin = document.createElement('span');
+        coin.className = 'm-coin';
+        coin.textContent = `+${r.reward} coins`;
+        item.append(name, coin);
+        this.goMissionsList.appendChild(item);
+      }
+      const label = this.el<HTMLElement>('go-missions-label');
+      label.textContent = `MISSIONS COMPLETED \u00B7 +${missionCoins} COINS`;
+      this.goMissions.style.display = 'flex';
+    } else {
+      this.goMissions.style.display = 'none';
+    }
+
     const startCoins = data.totalCoins - roundCoins;
     this.goTotalCoins.textContent = String(startCoins);
     this.gameOverScreen.style.display = 'flex';
@@ -240,6 +499,7 @@ export class UIManager {
   hideGameOver(): void {
     this.gameOverScreen.style.display = 'none';
     this.goTotalCoins.textContent = '';
+    this.goWorld.textContent = '';
   }
 
   setScore(score: number): void {
@@ -337,22 +597,53 @@ export class UIManager {
     this.showBanner('FIRE!', 'Shield raised — one free miss', 'streak-banner fire', 2.4, true);
   }
 
-  /** Mission completed toast — one at a time, FIFO. */
-  showMissionToast(mission: MissionReward): void {
-    this.missionQueue.push(mission);
-    this.pumpMissionToasts();
+  /** Mission completed — white card slides in from the right, FIFO, no text. */
+  showMissionToast(): void {
+    this.missionQueue.push(true);
+    this.pumpMissionCards();
   }
 
-  private pumpMissionToasts(): void {
+  private pumpMissionCards(): void {
     if (this.missionBusy) return;
     const next = this.missionQueue.shift();
     if (!next) return;
     this.missionBusy = true;
-    this.showBanner('MISSION COMPLETE!', `${next.title} · +${next.reward} coins`, 'mission-toast', 1.8, false);
+    this.showMissionCard();
     window.setTimeout(() => {
       this.missionBusy = false;
-      this.pumpMissionToasts();
-    }, 2100);
+      this.pumpMissionCards();
+    }, 2400);
+  }
+
+  /** Bullseye + loading bar card (user spec: no mission name, minimal). */
+  private showMissionCard(): void {
+    const overlay = document.getElementById('ui-overlay');
+    if (!overlay) return;
+    overlay.querySelector('.mission-card')?.remove();
+
+    const card = document.createElement('div');
+    card.className = 'mission-card';
+    card.innerHTML =
+      '<svg class="mc-target" viewBox="0 0 24 24" aria-hidden="true">' +
+      '<circle cx="12" cy="12" r="10.5" fill="#fff" stroke="#111" stroke-width="1.6"/>' +
+      '<circle cx="12" cy="12" r="7" fill="none" stroke="#111" stroke-width="1.6"/>' +
+      '<circle cx="12" cy="12" r="3.5" fill="#ff4d4d" stroke="#111" stroke-width="1.6"/>' +
+      '</svg>' +
+      '<div class="mc-bar"><div class="mc-bar-fill"></div></div>';
+    overlay.appendChild(card);
+
+    gsap.fromTo(card, { xPercent: 120 }, { xPercent: 0, duration: 0.5, ease: 'power3.out' });
+    const fill = card.querySelector<HTMLElement>('.mc-bar-fill');
+    if (fill) {
+      gsap.fromTo(fill, { width: '0%' }, { width: '100%', duration: 1.6, delay: 0.4, ease: 'power1.inOut' });
+    }
+    gsap.to(card, {
+      xPercent: 130,
+      duration: 0.5,
+      delay: 2.2,
+      ease: 'power2.in',
+      onComplete: () => card.remove()
+    });
   }
 
   /** Generic banner: title + tagline, entrance/exit tweens, optional white flash. */
