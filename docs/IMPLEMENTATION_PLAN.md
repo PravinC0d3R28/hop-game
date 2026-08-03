@@ -94,7 +94,9 @@ No iteration is "a feature branch" — every layer sits on top of a working game
 
 **Status: DONE — commit `2333d72`**
 - `GameStateManager.evaluateWorldChange()` — single-shot world-crossing detection
-  (`lastWorldId` tracking, re-armed to `sunrise` on `resetGame`).
+  (`lastWorldId` tracking, re-armed to `sunrise` on `resetGame`). *(Superseded in
+  Iteration 11: the world-based selection model removed mid-run crossings,
+  `evaluateWorldChange` and `getWorldForScore` are deleted.)*
 - `Game.ts` emits `WORLD_CHANGED` (EventBus) from both score paths (landing + gem).
 - `UIManager.showWorldBanner()` — dynamic DOM banner (name + tagline) + white flash,
   gsap entrance/exit, self-cleaning; `dispose()` kills tweens.
@@ -118,8 +120,8 @@ No iteration is "a feature branch" — every layer sits on top of a working game
   (deterministic cadence). Sunrise: amp 0 → untouched; Dusk: 1-in-3 static;
   Void: 1-in-4 static, wider+faster.
 - Tests: `platforms.test.ts` sway suite (W1 still, locked-world continuity, dusk
-  exact formula + cadence, void envelope + sparse cadence, gate-cross flip) → 87
-  total.
+  exact formula + cadence, void envelope + sparse cadence, world-switch re-roll)
+  → 87 total.
 - typecheck + test + build green; runtime clean; screenshot
   `docs/shots/iter4-sway-dusk.png`. Playtest sign-off: look good (incl. mix).
 
@@ -203,9 +205,9 @@ No iteration is "a feature branch" — every layer sits on top of a working game
   (`runMissionBanked` guard), so mid-run calls on every jump/gem are idempotent;
   the guard resets between runs via `clearRunMissions`.
 - `getMissionProgressList` reads persisted progress (fills the mission page
-  correctly at the menu), `done` = `completedMissions` for all kinds, and world
-  missions unlock by the reached ladder (`max(run.score, bestScore)`) — earlier
-  worlds no longer show locked once reached.
+  correctly at the menu), `done` = `completedMissions` for all kinds; world
+  mission locks are **selection-scoped** since Iteration 11 (`locked = world ≠
+  selected world`).
 - Toast card shrunk 25% (`clamp(90px, 16.5vmin, 128px)`); missions container is
   now a fixed uniform height (`clamp(340px, 72vh, 520px)`) so all three tabs
   render the same size; missions button reverted to the inline bullseye SVG
@@ -246,6 +248,37 @@ No iteration is "a feature branch" — every layer sits on top of a working game
 - `npm run build` → `dist/`; decide deploy target (GitHub Pages / itch.io / your host)
   and any upload steps you want me to script.
 - **DoD:** you play a full progression arc (0 → 5,000) without issues; build ships.
+
+## Iteration 11 — World-based selection (replaces mid-run gates)
+
+**Goal:** each world is a separate playable space chosen on the start screen;
+runs never change worlds mid-flight.
+
+- `PlayerData.selectedWorld: WorldId` (persisted; legacy saves sanitize to
+  'sunrise'); `loadPlayerData` clamps a selection the ledger can't reach yet.
+- `GameStateManager` — `selectWorld(id)` / `canSelectWorld(world)` (unlock
+  threshold or `DEBUG.unlockAllWorlds`); `getActiveWorld()` returns the
+  selection (debug `forceWorld` override still wins). `evaluateWorldChange` and
+  `lastWorldId` deleted.
+- `WorldLogic` — `getWorldForScore` deleted; `getPreviousWorld` added. Entry
+  offsets (0/100/250) stay in `getTierScore` so per-world difficulty matches the
+  old bands with score restarting at 0 each run.
+- `Missions.ts` — `getActiveMissions(worldId, dateKey)`; world missions active
+  only for the selected world; `getRunWorldId` deleted.
+- `Progression` — `RunStats.selectedWorld`; `locked = m.world !== selected`.
+- `UIManager` — start-screen center-right nav (`world-prev`/`world-current`/
+  `world-next`): back arrow on worlds 2–3, locked next = 🔒 + unlock threshold,
+  unlocked = green ▶; world chips clickable (`.selected` outline); world
+  mission rows get lock tooltips ("Play in <world>…" vs "Unlocks at <N>…");
+  game-over world label = selected world name; `WORLD_CHANGED` handler +
+  `showWorldBanner` removed. `Game.reset()` calls `ui.clearTransientFx()`.
+- Tests: selection/unlock/clamp round-trips, per-world curve parity, sway re-roll
+  on selection, mission activation per world → 145 total; typecheck + build
+  green.
+- Browser-verified: locked arrow refuses selection; 1,000 unlocks dusk (arrow +
+  chip); run stays in dusk (score 0 start, game-over shows "DUSK DISTRICT");
+  PLAY AGAIN keeps the selection; back arrow; WORLD tab locks + tooltips;
+  5,000 unlocks void.
 
 ---
 

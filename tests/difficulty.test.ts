@@ -49,14 +49,15 @@ describe('sawtooth difficulty — parity', () => {
   });
 });
 
-describe('sawtooth difficulty — gate resets', () => {
-  it('unlockAllWorlds: crossing 100 resets curves to base values', () => {
+describe('sawtooth difficulty — world selection', () => {
+  it('selecting dusk: curves reset to base at the entry score, then dusk ramps', () => {
     const gm = new GameStateManager();
     gm.setUnlockAllWorlds(true);
+    expect(gm.selectWorld('dusk')).toBe(true);
 
     gm.setScore(99);
-    expect(gm.getActiveWorld().id).toBe('sunrise');
-    expect(gm.getJumpDuration()).toBeCloseTo(legacyJumpDuration(99), 10);
+    expect(gm.getActiveWorld().id).toBe('dusk');
+    expect(gm.getJumpDuration()).toBe(0.5);
 
     gm.setScore(100);
     expect(gm.getActiveWorld().id).toBe('dusk');
@@ -64,21 +65,20 @@ describe('sawtooth difficulty — gate resets', () => {
     expect(gm.getXRange()).toBe(1.2);
   });
 
-  it('crossing 250 resets into void with void ramps', () => {
+  it('the run stays in the selected world past the next entry score (no crossing)', () => {
     const gm = new GameStateManager();
     gm.setUnlockAllWorlds(true);
+    gm.selectWorld('dusk');
     gm.setScore(249);
     expect(gm.getActiveWorld().id).toBe('dusk');
-
-    gm.setScore(250);
-    expect(gm.getActiveWorld().id).toBe('void');
-    expect(gm.getJumpDuration()).toBe(0.5);
-    expect(gm.getPlatformSpacing()).toBe(3.5);
+    gm.setScore(300);
+    expect(gm.getActiveWorld().id).toBe('dusk');
   });
 
-  it('uses world ramp overrides past the gate (dusk tier 50)', () => {
+  it('uses world ramp overrides past the entry (dusk tier 50)', () => {
     const gm = new GameStateManager();
     gm.setUnlockAllWorlds(true);
+    gm.selectWorld('dusk');
     gm.setScore(150);
     expect(gm.getActiveWorld().id).toBe('dusk');
     expect(gm.getXRange()).toBeCloseTo(1.2 + 50 * 0.025, 10);
@@ -88,6 +88,7 @@ describe('sawtooth difficulty — gate resets', () => {
   it('uses void ramps (void tier 50)', () => {
     const gm = new GameStateManager();
     gm.setUnlockAllWorlds(true);
+    gm.selectWorld('void');
     gm.setScore(300);
     expect(gm.getActiveWorld().id).toBe('void');
     expect(gm.getXRange()).toBeCloseTo(1.2 + 50 * 0.03, 10);
@@ -97,6 +98,7 @@ describe('sawtooth difficulty — gate resets', () => {
   it('void ramps cap at their own maxima, not the global ones', () => {
     const gm = new GameStateManager();
     gm.setUnlockAllWorlds(true);
+    gm.selectWorld('void');
     gm.setScore(250 + 9999);
     expect(gm.getActiveWorld().id).toBe('void');
     expect(gm.getXRange()).toBe(3);
@@ -105,22 +107,25 @@ describe('sawtooth difficulty — gate resets', () => {
   });
 });
 
-describe('world control via unlock score and overrides', () => {
-  it('setTotalScore(1000) unlocks dusk mid-run at score 120', () => {
+describe('world selection via unlock score and overrides', () => {
+  it('selectWorld refuses locked worlds and accepts them once unlocked', () => {
     const gm = new GameStateManager();
+    expect(gm.selectWorld('dusk')).toBe(false);
+    expect(gm.getActiveWorld().id).toBe('sunrise');
     gm.setTotalScore(1000);
-    gm.setScore(120);
+    expect(gm.selectWorld('dusk')).toBe(true);
     expect(gm.getActiveWorld().id).toBe('dusk');
   });
 
-  it('setTotalScore(5000) unlocks void at score 300', () => {
+  it('void unlocks at 5,000 and its selection sticks', () => {
     const gm = new GameStateManager();
     gm.setTotalScore(5000);
+    expect(gm.selectWorld('void')).toBe(true);
     gm.setScore(300);
     expect(gm.getActiveWorld().id).toBe('void');
   });
 
-  it('forceWorld overrides gate/unlock logic entirely', () => {
+  it('forceWorld overrides the selection entirely', () => {
     const gm = new GameStateManager();
     gm.setScore(10);
     gm.setWorldOverride('void');
@@ -130,55 +135,16 @@ describe('world control via unlock score and overrides', () => {
     expect(gm.getActiveWorld().id).toBe('sunrise');
   });
 
-  it('unlockAllWorlds wins even with totalScore 0', () => {
+  it('unlockAllWorlds lets any world be selected even with totalScore 0', () => {
     const gm = new GameStateManager();
     gm.setUnlockAllWorlds(true);
+    expect(gm.selectWorld('void')).toBe(true);
     gm.setScore(999);
     expect(gm.getActiveWorld().id).toBe('void');
   });
-});
 
-describe('world transition detection (evaluateWorldChange)', () => {
-  it('returns the new world exactly once at each gate crossing', () => {
+  it('unknown ids are rejected by selectWorld', () => {
     const gm = new GameStateManager();
-    gm.setUnlockAllWorlds(true);
-    gm.setScore(99);
-    expect(gm.evaluateWorldChange()).toBeNull();
-    gm.setScore(100);
-    expect(gm.evaluateWorldChange()?.id).toBe('dusk');
-    gm.setScore(105);
-    expect(gm.evaluateWorldChange()).toBeNull();
-    gm.setScore(249);
-    expect(gm.evaluateWorldChange()).toBeNull();
-    gm.setScore(250);
-    expect(gm.evaluateWorldChange()?.id).toBe('void');
-    gm.setScore(251);
-    expect(gm.evaluateWorldChange()).toBeNull();
-  });
-
-  it('locked next world: no transition past the gate', () => {
-    const gm = new GameStateManager();
-    gm.setScore(300);
-    expect(gm.evaluateWorldChange()).toBeNull();
-    gm.setScore(600);
-    expect(gm.evaluateWorldChange()).toBeNull();
-  });
-
-  it('skips earlier worlds when a run starts already past a gate', () => {
-    const gm = new GameStateManager();
-    gm.setTotalScore(6000);
-    gm.setScore(260);
-    expect(gm.evaluateWorldChange()?.id).toBe('void');
-    expect(gm.evaluateWorldChange()).toBeNull();
-  });
-
-  it('resetGame re-arms detection back at sunrise', () => {
-    const gm = new GameStateManager();
-    gm.setUnlockAllWorlds(true);
-    gm.setScore(100);
-    expect(gm.evaluateWorldChange()?.id).toBe('dusk');
-    gm.resetGame();
-    gm.setScore(50);
-    expect(gm.evaluateWorldChange()).toBeNull();
+    expect(gm.selectWorld('nope' as never)).toBe(false);
   });
 });

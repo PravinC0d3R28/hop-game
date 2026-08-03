@@ -37,6 +37,17 @@ describe('streak milestones (simplified v1: single fire reward at 10, any score/
     gm.addPerfectStreak();
     expect(gm.checkStreakMilestone()).toBe('fire');
   });
+
+  it('milestone re-fires when the streak is rebuilt to 10 (banner every time)', () => {
+    const gm = new GameStateManager();
+    for (let i = 1; i <= 10; i++) gm.addPerfectStreak();
+    expect(gm.checkStreakMilestone()).toBe('fire');
+    gm.resetPerfectStreak();
+    for (let i = 1; i <= 9; i++) gm.addPerfectStreak();
+    expect(gm.checkStreakMilestone()).toBeNull();
+    gm.addPerfectStreak();
+    expect(gm.checkStreakMilestone()).toBe('fire');
+  });
 });
 
 describe('shield ring (FR-4.4)', () => {

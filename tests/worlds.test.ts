@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { WORLDS } from '../src/config/Worlds';
 import {
   getNextWorld,
+  getPreviousWorld,
   getTierScore,
   getWorldById,
-  getWorldForScore,
   getWorldEntryScore,
   isWorldUnlocked
 } from '../src/core/WorldLogic';
@@ -52,22 +52,22 @@ describe('isWorldUnlocked', () => {
   });
 });
 
-describe('getWorldForScore', () => {
-  it('fresh save stays in sunrise at any score', () => {
-    expect(getWorldForScore(0, 0).id).toBe('sunrise');
-    expect(getWorldForScore(999, 0).id).toBe('sunrise');
+describe('world helpers', () => {
+  it('getWorldById finds worlds and rejects unknown ids', () => {
+    expect(getWorldById('dusk')?.name).toBe('Dusk District');
+    expect(getWorldById('nope')).toBeUndefined();
   });
 
-  it('all unlocked: crosses gates at 100 and 250', () => {
-    expect(getWorldForScore(99, 100000).id).toBe('sunrise');
-    expect(getWorldForScore(100, 100000).id).toBe('dusk');
-    expect(getWorldForScore(249, 100000).id).toBe('dusk');
-    expect(getWorldForScore(250, 100000).id).toBe('void');
+  it('getNextWorld chains sunrise → dusk → void → none', () => {
+    expect(getNextWorld(WORLDS[0])?.id).toBe('dusk');
+    expect(getNextWorld(WORLDS[1])?.id).toBe('void');
+    expect(getNextWorld(WORLDS[2])).toBeUndefined();
   });
 
-  it('void locked: run stays in dusk past its gate', () => {
-    expect(getWorldForScore(300, 1000).id).toBe('dusk');
-    expect(getWorldForScore(999, 1000).id).toBe('dusk');
+  it('getPreviousWorld chains void → dusk → sunrise → none', () => {
+    expect(getPreviousWorld(WORLDS[2])?.id).toBe('dusk');
+    expect(getPreviousWorld(WORLDS[1])?.id).toBe('sunrise');
+    expect(getPreviousWorld(WORLDS[0])).toBeUndefined();
   });
 });
 
@@ -89,18 +89,5 @@ describe('tier score (sawtooth base)', () => {
   it('never goes negative below entry', () => {
     expect(getTierScore(50, WORLDS[1])).toBe(0);
     expect(getTierScore(0, WORLDS[2])).toBe(0);
-  });
-});
-
-describe('world helpers', () => {
-  it('getWorldById finds worlds and rejects unknown ids', () => {
-    expect(getWorldById('dusk')?.name).toBe('Dusk District');
-    expect(getWorldById('nope')).toBeUndefined();
-  });
-
-  it('getNextWorld chains sunrise → dusk → void → none', () => {
-    expect(getNextWorld(WORLDS[0])?.id).toBe('dusk');
-    expect(getNextWorld(WORLDS[1])?.id).toBe('void');
-    expect(getNextWorld(WORLDS[2])).toBeUndefined();
   });
 });

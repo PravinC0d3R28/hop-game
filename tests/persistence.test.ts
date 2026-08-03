@@ -18,28 +18,37 @@ describe('PersistenceManager round-trip', () => {
     const loaded = await pm.load();
     expect(loaded.totalScore).toBe(0);
     expect(loaded.bestPerWorld).toEqual([0, 0, 0]);
+    expect(loaded.selectedWorld).toBe('sunrise');
   });
 
   it('saving then loading round-trips the new fields', async () => {
     const pm = new PersistenceManager(new MemoryBackend());
-    const data = { ...DEFAULT_PLAYER_DATA, totalScore: 1234, bestPerWorld: [300, 150, 0] };
+    const data = {
+      ...DEFAULT_PLAYER_DATA,
+      totalScore: 1234,
+      bestPerWorld: [300, 150, 0],
+      selectedWorld: 'dusk' as const
+    };
     await pm.save(data);
     const loaded = await pm.load();
     expect(loaded.totalScore).toBe(1234);
     expect(loaded.bestPerWorld).toEqual([300, 150, 0]);
+    expect(loaded.selectedWorld).toBe('dusk');
   });
 
   it('sanitizes corrupt persisted data on load', async () => {
     const backend = new MemoryBackend();
     backend.data = JSON.stringify({
       totalScore: -1,
-      bestPerWorld: ['bad', 10]
+      bestPerWorld: ['bad', 10],
+      selectedWorld: 'nope'
     });
     const pm = new PersistenceManager(backend);
     const loaded = await pm.load();
     expect(loaded.totalScore).toBe(0);
     expect(loaded.bestPerWorld).toEqual([0, 10, 0]);
     expect(loaded.purchasedSkins).toContain('default');
+    expect(loaded.selectedWorld).toBe('sunrise');
   });
 
   it('merge takes max for totalScore and bestPerWorld', () => {
@@ -78,13 +87,14 @@ describe('game-over banking', () => {
       gm.resetGame();
     }
     expect(gm.getPlayerData().totalScore).toBe(1200);
-    gm.setScore(120);
+    expect(gm.selectWorld('dusk')).toBe(true);
     expect(gm.getActiveWorld().id).toBe('dusk');
   });
 
   it('updateBestPerWorld records the active world index only, by max', () => {
     const gm = new GameStateManager();
     gm.setUnlockAllWorlds(true);
+    gm.selectWorld('dusk');
     gm.setScore(130);
     gm.updateBestPerWorld(130);
     expect(gm.getPlayerData().bestPerWorld).toEqual([0, 130, 0]);
@@ -95,10 +105,17 @@ describe('game-over banking', () => {
     expect(gm.getPlayerData().bestPerWorld).toEqual([0, 200, 0]);
   });
 
-  it('loadPlayerData syncs world unlocks from a migrated save', () => {
+  it('loadPlayerData keeps the selection and exposes it as the active world', () => {
     const gm = new GameStateManager();
-    gm.loadPlayerData({ ...DEFAULT_PLAYER_DATA, totalScore: 6000 });
+    gm.loadPlayerData({ ...DEFAULT_PLAYER_DATA, totalScore: 6000, selectedWorld: 'void' });
     gm.setScore(300);
     expect(gm.getActiveWorld().id).toBe('void');
+  });
+
+  it('loadPlayerData clamps a selection the ledger cannot reach yet', () => {
+    const gm = new GameStateManager();
+    gm.loadPlayerData({ ...DEFAULT_PLAYER_DATA, totalScore: 10, selectedWorld: 'dusk' });
+    expect(gm.getActiveWorld().id).toBe('sunrise');
+    expect(gm.getPlayerData().selectedWorld).toBe('sunrise');
   });
 });

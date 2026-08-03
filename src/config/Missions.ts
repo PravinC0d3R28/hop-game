@@ -117,15 +117,6 @@ export function getMissionById(id: string): MissionConfig | undefined {
   return MISSIONS.find((m) => m.id === id);
 }
 
-/** World the run is currently in, read purely from the run score (gate ladder). */
-export function getRunWorldId(score: number): WorldId {
-  let world = WORLDS[0].id;
-  for (const candidate of WORLDS) {
-    if (score >= candidate.gateScore) world = candidate.id;
-  }
-  return world;
-}
-
 /** Next world in the ladder (null for the last world). */
 export function getNextWorldOfId(id: WorldId): WorldId | null {
   const index = WORLDS.findIndex((w) => w.id === id);
@@ -171,20 +162,17 @@ export function getDailyMissions(dateKey: string): MissionConfig[] {
 }
 
 /**
- * Missions that can bank progress, given the run's ladder score (the max of
- * the current run and the all-time best run — see `evaluateMissions`).
+ * Missions that can bank progress, given the world currently selected to play:
  * - General: today's daily set (5 missions).
- * - World: every world the ladder has reached (`worldIndex <= reachedIndex`).
- *   Not-yet-reached worlds stay inert: their missions never bank while locked.
+ * - World: only the selected world's missions (world-based model) — missions
+ *   of other worlds are inert and never bank while you play elsewhere.
  * - Lifetime: always on.
  */
-export function getActiveMissions(score: number, dateKey: string = todayKey()): MissionConfig[] {
+export function getActiveMissions(world: WorldId, dateKey: string = todayKey()): MissionConfig[] {
   const dailyIds = new Set(getDailyMissions(dateKey).map((m) => m.id));
-  const reachedIndex = WORLDS.findIndex((w) => w.id === getRunWorldId(score));
   return MISSIONS.filter((m) => {
     if (m.kind === 'general') return dailyIds.has(m.id);
     if (m.kind !== 'world') return true;
-    const worldIndex = m.world ? WORLDS.findIndex((w) => w.id === m.world) : -1;
-    return worldIndex <= reachedIndex;
+    return m.world === world;
   });
 }

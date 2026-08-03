@@ -54,6 +54,14 @@ describe('sanitizePlayerData (mirrors original QM)', () => {
     } as never);
     expect(out.totalScore).toBe(0);
     expect(out.bestPerWorld).toEqual([0, 0, 0]);
+    expect(out.selectedWorld).toBe('sunrise');
+  });
+
+  it('sanitizes selectedWorld to a known world id', () => {
+    expect(sanitizePlayerData({ selectedWorld: 'dusk' } as never).selectedWorld).toBe('dusk');
+    expect(sanitizePlayerData({ selectedWorld: 'void' } as never).selectedWorld).toBe('void');
+    expect(sanitizePlayerData({ selectedWorld: 'nope' } as never).selectedWorld).toBe('sunrise');
+    expect(sanitizePlayerData({ selectedWorld: 42 } as never).selectedWorld).toBe('sunrise');
   });
 
   it('coerces totalScore', () => {
@@ -110,6 +118,14 @@ describe('mergePlayerData (mirrors original cloud-merge)', () => {
     const base = { ...DEFAULT_PLAYER_DATA, bestPerWorld: [100, 40, 70] };
     const incoming = { ...DEFAULT_PLAYER_DATA, bestPerWorld: [50, 80, 10] };
     expect(mergePlayerData(base, incoming).bestPerWorld).toEqual([100, 80, 70]);
+  });
+
+  it('prefers the incoming selectedWorld when it is valid, else keeps base', () => {
+    const base = { ...DEFAULT_PLAYER_DATA, selectedWorld: 'sunrise' as const };
+    const incoming = { ...DEFAULT_PLAYER_DATA, selectedWorld: 'dusk' as const };
+    expect(mergePlayerData(base, incoming).selectedWorld).toBe('dusk');
+    const corrupt = { ...DEFAULT_PLAYER_DATA, selectedWorld: 'nope' as never };
+    expect(mergePlayerData(base, corrupt).selectedWorld).toBe('sunrise');
   });
 });
 

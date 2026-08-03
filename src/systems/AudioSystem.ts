@@ -6,8 +6,14 @@ import { GAME_CONFIG } from '../config/GameConfig';
 export class AudioSystem {
   private ctx: AudioContext | null = null;
 
+  /** When the last mission chime rang — used to swallow rapid repeats from a completion batch. */
+  private lastMissionChimeAt = Number.NEGATIVE_INFINITY;
+  /** Minimum gap between mission chimes; a batch of completions rings at most every 1.8s. */
+  private static readonly MISSION_CHIME_MIN_GAP_MS = 1800;
+
   private ensureContext(): AudioContext | null {
     if (!this.ctx) {
+      if (typeof window === 'undefined') return null;
       const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (Ctor) this.ctx = new Ctor();
     }
@@ -58,6 +64,18 @@ export class AudioSystem {
     this.playTone(880, 0.1, 'sine', 0.25);
     setTimeout(() => this.playTone(1100, 0.1, 'sine', 0.2), 50);
     setTimeout(() => this.playTone(1320, 0.15, 'sine', 0.15), 100);
+  }
+
+  /** Mission complete: bright C-major chime. Throttled so a batch of completions doesn't ring repeatedly. */
+  playMissionComplete(): boolean {
+    const now = Date.now();
+    if (now - this.lastMissionChimeAt < AudioSystem.MISSION_CHIME_MIN_GAP_MS) return false;
+    this.lastMissionChimeAt = now;
+    this.playTone(523.25, 0.18, 'sine', 0.22);
+    setTimeout(() => this.playTone(659.25, 0.18, 'sine', 0.2), 90);
+    setTimeout(() => this.playTone(783.99, 0.22, 'sine', 0.18), 180);
+    setTimeout(() => this.playTone(1046.5, 0.32, 'sine', 0.14), 270);
+    return true;
   }
 
   /** Mirror `KM`: perfect/combo arpeggio; more notes at higher streaks. */

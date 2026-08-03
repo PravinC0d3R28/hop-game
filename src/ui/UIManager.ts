@@ -2,7 +2,9 @@ import { GAME_CONFIG } from '../config/GameConfig';
 import { THEMES, type ThemeName } from '../config/Themes';
 import type { GameStateManager } from '../core/GameStateManager';
 import { EventBus, GAME_EVENTS } from '../core/EventBus';
-import type { WorldConfig } from '../config/Worlds';
+import type { WorldId } from '../config/Worlds';
+import { getNextWorld, getPreviousWorld, getWorldById } from '../core/WorldLogic';
+import { WORLDS } from '../config/Worlds';
 import type { MissionKind, MissionReward } from '../config/Missions';
 import { getLedgerInfo, getMissionProgressList, getWorldProgress, getTimeUntilNextReset, formatCountdown } from '../core/Progression';
 import type { RendererSystem } from '../systems/RendererSystem';
@@ -49,6 +51,11 @@ export class UIManager {
   private missionsScroll = this.el<HTMLElement>('missions-scroll');
   private missionsCountdown = this.el<HTMLElement>('missions-countdown');
   private missionsTabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.missions-tab'));
+  private worldNav = this.el<HTMLElement>('world-nav');
+  private worldPrev = this.el<HTMLElement>('world-prev');
+  private worldNext = this.el<HTMLElement>('world-next');
+  private worldCurrentName = this.el<HTMLElement>('world-current-name');
+  private worldCurrentBest = this.el<HTMLElement>('world-current-best');
   private goWorld = this.el<HTMLElement>('go-world');
   private goMissions = this.el<HTMLElement>('go-missions');
   private goMissionsList = this.el<HTMLElement>('go-missions-list');
@@ -78,9 +85,6 @@ export class UIManager {
     this.bind();
     this.missionsCountdown.innerHTML =
       '<span>Come back tomorrow</span><span class="cd-clock">--:--:--</span>';
-    this.events.on(GAME_EVENTS.WORLD_CHANGED, (world) =>
-      this.showWorldBanner(world as WorldConfig)
-    );
     this.events.on(GAME_EVENTS.STREAK_MILESTONE, (payload) =>
       this.showStreakBanner(payload as { milestone: 'fire'; shield: boolean })
     );
@@ -136,11 +140,21 @@ export class UIManager {
     this.continueBtn.addEventListener('click', () => {
       if (this.gameOverScreen.style.display === 'flex') this.onContinue();
     });
+    this.worldPrev.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.moveWorld(-1);
+    });
+    this.worldNext.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.moveWorld(1);
+    });
     window.addEventListener('resize', () => this.onResize());
   }
 
   onContinue: () => void = () => {};
   onSkinApplied: () => void = () => {};
+  /** Fired after a successful world selection (Game re-seeds platform ramps). */
+  onWorldSelect: (id: WorldId) => void = () => {};
 
   /** Mirror `no(r)`: apply theme to scene + DOM. */
   setTheme(theme: ThemeName, persist = true): void {
@@ -178,7 +192,75 @@ export class UIManager {
   /** Render the compact progression block on the start screen (Iteration 7). */
   renderStartScreen(): void {
     this.renderLedger();
+    this.renderWorldNav();
     this.renderWorldChips();
+  }
+
+  /** Navigate to an adjacent world via the start-screen arrows. */
+  private moveWorld(dir: 1 | -1): void {
+    const target = dir > 0 ? getNextWorld(this.state.getActiveWorld()) : getPreviousWorld(this.state.getActiveWorld());
+    if (!target) return;
+    this.selectWorld(target.id);
+  }
+
+  /** Select a world (arrow or chip click); locked selections are refused. */
+  private selectWorld(id: WorldId): void {
+    if (!this.state.selectWorld(id)) return;
+    this.onWorldSelect(id);
+    this.renderStartScreen();
+  }
+
+  /** Center-right nav row: back arrow · current world + best · next arrow/lock. */
+  private renderWorldNav(): void {
+    const data = this.state.getPlayerData();
+    const world = this.state.getActiveWorld();
+    const prev = getPreviousWorld(world);
+    const next = getNextWorld(world);
+
+    this.worldCurrentName.textContent = world.name.toUpperCase();
+    const best = data.bestPerWorld[WORLDS.indexOf(world)] ?? 0;
+    this.worldCurrentBest.textContent = best > 0 ? `BEST ${best}` : 'PLAY TO SET A BEST';
+
+    this.worldPrev.classList.toggle('hidden', !prev);
+    if (prev) this.worldPrev.title = `Back to ${prev.name}`;
+
+    this.worldNext.classList.toggle('hidden', !next);
+    if (next) {
+      const unlocked = this.state.canSelectWorld(next);
+      this.worldNext.classList.toggle('locked', !unlocked);
+      this.worldNext.innerHTML = unlocked
+        ? '<span class="nav-chevron">&#9654;</span>'
+        : `<span class="nav-lock">&#128274;</span><span class="nav-lock-score">${next.unlockScore.toLocaleString()}</span>`;
+      this.worldNext.title = unlocked
+        ? `Go to ${next.name}`
+        : `${next.name} unlocks at ${next.unlockScore.toLocaleString()} total score`;
+    } else {
+      this.worldNext.innerHTML = '';
+    }
+  }
+
+  private renderWorldChips(): void {
+    const data = this.state.getPlayerData();
+    const selectedId = this.state.getActiveWorld().id;
+    this.worldProgress.innerHTML = '';
+    for (const row of getWorldProgress(data)) {
+      const chip = document.createElement('div');
+      chip.className = `world-chip ${row.unlocked ? 'unlocked' : row.isNextUnlock ? 'next' : 'locked'}${
+        row.world.id === selectedId ? ' selected' : ''
+      }`;
+      chip.innerHTML = `<span class="chip-name">${row.unlocked ? '&#10003; ' : ''}${row.world.name}</span>`;
+      if (row.unlocked && row.best > 0) {
+        const best = document.createElement('span');
+        best.className = 'chip-best';
+        best.textContent = `BEST ${row.best}`;
+        chip.appendChild(best);
+      }
+      chip.title = row.unlocked
+        ? `Best run in ${row.world.name}: ${row.best}`
+        : `Unlocks at ${row.world.unlockScore.toLocaleString()} total`;
+      chip.addEventListener('click', () => this.selectWorld(row.world.id));
+      this.worldProgress.appendChild(chip);
+    }
   }
 
   private renderLedger(): void {
@@ -193,31 +275,11 @@ export class UIManager {
       : 'All worlds open!';
   }
 
-  private renderWorldChips(): void {
-    const data = this.state.getPlayerData();
-    this.worldProgress.innerHTML = '';
-    for (const row of getWorldProgress(data)) {
-      const chip = document.createElement('div');
-      chip.className = `world-chip ${row.unlocked ? 'unlocked' : row.isNextUnlock ? 'next' : 'locked'}`;
-      chip.innerHTML = `<span class="chip-name">${row.unlocked ? '&#10003; ' : ''}${row.world.name}</span>`;
-      if (row.unlocked && row.best > 0) {
-        const best = document.createElement('span');
-        best.className = 'chip-best';
-        best.textContent = `BEST ${row.best}`;
-        chip.appendChild(best);
-      }
-      chip.title = row.unlocked
-        ? `Best run in ${row.world.name}: ${row.best}`
-        : `Unlocks at ${row.world.unlockScore.toLocaleString()} total`;
-      this.worldProgress.appendChild(chip);
-    }
-  }
-
   /** Open the missions tab: render the active tab, animate bars, confetti on done. */
   openMissions(): void {
     this.renderMissionsOverlay();
     this.missionsOverlay.style.display = 'flex';
-    this.startCountdown();
+    if (this.missionsCountdown.style.display === 'flex') this.startCountdown();
   }
 
   closeMissions(): void {
@@ -245,15 +307,22 @@ export class UIManager {
   }
 
   private renderMissionsOverlay(): void {
-    this.missionsCountdown.style.display = this.activeMissionTab === 'general' ? 'flex' : 'none';
     const data = this.state.getPlayerData();
     const run = this.state.getState();
     let rows = getMissionProgressList(data, {
       score: run.score,
       runPerfects: run.runPerfects,
       runGems: run.runGems,
-      maxStreak: run.maxStreak
+      maxStreak: run.maxStreak,
+      selectedWorld: this.state.getActiveWorld().id
     }).filter((r) => r.kind === this.activeMissionTab);
+
+    // "Come back tomorrow" countdown only makes sense once today's set is cleared.
+    const allDailyDone =
+      this.activeMissionTab === 'general' &&
+      rows.length > 0 &&
+      rows.every((r) => r.done);
+    this.missionsCountdown.style.display = allDailyDone ? 'flex' : 'none';
 
     if (this.activeMissionTab === 'world') {
       const worldOrder: Record<string, number> = { sunrise: 0, dusk: 1, void: 2 };
@@ -307,6 +376,14 @@ export class UIManager {
         const lock = document.createElement('span');
         lock.className = 'm-lock';
         lock.textContent = '\u{1F512}';
+        if (m.kind === 'world' && m.world) {
+          const w = getWorldById(m.world);
+          if (w) {
+            lock.title = this.state.canSelectWorld(w)
+              ? `Play in ${w.name} to progress its missions`
+              : `Unlocks at ${w.unlockScore.toLocaleString()} total score`;
+          }
+        }
         row.appendChild(lock);
       } else if (m.done) {
         const check = document.createElement('span');
@@ -478,7 +555,7 @@ export class UIManager {
     this.goNewBest.style.display = isNewBest ? 'block' : 'none';
     this.goRoundCoins.textContent = `+${roundCoins}`;
 
-    this.goWorld.textContent = `REACHED ${this.state.getActiveWorld().name.toUpperCase()}`;
+    this.goWorld.textContent = this.state.getActiveWorld().name.toUpperCase();
 
     const rewards = this.state.getRunMissionRewards();
     const missionCoins = rewards.reduce((sum, r) => sum + r.reward, 0);
@@ -612,21 +689,34 @@ export class UIManager {
     return el;
   }
 
-  /** Show "entered world" banner: header + tagline + white flash overlay. */
-  private showWorldBanner(world: WorldConfig): void {
-    this.showBanner(world.name, world.tagline, 'world-banner', 2.0, true);
-  }
-
-  /** Show the fire reward banner (simplified v1): shield + constant glow. */
+  /** FIRE banner on every fresh 10-perfect streak; the shield tagline only on the one-time grant. */
   private showStreakBanner(payload: { milestone: 'fire'; shield: boolean }): void {
     if (payload.milestone !== 'fire') return;
-    this.showBanner('FIRE!', 'Shield raised — one free miss', 'streak-banner fire', 2.4, true);
+    const tagline = payload.shield ? 'Shield raised — one free miss' : '10 in a row — on fire!';
+    this.showBanner('FIRE!', tagline, 'streak-banner fire', 2.4, true);
   }
 
   /** Mission completed — white card slides in from the right, FIFO, no text. */
   showMissionToast(): void {
     this.missionQueue.push(true);
     this.pumpMissionCards();
+  }
+
+  /**
+   * Remove every transient FX node and drop queued toasts. Called on run reset
+   * AFTER `gsap.globalTimeline.clear()` — cleared tweens never fire their
+   * `onComplete` removals, so without this a mid-flight toast/banner would stay
+   * frozen on screen.
+   */
+  clearTransientFx(): void {
+    this.missionQueue = [];
+    this.missionBusy = false;
+    this.stopCountdown();
+    const overlay = document.getElementById('ui-overlay');
+    if (!overlay) return;
+    for (const sel of ['.mission-card', '.world-banner', '.streak-banner', '.world-flash']) {
+      overlay.querySelectorAll(sel).forEach((node) => node.remove());
+    }
   }
 
   private pumpMissionCards(): void {
@@ -641,7 +731,7 @@ export class UIManager {
     }, 2400);
   }
 
-  /** Bullseye + loading bar card (user spec: no mission name, minimal). */
+  /** Green tick + "MISSION COMPLETED" card (user spec), slides in from the right, FIFO. */
   private showMissionCard(): void {
     const overlay = document.getElementById('ui-overlay');
     if (!overlay) return;
@@ -650,19 +740,23 @@ export class UIManager {
     const card = document.createElement('div');
     card.className = 'mission-card';
     card.innerHTML =
-      '<svg class="mc-target" viewBox="0 0 24 24" aria-hidden="true">' +
-      '<circle cx="12" cy="12" r="10.5" fill="#fff" stroke="#111" stroke-width="1.6"/>' +
-      '<circle cx="12" cy="12" r="7" fill="none" stroke="#111" stroke-width="1.6"/>' +
-      '<circle cx="12" cy="12" r="3.5" fill="#ff4d4d" stroke="#111" stroke-width="1.6"/>' +
+      '<svg class="mc-tick" viewBox="0 0 24 24" aria-hidden="true">' +
+      '<circle cx="12" cy="12" r="11" fill="#2ecc71"/>' +
+      '<path d="M7 12.5l3.2 3.2L17 8.5" stroke="#fff" stroke-width="2.6" fill="none" ' +
+      'stroke-linecap="round" stroke-linejoin="round"/>' +
       '</svg>' +
-      '<div class="mc-bar"><div class="mc-bar-fill"></div></div>';
+      '<div class="mc-label">MISSION<br/>COMPLETED</div>';
     overlay.appendChild(card);
 
-    gsap.fromTo(card, { xPercent: 120 }, { xPercent: 0, duration: 0.5, ease: 'power3.out' });
-    const fill = card.querySelector<HTMLElement>('.mc-bar-fill');
-    if (fill) {
-      gsap.fromTo(fill, { width: '0%' }, { width: '100%', duration: 1.6, delay: 0.4, ease: 'power1.inOut' });
+    const tick = card.querySelector<HTMLElement>('.mc-tick');
+    if (tick) {
+      gsap.fromTo(
+        tick,
+        { scale: 0.4, rotation: -18 },
+        { scale: 1, rotation: 0, duration: 0.45, delay: 0.3, ease: 'back.out(2.5)' }
+      );
     }
+    gsap.fromTo(card, { xPercent: 120 }, { xPercent: 0, duration: 0.5, ease: 'power3.out' });
     gsap.to(card, {
       xPercent: 130,
       duration: 0.5,

@@ -23,10 +23,11 @@ const FRESH_PLAYER: PlayerData = {
   totalPerfects: 0,
   bestStreak: 0,
   completedMissions: [],
-  missionProgress: {}
+  missionProgress: {},
+  selectedWorld: 'sunrise'
 };
 
-const FRESH_RUN = { score: 0, runPerfects: 0, runGems: 0, maxStreak: 0 };
+const FRESH_RUN = { score: 0, runPerfects: 0, runGems: 0, maxStreak: 0, selectedWorld: 'sunrise' as const };
 
 /** Fixed date key so the daily draw is deterministic in tests. */
 const KEY = '2026-08-03';
@@ -61,7 +62,7 @@ describe('metric value derivation', () => {
     totalPerfects: 42,
     bestStreak: 9
   };
-  const run = { score: 30, runPerfects: 5, runGems: 2, maxStreak: 4 };
+  const run = { score: 30, runPerfects: 5, runGems: 2, maxStreak: 4, selectedWorld: 'sunrise' as const };
 
   it('maps run metrics to the run snapshot', () => {
     expect(getMetricValue('score', player, run)).toBe(30);
@@ -104,33 +105,35 @@ describe('world progress chips', () => {
 });
 
 describe('mission progress list', () => {
-  it('fresh profile: 5 daily general + 9 world + 6 lifetime rows; void world locked', () => {
+  it('fresh profile: 5 daily general + 9 world + 6 lifetime rows; non-selected worlds locked', () => {
     const rows = getMissionProgressList(FRESH_PLAYER, FRESH_RUN, KEY);
     expect(rows).toHaveLength(20);
     const general = rows.filter((r) => r.kind === 'general');
     expect(general).toHaveLength(5);
     expect(general.map((r) => r.id).sort()).toEqual(getDailyMissions(KEY).map((m) => m.id).sort());
     expect(general.every((r) => r.percent === 0 && !r.done && !r.locked)).toBe(true);
-    const w3 = rows.find((r) => r.id === 'w3_gems')!;
-    expect(w3.locked).toBe(true);
     const w1 = rows.find((r) => r.id === 'w1_gems')!;
     expect(w1.locked).toBe(false);
+    const w2 = rows.find((r) => r.id === 'w2_gems')!;
+    expect(w2.locked).toBe(true);
+    const w3 = rows.find((r) => r.id === 'w3_gems')!;
+    expect(w3.locked).toBe(true);
     expect(rows.filter((r) => r.kind === 'world')).toHaveLength(9);
     expect(rows.filter((r) => r.kind === 'lifetime')).toHaveLength(6);
   });
 
-  it('world missions unlock by the reached ladder, not only current+next', () => {
+  it('world mission locks follow the selected world of the run', () => {
     const rows = getMissionProgressList(
-      { ...FRESH_PLAYER, bestScore: 377 },
-      FRESH_RUN,
+      { ...FRESH_PLAYER, bestScore: 377, totalScore: 5000 },
+      { ...FRESH_RUN, selectedWorld: 'dusk' },
       KEY
     );
     const w1 = rows.find((r) => r.id === 'w1_perfects')!;
     const w2 = rows.find((r) => r.id === 'w2_score')!;
     const w3 = rows.find((r) => r.id === 'w3_gems')!;
-    expect(w1.locked).toBe(false);
+    expect(w1.locked).toBe(true);
     expect(w2.locked).toBe(false);
-    expect(w3.locked).toBe(false);
+    expect(w3.locked).toBe(true);
   });
 
   it('veteran save: lifetime missions show real progress and done state', () => {
@@ -158,7 +161,7 @@ describe('mission progress list', () => {
     const progress = Math.max(1, Math.floor(first.target / 2));
     const rows = getMissionProgressList(
       { ...FRESH_PLAYER, missionProgress: { [first.id]: progress } },
-      { score: 100, runPerfects: 10, runGems: 5, maxStreak: 10 },
+      { score: 100, runPerfects: 10, runGems: 5, maxStreak: 10, selectedWorld: 'sunrise' },
       KEY
     );
     const row = rows.find((r) => r.id === first.id)!;
@@ -189,7 +192,7 @@ describe('mission progress list', () => {
     const daily = getDailyMissions(KEY);
     const rows = getMissionProgressList(
       { ...FRESH_PLAYER, missionProgress: { [daily[0].id]: daily[0].target * 2 } },
-      { score: 9000, runPerfects: 500, runGems: 200, maxStreak: 100 },
+      { score: 9000, runPerfects: 500, runGems: 200, maxStreak: 100, selectedWorld: 'sunrise' },
       KEY
     );
     expect(rows.every((r) => r.percent <= 100)).toBe(true);

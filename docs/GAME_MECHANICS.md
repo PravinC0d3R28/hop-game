@@ -272,21 +272,31 @@ Cadence: `JUMP_DURATION_BASE` 0.5s → 0.35s, so a focused player sustains
 | casual (mid) | 1–2 min | ~100–240 | 155–420 | 40–120 | 28–67 | 5–9 |
 | hardcore | 3–6 min | 300–700 | 470–1500+ | 120+ | 84–196 | 10–20+ |
 
-### 15.3 World bands (run gates)
+### 15.3 Worlds (selection, not run gates)
 
-A run traverses worlds by its own score: sunrise 0–99, dusk 100–249, void 250+.
-World missions are **laddered by best-run depth**: the ladder is
-`max(run score, all-time best score)`; a world's missions only bank once the
-ladder crosses that world's gate, so locked (unreached) worlds never fill.
+Each world is a **separate playable space** chosen on the start screen: a
+center-right nav row (back arrow · current world + best · next arrow) plus
+clickable world chips. Worlds unlock by **lifetime total score** (1,000 → dusk,
+5,000 → void); a locked arrow shows a 🔒 + threshold and refuses selection. The
+selection persists in the save (`selectedWorld`) and survives reloads; the
+safety clamp falls back to the highest unlocked world for hand-edited saves.
 
-| world | band | perfects target | gems target | score target | reward pool |
-|-------|------|-----------------|-------------|--------------|-------------|
-| sunrise | 0–99 | 10 | 8 | 75 | 37 |
-| dusk | 100–249 | 20 | 15 | 220 | 75 |
-| void | 250+ | streak 12 | 25 | 400 | 115 |
+A run **never changes worlds**: score always starts at 0 and the difficulty
+curves bind to the *tier score* = run score − the world's entry offset
+(0 / 100 / 250), so each world's ramp profile matches the old mid-run bands.
+Per-world bests (`bestPerWorld[3]`) track the best run in each world.
 
-Score targets sit inside their world's band (75 < 100 < 220 < 250 < 400) so the
-mission can only complete in that world. Rewards scale with difficulty
+World missions are **selection-scoped**: only the selected world's missions are
+active; the other worlds' rows show locked in the WORLD tab.
+
+| world | entry offset | unlock | perfects target | gems target | score target | reward pool |
+|-------|-------------|--------|-----------------|-------------|--------------|-------------|
+| sunrise | 0 | always | 10 | 8 | 75 | 37 |
+| dusk | 100 | 1,000 total | 20 | 15 | 220 | 75 |
+| void | 250 | 5,000 total | streak 12 | 25 | 400 | 115 |
+
+Score targets sit inside their world's tier band (75 < 100 < 220 < 250 < 400)
+so the mission can only complete in that world. Rewards scale with difficulty
 (37 → 75 → 115 one-time).
 
 ### 15.4 Daily general pool (economy reset)
@@ -316,6 +326,9 @@ the next reset (local midnight, `getTimeUntilNextReset` / `formatCountdown`).
   banked (`runMissionBanked` guard), so mid-run evaluation is idempotent.
 - **Streak is a max, not a counter**: progress keeps the best run value ever
   reached — two runs of 10 do **not** make 20.
-- **Locked worlds never bank**: `getActiveMissions` takes the ladder score and
-  returns only worlds with `worldIndex <= reachedIndex`; the missions overlay
-  shows the same lock state (both read `getRunWorldId(ladder)`).
+- **Locked worlds never bank**: `getActiveMissions(worldId)` returns only the
+  selected world's missions; the missions overlay shows the same lock state
+  (`locked = m.world !== run.selectedWorld`), so a non-selected world never
+  fills. Row tooltips distinguish "Play in <world> to progress its missions"
+  (unlocked but not selected) from "Unlocks at <N> total score" (threshold not
+  met).

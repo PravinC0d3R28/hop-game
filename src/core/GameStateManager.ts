@@ -1,7 +1,7 @@
 import { GAME_CONFIG } from '../config/GameConfig';
 import type { GameState, PlayerData } from './Types';
 import type { ThemeName } from '../config/Themes';
-import { getTierScore, getWorldForScore } from './WorldLogic';
+import { getTierScore, getWorldById, isWorldUnlocked } from './WorldLogic';
 import { WORLDS } from '../config/Worlds';
 import type { WorldConfig, WorldId } from '../config/Worlds';
 import { getActiveMissions, getMissionById, todayKey } from '../config/Missions';
@@ -20,7 +20,8 @@ export const DEFAULT_PLAYER_DATA: PlayerData = {
   totalPerfects: 0,
   bestStreak: 0,
   completedMissions: [],
-  missionProgress: {}
+  missionProgress: {},
+  selectedWorld: 'sunrise'
 };
 
 export const DEFAULT_STATE: GameState = {
@@ -58,7 +59,6 @@ export class GameStateManager {
   private worldOverride: WorldId | null = null;
   private unlockAllWorlds = false;
   private totalScore = 0;
-  private lastWorldId: WorldId = 'sunrise';
   private pendingMissionCoins = 0;
   private runMissionRewards: MissionReward[] = [];
   /** Per-mission run values already banked this run (delta guard). */
@@ -84,6 +84,18 @@ export class GameStateManager {
   loadPlayerData(data: PlayerData): void {
     this.playerData = sanitizePlayerData(data);
     this.setTotalScore(this.playerData.totalScore);
+    // Safety clamp: a save pointing at a world the ledger can't reach yet
+    // (e.g. hand-edited) falls back to the highest unlocked world.
+    if (!this.unlockAllWorlds && !this.worldOverride) {
+      const selected = getWorldById(this.playerData.selectedWorld);
+      if (selected && !isWorldUnlocked(selected, this.totalScore)) {
+        let fallback: WorldConfig = WORLDS[0];
+        for (const w of WORLDS) {
+          if (isWorldUnlocked(w, this.totalScore)) fallback = w;
+        }
+        this.playerData.selectedWorld = fallback.id;
+      }
+    }
   }
 
   // ---- world ----
@@ -100,26 +112,36 @@ export class GameStateManager {
     this.totalScore = total;
   }
 
-  getActiveWorld(): WorldConfig {
-    if (this.worldOverride) {
-      const override = WORLDS.find((w) => w.id === this.worldOverride);
-      if (override) return override;
-    }
-    const unlockScore = this.unlockAllWorlds ? Number.POSITIVE_INFINITY : this.totalScore;
-    return getWorldForScore(this.state.score, unlockScore);
+  /**
+   * Whether a world can be selected: unlock threshold met (or DEBUG bypass).
+   * Used by the nav arrows, world chips and mission lock tooltips.
+   */
+  canSelectWorld(world: WorldConfig): boolean {
+    return this.unlockAllWorlds || isWorldUnlocked(world, this.totalScore);
   }
 
   /**
-   * Detects crossing into a new world since the last call (single-shot).
-   * Returns the newly entered world exactly once, otherwise null.
+   * Select the world to play next. Refused while its unlock threshold is not
+   * met (unless DEBUG.unlockAllWorlds). Returns true on success.
    */
-  evaluateWorldChange(): WorldConfig | null {
-    const active = this.getActiveWorld();
-    if (active.id !== this.lastWorldId) {
-      this.lastWorldId = active.id;
-      return active;
+  selectWorld(id: WorldId): boolean {
+    const world = getWorldById(id);
+    if (!world) return false;
+    if (!this.canSelectWorld(world)) return false;
+    this.playerData.selectedWorld = world.id;
+    return true;
+  }
+
+  /**
+   * The world the run targets: the debug override wins, otherwise the
+   * persisted selection (world-based model — the run never changes worlds).
+   */
+  getActiveWorld(): WorldConfig {
+    if (this.worldOverride) {
+      const override = getWorldById(this.worldOverride);
+      if (override) return override;
     }
-    return null;
+    return getWorldById(this.playerData.selectedWorld) ?? WORLDS[0];
   }
 
   // ---- difficulty curves (world ramps over tier score) ----
@@ -165,7 +187,6 @@ export class GameStateManager {
   // ---- scoring ----
   resetGame(): void {
     this.state = { ...DEFAULT_STATE };
-    this.lastWorldId = 'sunrise';
     this.clearRunMissions();
   }
 
@@ -263,11 +284,10 @@ export class GameStateManager {
    * Only the delta since the last evaluation this run is banked, so calling
    * this mid-run (every jump / gem) is idempotent.
    *
-   * World missions activate on the ladder — the max of the current run and the
-   * all-time best run — so a world that has never been reached stays locked
-   * and never banks progress (matches the locked UI state).
-   * Streak missions are maxima, not counters: progress keeps the best run
-   * value ever reached instead of summing streaks across runs.
+   * World missions activate for the selected world only — switching worlds
+   * freezes their progress until you return. Streak missions are maxima, not
+   * counters: progress keeps the best run value ever reached instead of
+   * summing streaks across runs.
    */
   evaluateMissions(dateKey: string = todayKey()): MissionReward[] {
     const completed: MissionReward[] = [];
@@ -275,10 +295,10 @@ export class GameStateManager {
       score: this.state.score,
       runPerfects: this.state.runPerfects,
       runGems: this.state.runGems,
-      maxStreak: this.state.maxStreak
+      maxStreak: this.state.maxStreak,
+      selectedWorld: this.getActiveWorld().id
     };
-    const ladderScore = Math.max(this.state.score, this.playerData.bestScore);
-    for (const mission of getActiveMissions(ladderScore, dateKey)) {
+    for (const mission of getActiveMissions(this.getActiveWorld().id, dateKey)) {
       if (this.playerData.completedMissions.includes(mission.id)) continue;
       if (mission.kind === 'lifetime') {
         if (getMetricValue(mission.metric, this.playerData, run) >= mission.target) {
@@ -390,7 +410,7 @@ export class GameStateManager {
 
   /** Index of the active world (for per-world bests). */
   getActiveWorldIndex(): number {
-    return Math.max(0, WORLDS.indexOf(this.getActiveWorld()));
+    return WORLDS.indexOf(this.getActiveWorld());
   }
 
   updateBestPerWorld(score: number): boolean {
@@ -440,8 +460,18 @@ export function sanitizePlayerData(raw: Partial<PlayerData> | null | undefined):
     totalPerfects: typeof raw?.totalPerfects === 'number' && raw.totalPerfects >= 0 ? raw.totalPerfects : 0,
     bestStreak: typeof raw?.bestStreak === 'number' && raw.bestStreak >= 0 ? raw.bestStreak : 0,
     completedMissions: sanitizeCompletedMissions(raw?.completedMissions),
-    missionProgress: sanitizeMissionProgress(raw?.missionProgress)
+    missionProgress: sanitizeMissionProgress(raw?.missionProgress),
+    selectedWorld: sanitizeWorldId(raw?.selectedWorld)
   };
+}
+
+/**
+ * Valid world id for the selection, else the default world (sunrise).
+ * Legacy saves (no field) default to sunrise.
+ */
+function sanitizeWorldId(raw: unknown): WorldId {
+  if (typeof raw === 'string' && WORLDS.some((w) => w.id === raw)) return raw as WorldId;
+  return 'sunrise';
 }
 
 /**
@@ -523,6 +553,9 @@ export function mergePlayerData(base: PlayerData, incoming: PlayerData): PlayerD
     totalPerfects: Math.max(base.totalPerfects, incoming.totalPerfects),
     bestStreak: Math.max(base.bestStreak, incoming.bestStreak),
     completedMissions,
-    missionProgress
+    missionProgress,
+    selectedWorld: WORLDS.some((w) => w.id === incoming.selectedWorld)
+      ? incoming.selectedWorld
+      : base.selectedWorld
   };
 }

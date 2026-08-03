@@ -93,6 +93,12 @@ export class Game {
     this.ui.onThemeChanged = () => {
       void this.persistence.save(this.state.getMutablePlayerData());
     };
+    // World selection only happens on the start screen: re-seed the runway so
+    // the first run uses the new world's ramps from platform #1.
+    this.ui.onWorldSelect = () => {
+      void this.persistence.save(this.state.getMutablePlayerData());
+      this.platforms.reset();
+    };
   }
 
   private buildInput(): void {
@@ -172,6 +178,7 @@ export class Game {
     gsap.killTweensOf(this.ball.group.position);
     gsap.killTweensOf(this.ball.group.scale);
     gsap.globalTimeline.clear();
+    this.ui.clearTransientFx();
 
     const st = this.state.getMutableState();
     st.score = 0;
@@ -310,7 +317,6 @@ export class Game {
           this.ui.setScore(st.score);
           gsap.fromTo(this.ui.scoreElement, { scale: 1.15 }, { scale: 1, duration: 0.2, ease: 'back.out(2)' });
           this.updateStreakGlow();
-          this.checkWorldTransition();
           this.platforms.recycle();
           this.jump();
         }
@@ -357,25 +363,20 @@ export class Game {
     st.score++;
     this.ui.setScore(st.score);
     this.checkMissions();
-    this.checkWorldTransition();
   }
 
-  /** Fires a banner when the run crosses into a newly unlocked world. */
-  private checkWorldTransition(): void {
-    const world = this.state.evaluateWorldChange();
-    if (world) this.events.emit(GAME_EVENTS.WORLD_CHANGED, world);
-  }
-
-  /** Fire reward (simplified v1): the run's first 10-perfect reached grants shield
-   *  + FIRE banner/burst. The flame glow is live — it stays only while the
-   *  streak holds and drops the moment a non-perfect breaks it. */
+  /** Fire reward: the FIRE banner plays every time the run hits a fresh 10-perfect
+   *  streak (including rebuilds after a break), but the shield — and its text —
+   *  grant once per run. The flame glow is live: it stays only while the streak
+   *  holds and drops the moment a non-perfect breaks it. */
   private totalStreakReward(): void {
     const milestone = this.state.checkStreakMilestone();
-    if (milestone !== 'fire' || !this.state.grantShield()) return;
-    this.ball.setShield(true);
+    if (milestone !== 'fire') return;
+    const shieldGranted = this.state.grantShield();
+    if (shieldGranted) this.ball.setShield(true);
     this.audio.playMilestone();
     this.effects.playFireBurst(this.ball.group.position.x, this.ball.group.position.y, this.ball.group.position.z);
-    this.events.emit(GAME_EVENTS.STREAK_MILESTONE, { milestone, shield: true });
+    this.events.emit(GAME_EVENTS.STREAK_MILESTONE, { milestone, shield: shieldGranted });
   }
 
   /** Flame glow mirrors the fire streak: ≥10 perfects on, anything else off. */
@@ -387,6 +388,7 @@ export class Game {
   private checkMissions(): void {
     const completed = this.state.evaluateMissions();
     if (completed.length === 0) return;
+    this.audio.playMissionComplete();
     for (const c of completed) this.ui.showMissionToast();
     void this.persistence.save(this.state.getMutablePlayerData());
   }

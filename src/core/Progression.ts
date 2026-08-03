@@ -1,5 +1,5 @@
 import { WORLDS, type WorldConfig, type WorldId } from '../config/Worlds';
-import { MISSIONS, getDailyMissions, getRunWorldId, todayKey, type MissionConfig, type MissionMetric } from '../config/Missions';
+import { MISSIONS, getDailyMissions, todayKey, type MissionConfig, type MissionMetric } from '../config/Missions';
 import type { PlayerData } from './Types';
 
 /**
@@ -13,6 +13,8 @@ export interface RunStats {
   runPerfects: number;
   runGems: number;
   maxStreak: number;
+  /** World the run targets (world-based model: missions gate on this). */
+  selectedWorld: WorldId;
 }
 
 /** Ledger goal: highest world unlock score (Deep Void at 5,000). */
@@ -123,7 +125,8 @@ export interface MissionProgressRow {
 /**
  * Mission progress rows for the missions overlay, one list per tab:
  * - general: only today's 5 daily missions (from getDailyMissions).
- * - world: all 9 laddered missions; those beyond the player's ladder are `locked`.
+ * - world: all 9 world missions; only the selected world's are unlocked, the
+ *   other 6 are `locked` (their saved progress still shows once selected).
  * - lifetime: all 6 persistent missions.
  * Progress is session-based: general / world read the persisted `missionProgress`
  * map (cumulative across runs); lifetime reads the persisted counters.
@@ -134,16 +137,13 @@ export function getMissionProgressList(
   run: RunStats,
   dateKey: string = todayKey()
 ): MissionProgressRow[] {
-  const ladderScore = Math.max(run.score, playerData.bestScore);
-  const reachedIndex = WORLDS.findIndex((w) => w.id === getRunWorldId(ladderScore));
   const deck = [...getDailyMissions(dateKey), ...MISSIONS.filter((m) => m.kind !== 'general')];
   return deck.map((m: MissionConfig) => {
     const current = m.kind === 'lifetime'
       ? getMetricValue(m.metric, playerData, run)
       : (playerData.missionProgress[m.id] ?? 0);
     const done = playerData.completedMissions.includes(m.id);
-    const worldIndex = m.world ? WORLDS.findIndex((w) => w.id === m.world) : -1;
-    const locked = m.kind === 'world' && worldIndex > reachedIndex;
+    const locked = m.kind === 'world' && m.world !== run.selectedWorld;
     return {
       id: m.id,
       title: m.title,

@@ -17,7 +17,7 @@ while keeping the core loop unchanged and everything config-driven.
 
 | # | Goal | Acceptance |
 |---|------|------------|
-| G1 | 3 worlds with phase-based play in one run | Crossing gates 100/250 (once unlocked) transitions World 1 → 2 → 3 with banner + theme change |
+| G1 | 3 worlds as selectable play spaces | Start-screen world nav (arrows + chips) picks the world; locked worlds show 🔒 + threshold; runs never change worlds mid-flight |
 | G2 | Cumulative-score progression that never punishes failure | Every run adds its final score to a lifetime total; unlocks are derived, permanent, never re-earned |
 | G3 | Retention loop for players of any age | First reward within ~3 min of play; missions + streaks + shield; "fast early, slower later" curve (1,000 → 5,000) |
 | G4 | Visually distinct worlds (Dawn→Dusk arc) | W1 warm/paper-craft → W2 sunset/neon → W3 night/neon; no black outlines; glow accents |
@@ -35,9 +35,9 @@ while keeping the core loop unchanged and everything config-driven.
 
 ### FR-1 Worlds
 - FR-1.1 Three worlds: W1 Sunrise Peaks (always on), W2 Dusk District (unlock 1,000 total score), W3 Deep Void (unlock 5,000).
-- FR-1.2 World is determined by **in-run score** at runtime (phases in one run), not a menu choice.
-- FR-1.3 In-run gates: W2 at score **100**, W3 at score **250**. Crossing = transition banner + new mechanic + sawtooth reset.
-- FR-1.4 If the next world is locked, the run continues in the current world's difficulty (no soft-block).
+- FR-1.2 World is a **menu choice** (`selectedWorld`, persisted): start-screen nav row (back arrow · current world + best · next arrow) and clickable world chips.
+- FR-1.3 Entry offsets W2 = **100**, W3 = **250**: tier score = run score − offset, so each world's difficulty/sawtooth profile matches the original mid-run bands while score always starts at 0.
+- FR-1.4 Locked worlds refuse selection (🔒 + threshold shown); a run never transitions worlds, so there is no soft-block.
 - FR-1.5 Each world contributes exactly one per-world best (`bestPerWorld[worldIndex]`).
 
 ### FR-2 Meta-progression (cumulative ledger)
@@ -48,7 +48,7 @@ while keeping the core loop unchanged and everything config-driven.
 ### FR-3 Missions (3 per world)
 - FR-3.1 Missions per world (config-driven): see §11.3 of brainstorm doc (W1: 2 PERFECTs / 5 gems / score 50; W2: 4 PERFECTs / 10 gems / score 150; W3: streak 3 / 15 gems / score 250).
 - FR-3.2 Tracked live during a run; toast on completion; coin reward banked on game over.
-- FR-3.3 Progress shown on the start screen; per-world mission set active only while that world is the current/next world (details in Iter 6).
+- FR-3.3 Progress shown on the start screen; per-world mission set active only for the selected world (other worlds' rows locked).
 - FR-3.4 Mission completion is persisted (only once per mission).
 
 ### FR-4 Streak tiers
@@ -62,13 +62,13 @@ while keeping the core loop unchanged and everything config-driven.
 - FR-5.2 Sawtooth difficulty: ramp params bind to **tier score** (score since world entry); each world's baseline ramp params come from world config; W1's early feel must match current game at equal scores until its ramp differs.
 
 ### FR-6 UI
-- FR-6.1 Start screen: total-score ledger bar (`Total X / 5,000`), missions list with progress, per-world bests, existing skins shop intact.
-- FR-6.2 Game over: `+N this run` on the ledger, mission rewards summary, world reached.
-- FR-6.3 In-run: combo counter near score; world indicator; existing HUD intact.
-- FR-6.4 Transition banner on gate crossing (world name + tagline).
+- FR-6.1 Start screen: total-score ledger bar (`Total X / 5,000`), world nav (prev/current/next arrows), missions list with progress, per-world bests, existing skins shop intact.
+- FR-6.2 Game over: `+N this run` on the ledger, mission rewards summary, world name of the run.
+- FR-6.3 In-run: combo counter near score; existing HUD intact.
+- FR-6.4 Locked-world UI: 🔒 + unlock threshold on the next arrow and world chips; mission rows distinguish "Play in <world>…" from "Unlocks at <N>…" tooltips.
 
 ### FR-7 Debug
-- FR-7.1 `DEBUG.unlockAllWorlds` (bypass gates AND unlocks) and `DEBUG.forceWorld` to playtest any world without grinding.
+- FR-7.1 `DEBUG.unlockAllWorlds` (bypass unlock thresholds) and `DEBUG.forceWorld` to playtest any world without grinding.
 - FR-7.2 Existing debug flags (`invincible`, `showHitboxes`, `showFPS`, etc.) keep working.
 - FR-7.3 All debug flags are stripped/disabled in production builds (DEBUG.enabled=false shipped).
 

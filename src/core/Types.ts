@@ -1,4 +1,5 @@
 import type { ThemeName } from '../config/Themes';
+import type { WorldId } from '../config/Worlds';
 
 export interface PlayerData {
   totalCoins: number;
@@ -14,6 +15,8 @@ export interface PlayerData {
   completedMissions: string[];
   /** Session-based mission progress (general/world), cumulative across runs. */
   missionProgress: Record<string, number>;
+  /** The world the player is currently set to play (persisted selection). */
+  selectedWorld: WorldId;
 }
 
 export interface GameState {

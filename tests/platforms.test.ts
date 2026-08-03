@@ -50,7 +50,7 @@ describe('platform z stays forward across sawtooth gates', () => {
     }
   });
 
-  it('regression: gate spacing drop never places a platform behind the ball', () => {
+  it('regression: world-switch spacing drop never places a platform behind the ball', () => {
     const { state, platforms } = setup();
     state.setUnlockAllWorlds(true);
 
@@ -62,6 +62,7 @@ describe('platform z stays forward across sawtooth gates', () => {
     const before = sortedZ(platforms);
     const front = before[before.length - 1];
 
+    state.selectWorld('dusk');
     state.getMutableState().currentStep = 93;
     state.setScore(100);
     platforms.recycle();
@@ -88,6 +89,7 @@ describe('platform z stays forward across sawtooth gates', () => {
     const front = sortedZ(platforms).pop()!.z;
     expect(platforms.getNextZ()).toBeGreaterThan(front);
 
+    state.selectWorld('dusk');
     state.getMutableState().currentStep = 101;
     state.setScore(100);
     platforms.recycle();
@@ -108,7 +110,7 @@ describe('per-world sway (updateSway)', () => {
     }
   });
 
-  it('locked dusk: score past the gate but world locked still yields no sway', () => {
+  it('default sunrise: score past the gate does not change the sway world', () => {
     const { state, platforms } = setup();
     state.setScore(150);
     expect(state.getActiveWorld().id).toBe('sunrise');
@@ -122,7 +124,7 @@ describe('per-world sway (updateSway)', () => {
   it('dusk: offset = sin(t*speed + i*1.7) * 0.6, every 3rd platform stays static', () => {
     const { state, platforms } = setup();
     state.setUnlockAllWorlds(true);
-    state.setScore(100);
+    state.selectWorld('dusk');
     const now = 1234;
     platforms.updateSway(now);
     expect(state.getActiveWorld().id).toBe('dusk');
@@ -142,7 +144,7 @@ describe('per-world sway (updateSway)', () => {
   it('sway ratio cadence: the static subset exactly matches 1/N of the pool', () => {
     const { state, platforms } = setup();
     state.setUnlockAllWorlds(true);
-    state.setScore(100);
+    state.selectWorld('dusk');
     expect(state.getActiveWorld().sway.ratio).toBe(0.66);
     platforms.updateSway(0);
     const pool = platforms.getPlatforms();
@@ -157,7 +159,7 @@ describe('per-world sway (updateSway)', () => {
   it('void cadence leaves fewer static platforms (1 in 4)', () => {
     const { state, platforms } = setup();
     state.setUnlockAllWorlds(true);
-    state.setScore(250);
+    state.selectWorld('void');
     expect(state.getActiveWorld().sway.ratio).toBe(0.75);
     platforms.updateSway(0);
     const staticCount = platforms.getPlatforms().filter((p) => p.swayOffset === 0).length;
@@ -167,7 +169,7 @@ describe('per-world sway (updateSway)', () => {
   it('void widens the sway envelope beyond dusk', () => {
     const { state, platforms } = setup();
     state.setUnlockAllWorlds(true);
-    state.setScore(250);
+    state.selectWorld('void');
     expect(state.getActiveWorld().id).toBe('void');
     platforms.updateSway(0);
     const sways = platforms.getPlatforms().filter((p) => p.swayOffset !== 0);
@@ -179,14 +181,10 @@ describe('per-world sway (updateSway)', () => {
     }
   });
 
-  it('crossing the gate flips previously-still platforms into sway', () => {
+  it('selecting a new world between runs re-rolls the sway field', () => {
     const { state, platforms } = setup();
     state.setUnlockAllWorlds(true);
-    state.setScore(99);
-    platforms.updateSway(0);
-    for (const p of platforms.getPlatforms()) expect(p.swayOffset).toBe(0);
-
-    state.setScore(100);
+    state.selectWorld('void');
     platforms.updateSway(0);
     const p1 = platforms.getPlatforms().find((p) => p.index === 1)!;
     expect(Math.abs(p1.swayOffset)).toBeGreaterThan(0.5);

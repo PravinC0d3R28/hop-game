@@ -6,7 +6,6 @@ import {
   DAILY_PICKS,
   getActiveMissions,
   getDailyMissions,
-  getRunWorldId,
   getNextWorldOfId,
   getMissionById,
   todayKey
@@ -137,9 +136,9 @@ describe('daily general missions (economy rework)', () => {
   });
 });
 
-describe('active mission ladder (bankable worlds only)', () => {
-  it('sunrise ladder activates only sunrise world missions (no next preview)', () => {
-    const active = getActiveMissions(0, KEY);
+describe('active missions by selected world', () => {
+  it('sunrise selection activates only sunrise world missions (no next preview)', () => {
+    const active = getActiveMissions('sunrise', KEY);
     const ids = active.map((m) => m.id);
     expect(ids).toContain('w1_perfects');
     expect(ids).not.toContain('w2_score');
@@ -148,28 +147,36 @@ describe('active mission ladder (bankable worlds only)', () => {
     expect(ids).toContain('l_full_unlock');
   });
 
-  it('dusk ladder activates sunrise + dusk missions, never void', () => {
-    const active = getActiveMissions(150, KEY);
+  it('dusk selection activates dusk missions, never the neighbours', () => {
+    const active = getActiveMissions('dusk', KEY);
     const ids = active.map((m) => m.id);
-    expect(ids).toContain('w1_perfects');
+    expect(ids).not.toContain('w1_perfects');
     expect(ids).toContain('w2_perfects');
+    expect(ids).toContain('w2_score');
     expect(ids).not.toContain('w3_gems');
   });
 
-  it('void ladder activates all world missions', () => {
-    const active = getActiveMissions(300, KEY);
+  it('void selection activates void missions only', () => {
+    const active = getActiveMissions('void', KEY);
     const ids = active.map((m) => m.id);
-    expect(ids).toContain('w1_perfects');
-    expect(ids).toContain('w2_perfects');
+    expect(ids).not.toContain('w1_perfects');
+    expect(ids).not.toContain('w2_perfects');
     expect(ids).toContain('w3_gems');
   });
 
-  it('run world ids follow gate scores', () => {
-    expect(getRunWorldId(0)).toBe('sunrise');
-    expect(getRunWorldId(99)).toBe('sunrise');
-    expect(getRunWorldId(100)).toBe('dusk');
-    expect(getRunWorldId(250)).toBe('void');
+  it('general and lifetime missions are always active in any world', () => {
+    for (const world of ['sunrise', 'dusk', 'void'] as const) {
+      const active = getActiveMissions(world, KEY);
+      for (const m of getDailyMissions(KEY)) {
+        expect(active.map((a) => a.id)).toContain(m.id);
+      }
+      expect(active.map((a) => a.id)).toContain('l_thousand');
+    }
+  });
+
+  it('world ids chain sunrise → dusk → void → none', () => {
     expect(getNextWorldOfId('sunrise')).toBe('dusk');
+    expect(getNextWorldOfId('dusk')).toBe('void');
     expect(getNextWorldOfId('void')).toBeNull();
   });
 
@@ -235,7 +242,7 @@ describe('mission evaluation (run-scoped, daily set)', () => {
     expect(gm.getPlayerData().missionProgress['w3_gems']).toBeUndefined();
   });
 
-  it('world missions unlock when the ladder reaches the world', () => {
+  it('world missions bank only for the selected world once it is unlocked', () => {
     const gm = new GameStateManager();
     gm.loadPlayerData({
       totalCoins: 0,
@@ -243,13 +250,14 @@ describe('mission evaluation (run-scoped, daily set)', () => {
       purchasedSkins: ['default'],
       selectedSkin: 'default',
       theme: 'light',
-      totalScore: 0,
+      totalScore: 1000,
       bestPerWorld: [0, 0, 0],
       totalGems: 0,
       totalPerfects: 0,
       bestStreak: 0,
       completedMissions: [],
-      missionProgress: {}
+      missionProgress: {},
+      selectedWorld: 'dusk'
     });
     gm.startGame();
     for (let i = 0; i < 10; i++) {
@@ -262,7 +270,7 @@ describe('mission evaluation (run-scoped, daily set)', () => {
     }
     const done = gm.evaluateMissions(KEY);
     const ids = done.map((d) => d.id);
-    expect(ids).toContain('w1_perfects');
+    expect(ids).not.toContain('w1_perfects');
     expect(ids).toContain('w2_perfects');
     expect(ids).not.toContain('w3_gems');
   });
@@ -310,7 +318,8 @@ describe('lifetime missions (persistent counters)', () => {
       totalPerfects: 500,
       bestStreak: 20,
       completedMissions: [],
-      missionProgress: {}
+      missionProgress: {},
+      selectedWorld: 'sunrise'
     });
     gm.startGame();
     const done = gm.evaluateMissions(KEY);
@@ -366,7 +375,8 @@ describe('lifetime missions (persistent counters)', () => {
       totalPerfects: 0,
       bestStreak: 0,
       completedMissions: [],
-      missionProgress: {}
+      missionProgress: {},
+      selectedWorld: 'sunrise'
     });
     gm.startGame();
     gm.evaluateMissions(KEY);
@@ -467,13 +477,14 @@ describe('session-based missions (progress persists across runs)', () => {
       purchasedSkins: ['default'],
       selectedSkin: 'default',
       theme: 'light',
-      totalScore: 0,
+      totalScore: 5000,
       bestPerWorld: [0, 0, 0],
       totalGems: 0,
       totalPerfects: 0,
       bestStreak: 0,
       completedMissions: [],
-      missionProgress: {}
+      missionProgress: {},
+      selectedWorld: 'void'
     });
     gm.startGame();
     for (let i = 0; i < 10; i++) {
