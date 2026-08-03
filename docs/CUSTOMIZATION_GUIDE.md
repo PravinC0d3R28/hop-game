@@ -155,11 +155,13 @@ window.gameDebug.toggleInvincible()
 ## 12. Asset Replacement
 
 Replace in `assets/` (references are `./assets/...`):
-- `Logo.png` (max ~288px wide)
 - `splash.png` (512×512)
 - `Coin.png` (64×64)
 - `cart.png` (64×64)
 - `indicator.png` (64×64 finger)
+
+`Logo.png` is no longer shown on the start screen (the selected world's name
+is the title); it is kept in the repo for the planned loading screen.
 
 Font: Fredoka via Google Fonts (see `index.html` `<link>`).
 

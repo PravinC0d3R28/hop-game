@@ -266,11 +266,17 @@ runs never change worlds mid-flight.
 - `Missions.ts` — `getActiveMissions(worldId, dateKey)`; world missions active
   only for the selected world; `getRunWorldId` deleted.
 - `Progression` — `RunStats.selectedWorld`; `locked = m.world !== selected`.
-- `UIManager` — start-screen center-right nav (`world-prev`/`world-current`/
-  `world-next`): back arrow on worlds 2–3, locked next = 🔒 + unlock threshold,
-  unlocked = green ▶; world chips clickable (`.selected` outline); world
-  mission rows get lock tooltips ("Play in <world>…" vs "Unlocks at <N>…");
-  game-over world label = selected world name; `WORLD_CHANGED` handler +
+- `UIManager` — start-screen right-edge vertical nav (`world-prev`/`world-current`/
+  `world-next`): back arrow on worlds 2–3, locked next = lock SVG + unlock
+  threshold, unlocked = green ▶; nav arrows/chips stop `pointerdown`
+  propagation so clicks never start a game; locked selection opens the lock
+  overlay (big padlock, `totalScore/unlockScore` progress bar, points
+  remaining, close via ✕ or backdrop); start-screen title = selected world
+  name (logo retired to a future loading screen); occasional rage-bait thought
+  bubble ("too easy?"…) next to a locked next arrow, stopped when the game
+  starts; ledger bar removed; world chips clickable (`.selected` outline);
+  world mission rows get lock tooltips ("Play in <world>…" vs "Unlocks at
+  <N>…"); game-over world label = selected world name; `WORLD_CHANGED` handler +
   `showWorldBanner` removed. `Game.reset()` calls `ui.clearTransientFx()`.
 - Tests: selection/unlock/clamp round-trips, per-world curve parity, sway re-roll
   on selection, mission activation per world → 145 total; typecheck + build

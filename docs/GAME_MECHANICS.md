@@ -275,11 +275,15 @@ Cadence: `JUMP_DURATION_BASE` 0.5s → 0.35s, so a focused player sustains
 ### 15.3 Worlds (selection, not run gates)
 
 Each world is a **separate playable space** chosen on the start screen: a
-center-right nav row (back arrow · current world + best · next arrow) plus
-clickable world chips. Worlds unlock by **lifetime total score** (1,000 → dusk,
-5,000 → void); a locked arrow shows a 🔒 + threshold and refuses selection. The
-selection persists in the save (`selectedWorld`) and survives reloads; the
-safety clamp falls back to the highest unlocked world for hand-edited saves.
+right-edge vertical nav (back arrow · current world name + best · next
+arrow) plus clickable world chips. The Bounce Tiles logo is replaced by the
+selected world's name. Worlds unlock by **lifetime total score** (1,000 → dusk,
+5,000 → void); a locked arrow shows a small lock + threshold and a click opens
+the lock overlay (translucent screen, large padlock, unlock progress bar,
+points remaining). An occasional "too easy?"-style thought bubble taunts the
+player near a locked next arrow. The selection persists in the save
+(`selectedWorld`) and survives reloads; the safety clamp falls back to the
+highest unlocked world for hand-edited saves.
 
 A run **never changes worlds**: score always starts at 0 and the difficulty
 curves bind to the *tier score* = run score − the world's entry offset

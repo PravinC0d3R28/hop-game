@@ -207,54 +207,36 @@
       50% { opacity: 0.4; }
     }
 
-    /* Progression: ledger bar */
-    #ledger {
-      width: min(92vw, 460px);
-      margin-top: clamp(4px, 1vh, 10px);
+    /* Progression: world title (replaces the logo on the start screen) */
+    #world-title {
+      font-size: clamp(34px, 9vmin, 64px);
+      font-weight: 900;
+      letter-spacing: 4px;
+      line-height: 1.1;
+      margin-bottom: clamp(4px, 1vh, 10px);
+      text-align: center;
+      text-shadow:
+        -2px -2px 0 #111,
+        2px -2px 0 #111,
+        -2px 2px 0 #111,
+        2px 2px 0 #111,
+        4px 4px 0 #111;
+      user-select: none;
       pointer-events: none;
     }
-    #ledger-track {
-      position: relative;
-      width: 100%;
-      height: clamp(14px, 3vmin, 20px);
-      background: #fff;
-      border: 3px solid #111;
-      border-radius: 10px;
-      overflow: hidden;
-      box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25);
-    }
-    #ledger-fill {
-      position: absolute;
-      top: 0; left: 0;
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #ffd700, #ffb020);
-      border-right: 2px solid #111;
-      transition: width 0.4s ease;
-    }
-    #ledger-label {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: 3px;
-      font-size: clamp(11px, 2.2vmin, 15px);
-      font-weight: 900;
-      color: #111;
-      letter-spacing: 1px;
-    }
-    #ledger-label .ledger-total {
-      color: #b8860b;
-    }
-    #ledger-label.ledger-done .ledger-total { color: #28a858; }
 
-    /* World nav: current world + prev/next arrows (world-based selection) */
+    /* World nav: arrows + current world, pinned to the right edge, centered vertically */
     #world-nav {
+      position: absolute;
+      right: clamp(10px, 2.5vw, 26px);
+      top: 50%;
+      transform: translateY(-50%);
       display: flex;
+      flex-direction: column;
       align-items: center;
-      justify-content: center;
-      gap: clamp(10px, 2vmin, 18px);
-      margin-top: clamp(8px, 1.6vh, 14px);
-      width: min(92vw, 460px);
+      gap: clamp(8px, 1.6vh, 14px);
+      pointer-events: auto;
+      z-index: 5;
     }
     .nav-arrow {
       display: flex;
@@ -279,12 +261,13 @@
     .nav-arrow.locked {
       background: #eee;
       color: #999;
-      cursor: default;
+      cursor: pointer;
       box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.15);
     }
-    .nav-arrow.locked .nav-lock {
-      font-size: clamp(16px, 3.4vmin, 22px);
-      line-height: 1;
+    .nav-arrow.locked .nav-lock-svg {
+      width: clamp(16px, 3.4vmin, 22px);
+      height: clamp(16px, 3.4vmin, 22px);
+      display: block;
     }
     .nav-arrow.locked .nav-lock-score {
       font-size: clamp(9px, 1.8vmin, 12px);
@@ -300,7 +283,7 @@
       min-width: 0;
     }
     #world-current-name {
-      font-size: clamp(14px, 3vmin, 20px);
+      font-size: clamp(11px, 2.4vmin, 15px);
       font-weight: 900;
       letter-spacing: 1px;
       color: #111;
@@ -312,6 +295,135 @@
       font-weight: 800;
       color: #b8860b;
       white-space: nowrap;
+    }
+
+    /* Rage-bait thought bubble next to a locked next-arrow */
+    #world-bubble {
+      position: absolute;
+      right: calc(100% + 16px);
+      bottom: 6px;
+      display: none;
+      background: #fff;
+      color: #111;
+      border: 3px solid #111;
+      border-radius: 18px;
+      padding: 8px 13px;
+      font-size: clamp(11px, 2.4vmin, 15px);
+      font-weight: 900;
+      white-space: nowrap;
+      box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.25);
+      pointer-events: none;
+      z-index: 6;
+    }
+    #world-bubble::after {
+      content: '';
+      position: absolute;
+      right: -15px;
+      bottom: 16px;
+      width: 20px;
+      height: 20px;
+      background: #fff;
+      border-top: 3px solid #111;
+      border-right: 3px solid #111;
+      border-radius: 3px;
+      transform: rotate(45deg);
+    }
+    #world-bubble::before {
+      content: '';
+      position: absolute;
+      right: -24px;
+      bottom: 7px;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #fff;
+      border: 2.5px solid #111;
+    }
+
+    /* Locked-world overlay: translucent screen + big lock + progress to unlock */
+    #lock-overlay {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(12, 12, 28, 0.68);
+      pointer-events: auto;
+      z-index: 40;
+    }
+    .lock-card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(8px, 1.6vmin, 14px);
+      background: #fff;
+      border: 4px solid #111;
+      border-radius: 20px;
+      padding: clamp(22px, 4.5vmin, 38px) clamp(26px, 5vmin, 46px);
+      box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.35);
+      max-width: min(84vw, 400px);
+      text-align: center;
+    }
+    .lock-svg {
+      width: clamp(96px, 22vmin, 170px);
+      height: auto;
+      filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
+    }
+    #lock-close {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: clamp(30px, 6vmin, 38px);
+      height: clamp(30px, 6vmin, 38px);
+      padding: 0;
+      border: 3px solid #111;
+      border-radius: 50%;
+      background: #fff;
+      color: #111;
+      font-size: clamp(13px, 2.6vmin, 17px);
+      font-weight: 900;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #lock-world-name {
+      font-size: clamp(18px, 4.2vmin, 28px);
+      font-weight: 900;
+      letter-spacing: 2px;
+      color: #111;
+    }
+    #lock-tagline {
+      font-size: clamp(12px, 2.6vmin, 16px);
+      font-weight: 800;
+      color: #666;
+    }
+    .lock-track {
+      width: 100%;
+      height: clamp(14px, 3vmin, 20px);
+      background: #eee;
+      border: 3px solid #111;
+      border-radius: 10px;
+      overflow: hidden;
+      margin-top: clamp(4px, 1vmin, 8px);
+    }
+    #lock-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #ffd700, #ffb020);
+      transition: width 0.5s ease;
+    }
+    #lock-progress-text {
+      font-size: clamp(12px, 2.6vmin, 16px);
+      font-weight: 900;
+      color: #b8860b;
+    }
+    #lock-remaining {
+      font-size: clamp(11px, 2.2vmin, 14px);
+      font-weight: 800;
+      color: #333;
     }
 
     /* World progress chips */
@@ -1091,13 +1203,9 @@
         <div id="score">0</div>
         <div id="coin-counter"><span class="coin-icon"><img src="Coin.png" alt="coin"></span><span id="coin-amount">0</span></div>
         <div id="start-screen">
-          <img src="Logo.png" alt="HOP" style="width: clamp(144px, 36vmin, 288px); height: auto; margin-bottom: 8px;">
+          <h1 id="world-title">SUNRISE PEAKS</h1>
           <div id="best-score"><span class="crown">&#x1F451;</span> <span id="best-score-val">0</span></div>
           <button id="theme-btn" title="Toggle light/dark mode"><span class="theme-icon" id="theme-icon">&#x2600;</span></button>
-          <div id="ledger">
-            <div id="ledger-track"><div id="ledger-fill"></div></div>
-            <div id="ledger-label">TOTAL <span class="ledger-total" id="ledger-total">0</span> / <span id="ledger-target">5,000</span></div>
-          </div>
           <div id="world-nav">
             <div id="world-prev" class="nav-arrow hidden" title="">&#9664;</div>
             <div id="world-current">
@@ -1105,6 +1213,7 @@
               <div id="world-current-best">PLAY TO SET A BEST</div>
             </div>
             <div id="world-next" class="nav-arrow locked" title=""></div>
+            <div id="world-bubble"></div>
           </div>
           <div id="world-progress"></div>
           <div class="start-middle">
@@ -1124,6 +1233,36 @@
               </span>
             </button>
             <button id="shop-btn"><span class="shop-coin"><img src="cart.png" alt="shop"></span></button>
+          </div>
+        </div>
+        <div id="lock-overlay">
+          <div class="lock-card">
+            <button id="lock-close" title="Close">&#x2715;</button>
+            <svg class="lock-svg" viewBox="0 0 100 100" aria-hidden="true">
+              <defs>
+                <linearGradient id="lockGold" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#fff0b8"/>
+                  <stop offset="45%" stop-color="#f5c044"/>
+                  <stop offset="100%" stop-color="#c77e1b"/>
+                </linearGradient>
+                <linearGradient id="lockBody" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#ffe9a8"/>
+                  <stop offset="50%" stop-color="#f0b53c"/>
+                  <stop offset="100%" stop-color="#b06a10"/>
+                </linearGradient>
+              </defs>
+              <path d="M50 8a18 18 0 0 1 18 18v13H32V26a18 18 0 0 1 18-18z" fill="url(#lockGold)" stroke="#7a4b0d" stroke-width="3"/>
+              <ellipse cx="50" cy="21" rx="8" ry="5" fill="rgba(255,255,255,0.55)"/>
+              <rect x="16" y="39" width="68" height="47" rx="11" fill="url(#lockBody)" stroke="#7a4b0d" stroke-width="3.5"/>
+              <ellipse cx="31" cy="50" rx="7" ry="11" fill="rgba(255,255,255,0.35)"/>
+              <circle cx="50" cy="58" r="8.5" fill="#fff" stroke="#7a4b0d" stroke-width="3"/>
+              <rect x="46.5" y="62" width="7" height="13" rx="3.5" fill="#fff" stroke="#7a4b0d" stroke-width="2.5"/>
+            </svg>
+            <div id="lock-world-name">DUSK DISTRICT</div>
+            <div id="lock-tagline">Unlocks at 1,000 total score</div>
+            <div class="lock-track"><div id="lock-fill"></div></div>
+            <div id="lock-progress-text">0 / 1,000</div>
+            <div id="lock-remaining">1,000 more points to go</div>
           </div>
         </div>
         <div id="gameover-screen">
