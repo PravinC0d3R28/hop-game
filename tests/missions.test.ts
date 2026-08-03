@@ -75,6 +75,24 @@ describe('mission deck', () => {
       expect(['sunrise', 'dusk', 'void']).toContain(m.world);
     }
   });
+
+  it('world mission targets scale with world difficulty and sit inside their band', () => {
+    const world = MISSIONS.filter((m) => m.kind === 'world');
+    const by = (id: string) => world.filter((m) => m.world === id);
+    const w1 = by('sunrise');
+    const w2 = by('dusk');
+    const w3 = by('void');
+    const scoreOf = (list: typeof w1, metric: string) => list.find((m) => m.metric === metric)!.target;
+    expect(Math.max(...w1.map((m) => m.target))).toBeLessThan(100);
+    expect(scoreOf(w1, 'score')).toBeLessThan(100);
+    expect(scoreOf(w2, 'score')).toBeGreaterThanOrEqual(100);
+    expect(scoreOf(w2, 'score')).toBeLessThan(250);
+    expect(scoreOf(w3, 'score')).toBeGreaterThanOrEqual(250);
+    expect(Math.max(...w3.map((m) => m.target))).toBeGreaterThanOrEqual(300);
+    const sum = (list: typeof w1) => list.reduce((s, m) => s + m.reward, 0);
+    expect(sum(w3)).toBeGreaterThan(sum(w2));
+    expect(sum(w2)).toBeGreaterThan(sum(w1));
+  });
 });
 
 describe('daily general missions (economy rework)', () => {
@@ -107,29 +125,30 @@ describe('daily general missions (economy rework)', () => {
   });
 });
 
-describe('active mission ladder (current / next world + daily set)', () => {
-  it('sunrise start activates sunrise + dusk missions, never void', () => {
+describe('active mission ladder (bankable worlds only)', () => {
+  it('sunrise ladder activates only sunrise world missions (no next preview)', () => {
     const active = getActiveMissions(0, KEY);
     const ids = active.map((m) => m.id);
     expect(ids).toContain('w1_perfects');
-    expect(ids).toContain('w2_score');
+    expect(ids).not.toContain('w2_score');
     expect(ids).not.toContain('w3_gems');
     for (const m of getDailyMissions(KEY)) expect(ids).toContain(m.id);
     expect(ids).toContain('l_full_unlock');
   });
 
-  it('inside dusk activates dusk + void world missions, drops sunrise', () => {
+  it('dusk ladder activates sunrise + dusk missions, never void', () => {
     const active = getActiveMissions(150, KEY);
     const ids = active.map((m) => m.id);
-    expect(ids).not.toContain('w1_perfects');
+    expect(ids).toContain('w1_perfects');
     expect(ids).toContain('w2_perfects');
-    expect(ids).toContain('w3_gems');
+    expect(ids).not.toContain('w3_gems');
   });
 
-  it('inside void activates only void world missions', () => {
+  it('void ladder activates all world missions', () => {
     const active = getActiveMissions(300, KEY);
     const ids = active.map((m) => m.id);
-    expect(ids).not.toContain('w2_perfects');
+    expect(ids).toContain('w1_perfects');
+    expect(ids).toContain('w2_perfects');
     expect(ids).toContain('w3_gems');
   });
 
@@ -184,7 +203,7 @@ describe('mission evaluation (run-scoped, daily set)', () => {
     expect(gm.getPlayerData().totalCoins).toBe(expected);
   });
 
-  it('completes world missions from tracked run stats', () => {
+  it('locked world missions never bank progress', () => {
     const gm = new GameStateManager();
     gm.startGame();
     for (let i = 0; i < 10; i++) {
@@ -199,7 +218,42 @@ describe('mission evaluation (run-scoped, daily set)', () => {
     const done = gm.evaluateMissions(KEY);
     const ids = done.map((d) => d.id);
     expect(ids).toContain('w1_perfects');
+    expect(ids).not.toContain('w2_perfects');
+    expect(ids).not.toContain('w3_gems');
+    expect(gm.getPlayerData().missionProgress['w2_perfects']).toBeUndefined();
+    expect(gm.getPlayerData().missionProgress['w3_gems']).toBeUndefined();
+  });
+
+  it('world missions unlock when the ladder reaches the world', () => {
+    const gm = new GameStateManager();
+    gm.loadPlayerData({
+      totalCoins: 0,
+      bestScore: 150,
+      purchasedSkins: ['default'],
+      selectedSkin: 'default',
+      theme: 'light',
+      totalScore: 0,
+      bestPerWorld: [0, 0, 0],
+      totalGems: 0,
+      totalPerfects: 0,
+      bestStreak: 0,
+      completedMissions: [],
+      missionProgress: {}
+    });
+    gm.startGame();
+    for (let i = 0; i < 10; i++) {
+      gm.addScore(5);
+      gm.getMutableState().perfectStreak = 0;
+      for (let j = 0; j < 5; j++) {
+        gm.getMutableState().perfectStreak++;
+        gm.trackPerfectLanding();
+      }
+    }
+    const done = gm.evaluateMissions(KEY);
+    const ids = done.map((d) => d.id);
+    expect(ids).toContain('w1_perfects');
     expect(ids).toContain('w2_perfects');
+    expect(ids).not.toContain('w3_gems');
   });
 
   it('streak missions complete from the run max streak', () => {
@@ -374,22 +428,71 @@ describe('session-based missions (progress persists across runs)', () => {
   it('world mission progress accumulates across runs', () => {
     const gm = new GameStateManager();
     gm.startGame();
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 6; i++) {
       gm.getMutableState().perfectStreak++;
       gm.trackPerfectLanding();
     }
     gm.evaluateMissions(KEY);
-    expect(gm.getPlayerData().missionProgress['w1_perfects']).toBe(2);
+    expect(gm.getPlayerData().missionProgress['w1_perfects']).toBe(6);
     expect(gm.getPlayerData().completedMissions).not.toContain('w1_perfects');
 
     const remade = new GameStateManager();
     remade.loadPlayerData(gm.getPlayerData());
     remade.startGame();
-    remade.getMutableState().perfectStreak++;
-    remade.trackPerfectLanding();
+    for (let i = 0; i < 4; i++) {
+      remade.getMutableState().perfectStreak++;
+      remade.trackPerfectLanding();
+    }
     const done = remade.evaluateMissions(KEY);
     expect(done.map((d) => d.id)).toContain('w1_perfects');
-    expect(remade.getPlayerData().missionProgress['w1_perfects']).toBe(3);
+    expect(remade.getPlayerData().missionProgress['w1_perfects']).toBe(10);
+  });
+
+  it('streak missions keep the best run value (max, not a sum)', () => {
+    const gm = new GameStateManager();
+    gm.loadPlayerData({
+      totalCoins: 0,
+      bestScore: 300,
+      purchasedSkins: ['default'],
+      selectedSkin: 'default',
+      theme: 'light',
+      totalScore: 0,
+      bestPerWorld: [0, 0, 0],
+      totalGems: 0,
+      totalPerfects: 0,
+      bestStreak: 0,
+      completedMissions: [],
+      missionProgress: {}
+    });
+    gm.startGame();
+    for (let i = 0; i < 10; i++) {
+      gm.getMutableState().perfectStreak++;
+      gm.trackPerfectLanding();
+    }
+    gm.evaluateMissions(KEY);
+    expect(gm.getPlayerData().missionProgress['w3_streak']).toBe(10);
+    expect(gm.getPlayerData().completedMissions).not.toContain('w3_streak');
+
+    const remade = new GameStateManager();
+    remade.loadPlayerData(gm.getPlayerData());
+    remade.startGame();
+    for (let i = 0; i < 8; i++) {
+      remade.getMutableState().perfectStreak++;
+      remade.trackPerfectLanding();
+    }
+    remade.evaluateMissions(KEY);
+    expect(remade.getPlayerData().missionProgress['w3_streak']).toBe(10);
+    expect(remade.getPlayerData().completedMissions).not.toContain('w3_streak');
+
+    remade.resetGame();
+    remade.startGame();
+    for (let i = 0; i < 12; i++) {
+      remade.getMutableState().perfectStreak++;
+      remade.trackPerfectLanding();
+    }
+    const done = remade.evaluateMissions(KEY);
+    expect(done.map((d) => d.id)).toContain('w3_streak');
+    expect(remade.getPlayerData().missionProgress['w3_streak']).toBe(12);
   });
 
   it('resets the run delta guard between runs', () => {

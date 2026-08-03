@@ -235,3 +235,83 @@ continue button → reset (debounced 500ms) → start screen + request ad (omitt
 | "Perfect indicator = dot + ring" | **diamond + ring** |
 | "platform sway animation" | **no sway (swayOffset always 0)** |
 | skin green `0x45A848`, cyan `0x44FFAF` | green **0x44FF88**, cyan **0x44FFFF** |
+
+---
+
+## 15. Mission Economy (session-based, Iteration 7)
+
+### 15.1 Scoring model (drives every target)
+
+Each landing gives **+1** base score. A perfect landing (within `PERFECT_THRESHOLD`
+0.5 of the platform center) **also** adds its streak length (`score += perfectStreak`,
+which is 1, 2, 3, … on consecutive perfects). A gem adds **+1** on top. `GEM_CHANCE`
+= 28% of platforms.
+
+Expected score per landing for a player with perfect rate `p`:
+
+```
+bonus per landing ≈ p²/(1−p)        (mean perfect-run bonus)
+score per landing ≈ 1 + p²/(1−p) + 0.28
+```
+
+| perfect rate p | multiplier |
+|----------------|------------|
+| 0.4 (beginner) | ~1.6× |
+| 0.5 (casual)   | ~1.8× |
+| 0.6 (steady)   | ~2.2× |
+| 0.7 (hardcore) | ~2.9× |
+
+Cadence: `JUMP_DURATION_BASE` 0.5s → 0.35s, so a focused player sustains
+~1.7–2.2 landings/sec.
+
+### 15.2 Player session archetypes (target sizing)
+
+| archetype | run length | landings | score | perfects | gems | streak |
+|-----------|-----------|----------|-------|----------|------|--------|
+| easily bored | 20–40s | ~35–70 | 55–150 | 14–35 | 10–20 | 3–5 |
+| casual (mid) | 1–2 min | ~100–240 | 155–420 | 40–120 | 28–67 | 5–9 |
+| hardcore | 3–6 min | 300–700 | 470–1500+ | 120+ | 84–196 | 10–20+ |
+
+### 15.3 World bands (run gates)
+
+A run traverses worlds by its own score: sunrise 0–99, dusk 100–249, void 250+.
+World missions are **laddered by best-run depth**: the ladder is
+`max(run score, all-time best score)`; a world's missions only bank once the
+ladder crosses that world's gate, so locked (unreached) worlds never fill.
+
+| world | band | perfects target | gems target | score target | reward pool |
+|-------|------|-----------------|-------------|--------------|-------------|
+| sunrise | 0–99 | 10 | 8 | 75 | 37 |
+| dusk | 100–249 | 20 | 15 | 220 | 75 |
+| void | 250+ | streak 12 | 25 | 400 | 115 |
+
+Score targets sit inside their world's band (75 < 100 < 220 < 250 < 400) so the
+mission can only complete in that world. Rewards scale with difficulty
+(37 → 75 → 115 one-time).
+
+### 15.4 Daily general pool (economy reset)
+
+5 missions/day, date-seeded: **2 easy + 2 medium + 1 hard**. All general
+missions are session-based (progress persists across runs, completes once).
+
+| tier | session cost | score | gems | perfects | streak | reward |
+|------|--------------|-------|------|----------|--------|--------|
+| easy | ~1 short session | 25–50 | 5–8 | 10–15 | 8 | 10–15 |
+| medium | ~1 mid session | 100–150 | 12–15 | 20–30 | 10 | 20–30 |
+| hard | 2–4 mid sessions / 1 long run | 250–350 | 25 | 40–60 | 18 | 40–50 |
+
+Daily ceiling ≈ 165 coins/day; shop prices 50–200, world missions grant 227
+one-time, lifetime grants 310 one-time.
+
+### 15.5 Semantics rules (implementation contract)
+
+- **Lifetime**: derived from persisted counters (`totalScore`, `totalGems`,
+  `totalPerfects`, `bestStreak`); complete the moment the counter passes target.
+- **General / world**: run counters are banked into persisted `missionProgress`
+  capped at the target; only the delta since the last evaluation this run is
+  banked (`runMissionBanked` guard), so mid-run evaluation is idempotent.
+- **Streak is a max, not a counter**: progress keeps the best run value ever
+  reached — two runs of 10 do **not** make 20.
+- **Locked worlds never bank**: `getActiveMissions` takes the ladder score and
+  returns only worlds with `worldIndex <= reachedIndex`; the missions overlay
+  shows the same lock state (both read `getRunWorldId(ladder)`).

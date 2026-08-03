@@ -262,6 +262,12 @@ export class GameStateManager {
    *   and the mission completes permanently the moment the cap is reached.
    * Only the delta since the last evaluation this run is banked, so calling
    * this mid-run (every jump / gem) is idempotent.
+   *
+   * World missions activate on the ladder — the max of the current run and the
+   * all-time best run — so a world that has never been reached stays locked
+   * and never banks progress (matches the locked UI state).
+   * Streak missions are maxima, not counters: progress keeps the best run
+   * value ever reached instead of summing streaks across runs.
    */
   evaluateMissions(dateKey: string = todayKey()): MissionReward[] {
     const completed: MissionReward[] = [];
@@ -271,7 +277,8 @@ export class GameStateManager {
       runGems: this.state.runGems,
       maxStreak: this.state.maxStreak
     };
-    for (const mission of getActiveMissions(this.state.score, dateKey)) {
+    const ladderScore = Math.max(this.state.score, this.playerData.bestScore);
+    for (const mission of getActiveMissions(ladderScore, dateKey)) {
       if (this.playerData.completedMissions.includes(mission.id)) continue;
       if (mission.kind === 'lifetime') {
         if (getMetricValue(mission.metric, this.playerData, run) >= mission.target) {
@@ -281,6 +288,18 @@ export class GameStateManager {
         continue;
       }
       const runValue = getMetricValue(mission.metric, this.playerData, run);
+      if (mission.metric === 'streak') {
+        const progress = Math.min(
+          mission.target,
+          Math.max(this.playerData.missionProgress[mission.id] ?? 0, runValue)
+        );
+        this.playerData.missionProgress[mission.id] = progress;
+        if (progress >= mission.target) {
+          this.playerData.completedMissions.push(mission.id);
+          this.completeMission(mission, completed);
+        }
+        continue;
+      }
       const bankedThisRun = this.runMissionBanked[mission.id] ?? 0;
       const delta = Math.max(0, runValue - bankedThisRun);
       this.runMissionBanked[mission.id] = runValue;
