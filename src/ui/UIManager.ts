@@ -4,7 +4,7 @@ import type { GameStateManager } from '../core/GameStateManager';
 import { EventBus, GAME_EVENTS } from '../core/EventBus';
 import type { WorldConfig } from '../config/Worlds';
 import type { MissionKind, MissionReward } from '../config/Missions';
-import { getLedgerInfo, getMissionProgressList, getWorldProgress } from '../core/Progression';
+import { getLedgerInfo, getMissionProgressList, getWorldProgress, getTimeUntilNextReset, formatCountdown } from '../core/Progression';
 import type { RendererSystem } from '../systems/RendererSystem';
 import type { ShadowSystem } from '../systems/ShadowSystem';
 import type { BackgroundSystem } from '../systems/BackgroundSystem';
@@ -47,6 +47,7 @@ export class UIManager {
   private missionsClose = this.el<HTMLElement>('missions-close');
   private missionsList = this.el<HTMLElement>('missions-list');
   private missionsScroll = this.el<HTMLElement>('missions-scroll');
+  private missionsCountdown = this.el<HTMLElement>('missions-countdown');
   private missionsTabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.missions-tab'));
   private goWorld = this.el<HTMLElement>('go-world');
   private goMissions = this.el<HTMLElement>('go-missions');
@@ -55,6 +56,7 @@ export class UIManager {
   private missionQueue: boolean[] = [];
   private missionBusy = false;
   private activeMissionTab: MissionKind = 'general';
+  private countdownTimer: number | null = null;
   /** Done missions already celebrated with per-card confetti (one-time per session). */
   private celebratedIds = new Set<string>();
   private celebratedSeeded = false;
@@ -74,6 +76,8 @@ export class UIManager {
     private ball: BallEntity
   ) {
     this.bind();
+    this.missionsCountdown.innerHTML =
+      '<span>Come back tomorrow</span><span class="cd-clock">--:--:--</span>';
     this.events.on(GAME_EVENTS.WORLD_CHANGED, (world) =>
       this.showWorldBanner(world as WorldConfig)
     );
@@ -213,13 +217,35 @@ export class UIManager {
   openMissions(): void {
     this.renderMissionsOverlay();
     this.missionsOverlay.style.display = 'flex';
+    this.startCountdown();
   }
 
   closeMissions(): void {
     this.missionsOverlay.style.display = 'none';
+    this.stopCountdown();
+  }
+
+  /** Live countdown to the next daily-mission reset (runs while the overlay is open). */
+  private startCountdown(): void {
+    this.stopCountdown();
+    this.updateCountdown();
+    this.countdownTimer = window.setInterval(() => this.updateCountdown(), 1000);
+  }
+
+  private stopCountdown(): void {
+    if (this.countdownTimer !== null) {
+      window.clearInterval(this.countdownTimer);
+      this.countdownTimer = null;
+    }
+  }
+
+  private updateCountdown(): void {
+    const clock = this.missionsCountdown.querySelector<HTMLElement>('.cd-clock');
+    if (clock) clock.textContent = formatCountdown(getTimeUntilNextReset());
   }
 
   private renderMissionsOverlay(): void {
+    this.missionsCountdown.style.display = this.activeMissionTab === 'general' ? 'flex' : 'none';
     const data = this.state.getPlayerData();
     const run = this.state.getState();
     let rows = getMissionProgressList(data, {

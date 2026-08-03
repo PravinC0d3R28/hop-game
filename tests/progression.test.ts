@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   LEDGER_TARGET,
+  formatCountdown,
   getLedgerInfo,
   getMetricValue,
   getMissionProgressList,
+  getTimeUntilNextReset,
   getWorldProgress
 } from '../src/core/Progression';
 import { getDailyMissions } from '../src/config/Missions';
@@ -192,5 +194,24 @@ describe('mission progress list', () => {
     );
     expect(rows.every((r) => r.percent <= 100)).toBe(true);
     expect(rows.find((r) => r.id === daily[0].id)!.percent).toBe(100);
+  });
+});
+
+describe('daily mission reset countdown', () => {
+  it('getTimeUntilNextReset reaches the next local midnight', () => {
+    const noon = new Date(2026, 7, 3, 12, 0, 0);
+    expect(getTimeUntilNextReset(noon)).toBe(12 * 3600 * 1000);
+    const lateNight = new Date(2026, 7, 3, 23, 59, 59, 999);
+    expect(getTimeUntilNextReset(lateNight)).toBe(1);
+    const exactlyMidnight = new Date(2026, 7, 4, 0, 0, 0);
+    expect(getTimeUntilNextReset(exactlyMidnight)).toBe(24 * 3600 * 1000);
+  });
+
+  it('formatCountdown renders HH:MM:SS, clamped at 0', () => {
+    expect(formatCountdown(12 * 3600 * 1000)).toBe('12:00:00');
+    expect(formatCountdown(5 * 3600 * 1000 + 23 * 60 * 1000 + 12 * 1000)).toBe('05:23:12');
+    expect(formatCountdown(3661 * 1000)).toBe('01:01:01');
+    expect(formatCountdown(0)).toBe('00:00:00');
+    expect(formatCountdown(-500)).toBe('00:00:00');
   });
 });

@@ -164,11 +164,15 @@ No iteration is "a feature branch" — every layer sits on top of a working game
   (shared by `GameStateManager.metricValue`), `getMissionProgressList` (rows per
   tab; world missions outside the run ladder locked).
 - **Daily mission economy** (`src/config/Missions.ts`): General missions replaced
-  by a date-seeded daily set — `GENERAL_POOL` (20 missions: 7 easy / 7 medium /
-  6 hard) → `getDailyMissions(dateKey)` draws 2 easy + 2 medium + 1 hard per day
-  (deterministic via FNV-1a + mulberry32), so the coin economy stays in check and
-  no mission repeats daily. `getActiveMissions` / `evaluateMissions` /
+  by a daily set — `GENERAL_POOL` (30 missions: 10 easy / 10 medium / 10 hard)
+  → `getDailyMissions(dateKey)` draws 2 easy + 2 medium + 1 hard per day via a
+  per-tier **round-robin** (consecutive days disjoint; easy/medium cycle all 10
+  every 5 days, hard every 10 days), so the coin economy stays in check and no
+  mission repeats daily. `getActiveMissions` / `evaluateMissions` /
   `getMissionProgressList` are date-aware (`todayKey()` default).
+- The DAILY tab shows "Come back tomorrow" + a live HH:MM:SS countdown to the
+  next local-midnight reset (`getTimeUntilNextReset` / `formatCountdown` in
+  `Progression.ts`, ticker in `UIManager` while the overlay is open).
 - `GameStateManager` — `runMissionRewards` accumulates completions per run
   (cleared with `clearRunMissions`), exposed for the game-over summary.
 - `UIManager` — `renderStartScreen()`: ledger bar + world chips (missions panel

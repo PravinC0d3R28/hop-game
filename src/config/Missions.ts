@@ -38,16 +38,17 @@ export interface MissionReward {
 
 /**
  * Iteration 7 mission economy (see docs/GAME_MECHANICS.md §missions).
- * - General: a daily random set drawn from GENERAL_POOL (2 easy + 2 medium +
- *   1 hard per day, seeded by date), active only for that day. Progress is
- *   session-based: it persists across runs until the target is met.
+ * - General: 5 daily missions (2 easy + 2 medium + 1 hard) drawn round-robin
+ *   from GENERAL_POOL — consecutive days are disjoint and the full 30-mission
+ *   pool cycles with no repeats (easy/medium every 5 days, hard every 10).
+ *   Progress is session-based: it persists across runs until the target is met.
  * - World: laddered by best-run depth. A world's missions only bank progress
  *   once the ladder (max of the current run and the all-time best run) reaches
  *   that world's run gate — locked worlds never fill.
  * - Lifetime: persistent counters across runs.
  */
 export const GENERAL_POOL: MissionConfig[] = [
-  // ---- easy (1 short session, ~30-45s; 2 per day) ----
+  // ---- easy (1 short session, ~30-45s; 2 per day, 10 in pool) ----
   { id: 'g_first_steps', title: 'First Steps', desc: 'Reach a run score of 25', kind: 'general', metric: 'score', target: 25, reward: 10, tier: 'easy' },
   { id: 'g_gem_grab', title: 'Gem Grab', desc: 'Collect 5 gems', kind: 'general', metric: 'gems', target: 5, reward: 10, tier: 'easy' },
   { id: 'g_clean_shots', title: 'Clean Shots', desc: 'Land 10 perfect hits', kind: 'general', metric: 'perfects', target: 10, reward: 10, tier: 'easy' },
@@ -55,8 +56,11 @@ export const GENERAL_POOL: MissionConfig[] = [
   { id: 'g_fifty', title: 'Half Century', desc: 'Reach a run score of 50', kind: 'general', metric: 'score', target: 50, reward: 15, tier: 'easy' },
   { id: 'g_shiny_start', title: 'Shiny Start', desc: 'Collect 8 gems', kind: 'general', metric: 'gems', target: 8, reward: 12, tier: 'easy' },
   { id: 'g_perfect_ten', title: 'Perfect Ten', desc: 'Land 15 perfect hits', kind: 'general', metric: 'perfects', target: 15, reward: 15, tier: 'easy' },
+  { id: 'g_early_bird', title: 'Early Bird', desc: 'Reach a run score of 30', kind: 'general', metric: 'score', target: 30, reward: 10, tier: 'easy' },
+  { id: 'g_shiny_stones', title: 'Shiny Stones', desc: 'Collect 6 gems', kind: 'general', metric: 'gems', target: 6, reward: 10, tier: 'easy' },
+  { id: 'g_rolling', title: 'Rolling', desc: 'Reach a perfect streak of 6', kind: 'general', metric: 'streak', target: 6, reward: 12, tier: 'easy' },
 
-  // ---- medium (1 mid session, ~1-2min; 2 per day) ----
+  // ---- medium (1 mid session, ~1-2min; 2 per day, 10 in pool) ----
   { id: 'g_hundred', title: 'Century', desc: 'Reach a run score of 100', kind: 'general', metric: 'score', target: 100, reward: 20, tier: 'medium' },
   { id: 'g_treasure', title: 'Treasure Trove', desc: 'Collect 12 gems', kind: 'general', metric: 'gems', target: 12, reward: 25, tier: 'medium' },
   { id: 'g_marksman', title: 'Marksman', desc: 'Land 20 perfect hits', kind: 'general', metric: 'perfects', target: 20, reward: 25, tier: 'medium' },
@@ -64,14 +68,21 @@ export const GENERAL_POOL: MissionConfig[] = [
   { id: 'g_double', title: 'Doubles', desc: 'Reach a run score of 150', kind: 'general', metric: 'score', target: 150, reward: 25, tier: 'medium' },
   { id: 'g_gem_spree', title: 'Gem Spree', desc: 'Collect 15 gems', kind: 'general', metric: 'gems', target: 15, reward: 30, tier: 'medium' },
   { id: 'g_perfect_20', title: 'Sharpshooter', desc: 'Land 30 perfect hits', kind: 'general', metric: 'perfects', target: 30, reward: 30, tier: 'medium' },
+  { id: 'g_sprint', title: 'Sprint', desc: 'Reach a run score of 125', kind: 'general', metric: 'score', target: 125, reward: 22, tier: 'medium' },
+  { id: 'g_deadeye', title: 'Deadeye', desc: 'Land 25 perfect hits', kind: 'general', metric: 'perfects', target: 25, reward: 28, tier: 'medium' },
+  { id: 'g_inferno', title: 'Inferno', desc: 'Reach a perfect streak of 12', kind: 'general', metric: 'streak', target: 12, reward: 35, tier: 'medium' },
 
-  // ---- hard (2-4 mid sessions or one long run; 1 per day) ----
+  // ---- hard (2-4 mid sessions or one long run; 1 per day, 10 in pool) ----
   { id: 'g_quarter', title: 'Quarter Mile', desc: 'Reach a run score of 250', kind: 'general', metric: 'score', target: 250, reward: 40, tier: 'hard' },
   { id: 'g_gem_hoard', title: 'Gem Hoarder', desc: 'Collect 25 gems', kind: 'general', metric: 'gems', target: 25, reward: 45, tier: 'hard' },
   { id: 'g_sniper', title: 'Sniper', desc: 'Land 40 perfect hits', kind: 'general', metric: 'perfects', target: 40, reward: 45, tier: 'hard' },
   { id: 'g_streak_18', title: 'Unstoppable', desc: 'Reach a perfect streak of 18', kind: 'general', metric: 'streak', target: 18, reward: 50, tier: 'hard' },
   { id: 'g_three_hundred', title: 'Powerhouse', desc: 'Reach a run score of 350', kind: 'general', metric: 'score', target: 350, reward: 50, tier: 'hard' },
-  { id: 'g_flawless', title: 'Flawless', desc: 'Land 60 perfect hits', kind: 'general', metric: 'perfects', target: 60, reward: 50, tier: 'hard' }
+  { id: 'g_flawless', title: 'Flawless', desc: 'Land 60 perfect hits', kind: 'general', metric: 'perfects', target: 60, reward: 50, tier: 'hard' },
+  { id: 'g_mile_marker', title: 'Mile Marker', desc: 'Reach a run score of 300', kind: 'general', metric: 'score', target: 300, reward: 45, tier: 'hard' },
+  { id: 'g_diamond_purse', title: 'Diamond Purse', desc: 'Collect 30 gems', kind: 'general', metric: 'gems', target: 30, reward: 50, tier: 'hard' },
+  { id: 'g_surgical', title: 'Surgical', desc: 'Land 50 perfect hits', kind: 'general', metric: 'perfects', target: 50, reward: 50, tier: 'hard' },
+  { id: 'g_laser_focus', title: 'Laser Focus', desc: 'Reach a perfect streak of 15', kind: 'general', metric: 'streak', target: 15, reward: 55, tier: 'hard' }
 ];
 
 export const MISSIONS: MissionConfig[] = [
@@ -130,48 +141,31 @@ export function todayKey(date: Date = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
-/** FNV-1a string hash → unsigned 32-bit seed. */
-function hashString(input: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < input.length; i++) {
-    h ^= input.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
-/** Deterministic PRNG (mulberry32) so a date always yields the same set. */
-function seededShuffle<T>(items: T[], seed: number): T[] {
-  let a = seed >>> 0;
-  const rand = () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-  const out = [...items];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(rand() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
+/** Days since a fixed epoch — the daily-mission rotation index. */
+function daysSinceEpoch(dateKey: string): number {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  return Math.floor(Date.UTC(y, m - 1, d) / 86400000);
 }
 
 /** How many general missions per tier are drawn each day. */
 export const DAILY_PICKS: Record<MissionTier, number> = { easy: 2, medium: 2, hard: 1 };
 
 /**
- * The 5 general missions active today: date-seeded, stratified draw from the
- * pool (2 easy + 2 medium + 1 hard) so the coin economy stays in check.
+ * The 5 general missions active today: a round-robin walk of each tier pool.
+ * Consecutive days draw disjoint sets and every mission cycles back in with no
+ * repeats — easy/medium rotate through all 10 every 5 days, hard every 10 days
+ * (2 per day × 5 = 10; 1 per day × 10 = 10). Fully deterministic per date.
  */
 export function getDailyMissions(dateKey: string): MissionConfig[] {
-  const seed = hashString(`hop-daily-${dateKey}`);
+  const day = daysSinceEpoch(dateKey);
   const picked: MissionConfig[] = [];
   for (const tier of ['easy', 'medium', 'hard'] as const) {
     const candidates = GENERAL_POOL.filter((m) => m.tier === tier);
-    const count = Math.min(DAILY_PICKS[tier], candidates.length);
-    picked.push(...seededShuffle(candidates, seed ^ hashString(tier)).slice(0, count));
+    const step = Math.min(DAILY_PICKS[tier], candidates.length);
+    const start = (day * step) % candidates.length;
+    for (let i = 0; i < step; i++) {
+      picked.push(candidates[(start + i) % candidates.length]);
+    }
   }
   return picked.sort((a, b) => a.target - b.target);
 }

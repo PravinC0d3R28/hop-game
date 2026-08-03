@@ -947,6 +947,28 @@
       background: #8838c8;
       color: #fff;
     }
+    .missions-countdown {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(4px, 1vmin, 8px);
+      padding: clamp(5px, 1.2vmin, 9px) clamp(10px, 2vmin, 16px);
+      font-family: 'Arial Black', sans-serif;
+      font-size: clamp(10px, 2vmin, 13px);
+      font-weight: 900;
+      text-align: center;
+      color: #111;
+      background: #ffe9a8;
+      border-bottom: 3px solid #111;
+    }
+    .missions-countdown .cd-clock {
+      font-variant-numeric: tabular-nums;
+      background: #111;
+      color: #ffe9a8;
+      border-radius: 6px;
+      padding: 1px 8px;
+      letter-spacing: 1px;
+    }
     .missions-scroll {
       flex: 1;
       overflow-y: auto;
@@ -1079,10 +1101,11 @@
         <button class="missions-close" id="missions-close">&#x2715;</button>
       </div>
       <div class="missions-tabs">
-        <button class="missions-tab active" data-tab="general">GENERAL</button>
+        <button class="missions-tab active" data-tab="general">DAILY</button>
         <button class="missions-tab" data-tab="world">WORLD</button>
         <button class="missions-tab" data-tab="lifetime">LIFETIME</button>
       </div>
+      <div class="missions-countdown" id="missions-countdown"></div>
       <div class="missions-scroll" id="missions-scroll">
         <div id="missions-list"></div>
       </div>

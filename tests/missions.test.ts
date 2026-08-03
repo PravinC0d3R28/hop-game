@@ -51,10 +51,10 @@ function addRunProgress(
 }
 
 describe('mission deck', () => {
-  it('has 20 general + 9 world + 6 lifetime missions, all unique ids, positive rewards', () => {
+  it('has 30 general + 9 world + 6 lifetime missions, all unique ids, positive rewards', () => {
     const ids = MISSIONS.map((m) => m.id);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(MISSIONS.filter((m) => m.kind === 'general')).toHaveLength(20);
+    expect(MISSIONS.filter((m) => m.kind === 'general')).toHaveLength(30);
     expect(MISSIONS.filter((m) => m.kind === 'world')).toHaveLength(9);
     expect(MISSIONS.filter((m) => m.kind === 'lifetime')).toHaveLength(6);
     for (const m of MISSIONS) {
@@ -63,10 +63,10 @@ describe('mission deck', () => {
     }
   });
 
-  it('general pool is balanced across tiers (7 easy / 7 medium / 6 hard)', () => {
-    expect(GENERAL_POOL.filter((m) => m.tier === 'easy')).toHaveLength(7);
-    expect(GENERAL_POOL.filter((m) => m.tier === 'medium')).toHaveLength(7);
-    expect(GENERAL_POOL.filter((m) => m.tier === 'hard')).toHaveLength(6);
+  it('general pool is balanced across tiers (10 easy / 10 medium / 10 hard)', () => {
+    expect(GENERAL_POOL.filter((m) => m.tier === 'easy')).toHaveLength(10);
+    expect(GENERAL_POOL.filter((m) => m.tier === 'medium')).toHaveLength(10);
+    expect(GENERAL_POOL.filter((m) => m.tier === 'hard')).toHaveLength(10);
     expect(GENERAL_POOL.every((m) => m.kind === 'general' && m.tier)).toBe(true);
   });
 
@@ -111,6 +111,18 @@ describe('daily general missions (economy rework)', () => {
     const keys = ['2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07'];
     const distinct = new Set(keys.map((k) => getDailyMissions(k).map((m) => m.id).join(',')));
     expect(distinct.size).toBeGreaterThan(1);
+  });
+
+  it('daily sets truly reset: consecutive days differ and the 30-mission pool cycles fully', () => {
+    const days = Array.from({ length: 10 }, (_, i) => {
+      const key = `2026-08-${String(3 + i).padStart(2, '0')}`;
+      return getDailyMissions(key).map((m) => m.id);
+    });
+    for (let i = 1; i < days.length; i++) {
+      expect(days[i]).not.toEqual(days[i - 1]);
+    }
+    const covered = new Set(days.flat());
+    expect(covered.size).toBe(GENERAL_POOL.length);
   });
 
   it('todayKey formats local calendar dates', () => {
@@ -169,8 +181,7 @@ describe('active mission ladder (bankable worlds only)', () => {
 
 describe('mission evaluation (run-scoped, daily set)', () => {
   it('completes a daily general mission on its per-run threshold exactly once', () => {
-    const daily = getDailyMissions(KEY);
-    const target = daily[0];
+    const target = getDailyMissions(KEY).find((m) => m.tier === 'easy')!;
     expect(target.tier).toBe('easy');
 
     const gm = new GameStateManager();

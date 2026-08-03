@@ -291,8 +291,11 @@ mission can only complete in that world. Rewards scale with difficulty
 
 ### 15.4 Daily general pool (economy reset)
 
-5 missions/day, date-seeded: **2 easy + 2 medium + 1 hard**. All general
-missions are session-based (progress persists across runs, completes once).
+5 missions/day from a **30-mission pool (10 easy / 10 medium / 10 hard)**, drawn
+round-robin per tier: consecutive days get disjoint sets and the full pool
+cycles with no repeats — easy/medium rotate through all 10 every 5 days, hard
+every 10 days. All general missions are session-based (progress persists across
+runs, completes once); the pool draws reset at local midnight (`todayKey()`).
 
 | tier | session cost | score | gems | perfects | streak | reward |
 |------|--------------|-------|------|----------|--------|--------|
@@ -300,8 +303,9 @@ missions are session-based (progress persists across runs, completes once).
 | medium | ~1 mid session | 100–150 | 12–15 | 20–30 | 10 | 20–30 |
 | hard | 2–4 mid sessions / 1 long run | 250–350 | 25 | 40–60 | 18 | 40–50 |
 
-Daily ceiling ≈ 165 coins/day; shop prices 50–200, world missions grant 227
-one-time, lifetime grants 310 one-time.
+Daily ceiling ≈ 155 coins/day; shop prices 50–200, world missions grant 227
+one-time, lifetime grants 310 one-time. The DAILY tab shows a live countdown to
+the next reset (local midnight, `getTimeUntilNextReset` / `formatCountdown`).
 
 ### 15.5 Semantics rules (implementation contract)
 

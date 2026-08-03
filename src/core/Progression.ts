@@ -45,6 +45,21 @@ export function getMetricValue(
   }
 }
 
+/** Milliseconds until the next local midnight — the daily mission reset. */
+export function getTimeUntilNextReset(now: Date = new Date()): number {
+  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  return next.getTime() - now.getTime();
+}
+
+/** `HH:MM:SS` countdown from a millisecond duration (floored, clamped ≥ 0). */
+export function formatCountdown(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return [h, m, s].map((v) => String(v).padStart(2, '0')).join(':');
+}
+
 export interface LedgerInfo {
   current: number;
   target: number;
