@@ -4,8 +4,8 @@ import type { ThemeName } from '../config/Themes';
 import { getTierScore, getWorldForScore } from './WorldLogic';
 import { WORLDS } from '../config/Worlds';
 import type { WorldConfig, WorldId } from '../config/Worlds';
-import { getActiveMissions, todayKey } from '../config/Missions';
-import type { MissionMetric, MissionReward } from '../config/Missions';
+import { getActiveMissions, getMissionById, todayKey } from '../config/Missions';
+import type { MissionKind, MissionReward } from '../config/Missions';
 import { getMetricValue } from './Progression';
 
 export const DEFAULT_PLAYER_DATA: PlayerData = {
@@ -19,7 +19,8 @@ export const DEFAULT_PLAYER_DATA: PlayerData = {
   totalGems: 0,
   totalPerfects: 0,
   bestStreak: 0,
-  completedMissions: []
+  completedMissions: [],
+  missionProgress: {}
 };
 
 export const DEFAULT_STATE: GameState = {
@@ -51,15 +52,17 @@ export class GameStateManager {
   private playerData: PlayerData = {
     ...DEFAULT_PLAYER_DATA,
     purchasedSkins: [...DEFAULT_PLAYER_DATA.purchasedSkins],
-    completedMissions: []
+    completedMissions: [],
+    missionProgress: {}
   };
   private worldOverride: WorldId | null = null;
   private unlockAllWorlds = false;
   private totalScore = 0;
   private lastWorldId: WorldId = 'sunrise';
   private pendingMissionCoins = 0;
-  private runCompletedMissions = new Set<string>();
   private runMissionRewards: MissionReward[] = [];
+  /** Per-mission run values already banked this run (delta guard). */
+  private runMissionBanked: Record<string, number> = {};
 
   // ---- state ----
   getState(): Readonly<GameState> {
@@ -166,10 +169,10 @@ export class GameStateManager {
     this.clearRunMissions();
   }
 
-  /** Clear the per-run mission-completion guard between runs. */
+  /** Clear the per-run mission state between runs (rewards + delta guard). */
   clearRunMissions(): void {
-    this.runCompletedMissions.clear();
     this.runMissionRewards = [];
+    this.runMissionBanked = {};
   }
 
   startGame(): void {
@@ -247,44 +250,63 @@ export class GameStateManager {
     this.playerData.totalGems++;
   }
 
-  /** Current value of a mission metric (delegates to the pure helper). */
-  metricValue(metric: MissionMetric): number {
-    return getMetricValue(metric, this.playerData, {
-      score: this.state.score,
-      runPerfects: this.state.runPerfects,
-      runGems: this.state.runGems,
-      maxStreak: this.state.maxStreak
-    });
-  }
-
   /**
    * Completes any active, not-yet-done missions whose target is met.
    * Rewards accrue to `pendingMissionCoins` (banked at game over).
    * Returns the newly completed missions for toasts.
    *
-   * One-time semantics differ by kind:
-   * - lifetime: recorded in `completedMissions` (persisted forever) and can
-   *   only fire once in the game's lifetime.
-   * - general / world: scoped to a single run via `runCompletedMissions`;
-   *   they re-complete (and re-toast) on every run that meets their target.
+   * Session-based semantics (all kinds, one-time in the game's lifetime):
+   * - lifetime: derived from persisted counters; recorded in `completedMissions`.
+   * - general / world: the run's metric value is banked into persisted
+   *   `missionProgress` (capped at the target); progress survives across runs
+   *   and the mission completes permanently the moment the cap is reached.
+   * Only the delta since the last evaluation this run is banked, so calling
+   * this mid-run (every jump / gem) is idempotent.
    */
   evaluateMissions(dateKey: string = todayKey()): MissionReward[] {
     const completed: MissionReward[] = [];
+    const run = {
+      score: this.state.score,
+      runPerfects: this.state.runPerfects,
+      runGems: this.state.runGems,
+      maxStreak: this.state.maxStreak
+    };
     for (const mission of getActiveMissions(this.state.score, dateKey)) {
-      const done = mission.kind === 'lifetime'
-        ? this.playerData.completedMissions.includes(mission.id)
-        : this.runCompletedMissions.has(mission.id);
-      if (done) continue;
-      if (this.metricValue(mission.metric) >= mission.target) {
-        if (mission.kind === 'lifetime') this.playerData.completedMissions.push(mission.id);
-        else this.runCompletedMissions.add(mission.id);
-        this.pendingMissionCoins += mission.reward;
-        const reward: MissionReward = { id: mission.id, title: mission.title, reward: mission.reward, kind: mission.kind };
-        this.runMissionRewards.push(reward);
-        completed.push(reward);
+      if (this.playerData.completedMissions.includes(mission.id)) continue;
+      if (mission.kind === 'lifetime') {
+        if (getMetricValue(mission.metric, this.playerData, run) >= mission.target) {
+          this.playerData.completedMissions.push(mission.id);
+          this.completeMission(mission, completed);
+        }
+        continue;
+      }
+      const runValue = getMetricValue(mission.metric, this.playerData, run);
+      const bankedThisRun = this.runMissionBanked[mission.id] ?? 0;
+      const delta = Math.max(0, runValue - bankedThisRun);
+      this.runMissionBanked[mission.id] = runValue;
+      const progress = Math.min(mission.target, (this.playerData.missionProgress[mission.id] ?? 0) + delta);
+      this.playerData.missionProgress[mission.id] = progress;
+      if (progress >= mission.target) {
+        this.playerData.completedMissions.push(mission.id);
+        this.completeMission(mission, completed);
       }
     }
     return completed;
+  }
+
+  private completeMission(
+    mission: { id: string; title: string; reward: number; kind: MissionKind },
+    completed: MissionReward[]
+  ): void {
+    this.pendingMissionCoins += mission.reward;
+    const reward: MissionReward = {
+      id: mission.id,
+      title: mission.title,
+      reward: mission.reward,
+      kind: mission.kind
+    };
+    this.runMissionRewards.push(reward);
+    completed.push(reward);
   }
 
   getPendingMissionCoins(): number {
@@ -398,8 +420,26 @@ export function sanitizePlayerData(raw: Partial<PlayerData> | null | undefined):
     totalGems: typeof raw?.totalGems === 'number' && raw.totalGems >= 0 ? raw.totalGems : 0,
     totalPerfects: typeof raw?.totalPerfects === 'number' && raw.totalPerfects >= 0 ? raw.totalPerfects : 0,
     bestStreak: typeof raw?.bestStreak === 'number' && raw.bestStreak >= 0 ? raw.bestStreak : 0,
-    completedMissions: sanitizeCompletedMissions(raw?.completedMissions)
+    completedMissions: sanitizeCompletedMissions(raw?.completedMissions),
+    missionProgress: sanitizeMissionProgress(raw?.missionProgress)
   };
+}
+
+/**
+ * Session-based mission progress as a map of mission id → cumulative amount.
+ * Unknown ids are dropped, values clamped to [0, target].
+ * Legacy saves (no field) default to {}.
+ */
+function sanitizeMissionProgress(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
+    const config = getMissionById(id);
+    if (!config) continue;
+    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) continue;
+    out[id] = Math.min(config.target, Math.floor(value));
+  }
+  return out;
 }
 
 /**
@@ -443,6 +483,13 @@ export function mergePlayerData(base: PlayerData, incoming: PlayerData): PlayerD
   for (const id of incoming.completedMissions) {
     if (!completedMissions.includes(id)) completedMissions.push(id);
   }
+  const missionProgress: Record<string, number> = {};
+  for (const id of new Set([...Object.keys(base.missionProgress), ...Object.keys(incoming.missionProgress)])) {
+    missionProgress[id] = Math.max(
+      base.missionProgress[id] ?? 0,
+      incoming.missionProgress[id] ?? 0
+    );
+  }
   return {
     totalCoins: Math.max(base.totalCoins, incoming.totalCoins),
     bestScore: Math.max(base.bestScore, incoming.bestScore),
@@ -456,6 +503,7 @@ export function mergePlayerData(base: PlayerData, incoming: PlayerData): PlayerD
     totalGems: Math.max(base.totalGems, incoming.totalGems),
     totalPerfects: Math.max(base.totalPerfects, incoming.totalPerfects),
     bestStreak: Math.max(base.bestStreak, incoming.bestStreak),
-    completedMissions
+    completedMissions,
+    missionProgress
   };
 }

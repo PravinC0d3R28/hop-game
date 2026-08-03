@@ -12,6 +12,8 @@ export interface PlayerData {
   totalPerfects: number;
   bestStreak: number;
   completedMissions: string[];
+  /** Session-based mission progress (general/world), cumulative across runs. */
+  missionProgress: Record<string, number>;
 }
 
 export interface GameState {

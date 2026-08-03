@@ -20,7 +20,8 @@ const FRESH_PLAYER: PlayerData = {
   totalGems: 0,
   totalPerfects: 0,
   bestStreak: 0,
-  completedMissions: []
+  completedMissions: [],
+  missionProgress: {}
 };
 
 const FRESH_RUN = { score: 0, runPerfects: 0, runGems: 0, maxStreak: 0 };
@@ -116,6 +117,20 @@ describe('mission progress list', () => {
     expect(rows.filter((r) => r.kind === 'lifetime')).toHaveLength(6);
   });
 
+  it('world missions unlock by the reached ladder, not only current+next', () => {
+    const rows = getMissionProgressList(
+      { ...FRESH_PLAYER, bestScore: 377 },
+      FRESH_RUN,
+      KEY
+    );
+    const w1 = rows.find((r) => r.id === 'w1_perfects')!;
+    const w2 = rows.find((r) => r.id === 'w2_score')!;
+    const w3 = rows.find((r) => r.id === 'w3_gems')!;
+    expect(w1.locked).toBe(false);
+    expect(w2.locked).toBe(false);
+    expect(w3.locked).toBe(false);
+  });
+
   it('veteran save: lifetime missions show real progress and done state', () => {
     const rows = getMissionProgressList(
       { ...FRESH_PLAYER, totalScore: 1500, totalGems: 60, completedMissions: ['l_thousand'] },
@@ -135,31 +150,47 @@ describe('mission progress list', () => {
     expect(voidMissions[0].locked).toBe(true);
   });
 
-  it('run snapshot feeds run-mission progress', () => {
+  it('general/world progress reads persisted mission progress, not the run', () => {
     const daily = getDailyMissions(KEY);
+    const first = daily[0];
+    const progress = Math.max(1, Math.floor(first.target / 2));
     const rows = getMissionProgressList(
-      FRESH_PLAYER,
+      { ...FRESH_PLAYER, missionProgress: { [first.id]: progress } },
       { score: 100, runPerfects: 10, runGems: 5, maxStreak: 10 },
       KEY
     );
+    const row = rows.find((r) => r.id === first.id)!;
+    expect(row.current).toBe(progress);
+    expect(row.percent).toBe(Math.round((progress / first.target) * 100));
+    expect(row.done).toBe(false);
+  });
 
-    for (const mission of daily) {
-      const row = rows.find((r) => r.id === mission.id)!;
-      expect(row).toBeDefined();
-      const expected =
-        mission.metric === 'score' ? 100 :
-        mission.metric === 'perfects' ? 10 :
-        mission.metric === 'gems' ? 5 : 10;
-      expect(row.current).toBe(expected);
-    }
+  it('done state comes from completedMissions for all kinds', () => {
+    const daily = getDailyMissions(KEY);
+    const first = daily[0];
+    const rows = getMissionProgressList(
+      {
+        ...FRESH_PLAYER,
+        missionProgress: { [first.id]: first.target },
+        completedMissions: [first.id, 'w1_score', 'l_thousand']
+      },
+      FRESH_RUN,
+      KEY
+    );
+    expect(rows.find((r) => r.id === first.id)!.done).toBe(true);
+    expect(rows.find((r) => r.id === 'w1_score')!.done).toBe(true);
+    expect(rows.find((r) => r.id === 'l_thousand')!.done).toBe(true);
+    expect(rows.find((r) => r.id === first.id)!.percent).toBe(100);
   });
 
   it('percent clamps to 100', () => {
+    const daily = getDailyMissions(KEY);
     const rows = getMissionProgressList(
-      { ...FRESH_PLAYER, totalScore: 9000 },
+      { ...FRESH_PLAYER, missionProgress: { [daily[0].id]: daily[0].target * 2 } },
       { score: 9000, runPerfects: 500, runGems: 200, maxStreak: 100 },
       KEY
     );
     expect(rows.every((r) => r.percent <= 100)).toBe(true);
+    expect(rows.find((r) => r.id === daily[0].id)!.percent).toBe(100);
   });
 });

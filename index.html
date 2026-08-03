@@ -487,10 +487,12 @@
       align-items: center;
       justify-content: center;
     }
-    .menu-icon svg {
+    .menu-icon svg,
+    .menu-icon img {
       width: 100%;
       height: 100%;
       display: block;
+      object-fit: contain;
     }
     .shop-coin {
       width: clamp(32px, 6vmin, 52px);
@@ -510,17 +512,17 @@
       position: absolute;
       right: clamp(12px, 3vw, 28px);
       top: clamp(72px, 13vh, 132px);
-      width: clamp(120px, 22vmin, 170px);
-      height: clamp(120px, 22vmin, 170px);
+      width: clamp(90px, 16.5vmin, 128px);
+      height: clamp(90px, 16.5vmin, 128px);
       background: #fff;
-      border: clamp(3px, 0.6vmin, 5px) solid #111;
-      border-radius: 16px;
-      box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.35);
+      border: clamp(2px, 0.45vmin, 4px) solid #111;
+      border-radius: 12px;
+      box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.35);
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: clamp(10px, 2.2vmin, 16px);
+      gap: clamp(8px, 1.65vmin, 12px);
       z-index: 22;
     }
     .mission-card .mc-target {
@@ -530,7 +532,7 @@
     }
     .mission-card .mc-bar {
       width: 78%;
-      height: clamp(8px, 1.8vmin, 12px);
+      height: clamp(6px, 1.35vmin, 9px);
       background: #e5e5e5;
       border: 2px solid #111;
       border-radius: 6px;
@@ -893,7 +895,7 @@
       border-radius: 14px;
       width: 90%;
       max-width: 440px;
-      max-height: 80vh;
+      height: clamp(340px, 72vh, 520px);
       display: flex;
       flex-direction: column;
       box-shadow: 6px 6px 0 rgba(0,0,0,0.35);

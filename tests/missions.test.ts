@@ -32,6 +32,24 @@ function meetDailyMission(
   }
 }
 
+/** Add a specific amount of the mission's metric (generic, for partial progress). */
+function addRunProgress(
+  gm: GameStateManager,
+  mission: { metric: string },
+  amount: number
+): void {
+  gm.addScore(amount);
+  if (mission.metric === 'perfects' || mission.metric === 'streak') {
+    for (let i = 0; i < amount; i++) {
+      if (mission.metric === 'streak') gm.getMutableState().perfectStreak++;
+      gm.trackPerfectLanding();
+    }
+  }
+  if (mission.metric === 'gems') {
+    for (let i = 0; i < amount; i++) gm.trackGemCollected();
+  }
+}
+
 describe('mission deck', () => {
   it('has 20 general + 9 world + 6 lifetime missions, all unique ids, positive rewards', () => {
     const ids = MISSIONS.map((m) => m.id);
@@ -226,7 +244,8 @@ describe('lifetime missions (persistent counters)', () => {
       totalGems: 120,
       totalPerfects: 500,
       bestStreak: 20,
-      completedMissions: []
+      completedMissions: [],
+      missionProgress: {}
     });
     gm.startGame();
     const done = gm.evaluateMissions(KEY);
@@ -250,24 +269,22 @@ describe('lifetime missions (persistent counters)', () => {
     expect(done).toContainEqual({ id: 'l_collector', title: 'Collector', reward: 30, kind: 'lifetime' });
   });
 
-  it('re-completes per-run missions on later runs (not one-time)', () => {
+  it('general missions are one-time across runs (session-based)', () => {
     const target = getDailyMissions(KEY)[0];
 
     const gm = new GameStateManager();
     gm.startGame();
     meetDailyMission(gm, target);
     gm.evaluateMissions(KEY);
-    expect(gm.getPlayerData().completedMissions).not.toContain(target.id);
+    expect(gm.getPlayerData().completedMissions).toContain(target.id);
+
     const remade = new GameStateManager();
     remade.loadPlayerData(gm.getPlayerData());
     remade.startGame();
     meetDailyMission(remade, target);
-    expect(remade.evaluateMissions(KEY)).toContainEqual({
-      id: target.id,
-      title: target.title,
-      reward: target.reward,
-      kind: 'general'
-    });
+    const doneIds = remade.evaluateMissions(KEY).map((d) => d.id);
+    expect(doneIds).not.toContain(target.id);
+    expect(remade.getPlayerData().completedMissions).toContain(target.id);
   });
 
   it('lifetime missions stay one-time across saves', () => {
@@ -283,7 +300,8 @@ describe('lifetime missions (persistent counters)', () => {
       totalGems: 0,
       totalPerfects: 0,
       bestStreak: 0,
-      completedMissions: []
+      completedMissions: [],
+      missionProgress: {}
     });
     gm.startGame();
     gm.evaluateMissions(KEY);
@@ -298,7 +316,7 @@ describe('lifetime missions (persistent counters)', () => {
     expect(remade.getPlayerData().completedMissions).toContain('l_thousand');
   });
 
-  it('persists only lifetime mission ids by default', () => {
+  it('persists completed ids for all kinds in the save', () => {
     const target = getDailyMissions(KEY)[0];
 
     const gm = new GameStateManager();
@@ -306,8 +324,83 @@ describe('lifetime missions (persistent counters)', () => {
     meetDailyMission(gm, target);
     gm.evaluateMissions(KEY);
     const ids = gm.getPlayerData().completedMissions;
-    expect(ids).not.toContain(target.id);
+    expect(ids).toContain(target.id);
     expect(ids).not.toContain('w1_score');
-    expect(ids.every((id) => id.startsWith('l_'))).toBe(true);
+  });
+});
+
+describe('session-based missions (progress persists across runs)', () => {
+  it('banks partial progress and continues from it on the next run', () => {
+    const daily = getDailyMissions(KEY);
+    const mission = daily
+      .filter((m) => m.metric !== 'streak')
+      .sort((a, b) => a.target - b.target)[0];
+    expect(mission).toBeDefined();
+    const half = Math.floor(mission.target / 2);
+
+    const gm = new GameStateManager();
+    gm.startGame();
+    addRunProgress(gm, mission, half);
+    expect(gm.evaluateMissions(KEY)).toEqual([]);
+    expect(gm.getPlayerData().missionProgress[mission.id]).toBe(half);
+    expect(gm.getPlayerData().completedMissions).not.toContain(mission.id);
+
+    const remade = new GameStateManager();
+    remade.loadPlayerData(gm.getPlayerData());
+    remade.startGame();
+    addRunProgress(remade, mission, mission.target);
+    const done = remade.evaluateMissions(KEY);
+    expect(done.map((d) => d.id)).toContain(mission.id);
+    expect(remade.getPlayerData().completedMissions).toContain(mission.id);
+    expect(remade.getPlayerData().missionProgress[mission.id]).toBe(mission.target);
+  });
+
+  it('repeated mid-run evaluation banks each run value only once', () => {
+    const gm = new GameStateManager();
+    gm.startGame();
+    gm.addScore(20);
+    gm.evaluateMissions(KEY);
+    gm.evaluateMissions(KEY);
+    gm.evaluateMissions(KEY);
+    expect(gm.getPlayerData().missionProgress['w1_score']).toBe(20);
+
+    gm.addScore(15);
+    gm.evaluateMissions(KEY);
+    gm.evaluateMissions(KEY);
+    expect(gm.getPlayerData().missionProgress['w1_score']).toBe(35);
+    expect(gm.getPlayerData().completedMissions).not.toContain('w1_score');
+  });
+
+  it('world mission progress accumulates across runs', () => {
+    const gm = new GameStateManager();
+    gm.startGame();
+    for (let i = 0; i < 2; i++) {
+      gm.getMutableState().perfectStreak++;
+      gm.trackPerfectLanding();
+    }
+    gm.evaluateMissions(KEY);
+    expect(gm.getPlayerData().missionProgress['w1_perfects']).toBe(2);
+    expect(gm.getPlayerData().completedMissions).not.toContain('w1_perfects');
+
+    const remade = new GameStateManager();
+    remade.loadPlayerData(gm.getPlayerData());
+    remade.startGame();
+    remade.getMutableState().perfectStreak++;
+    remade.trackPerfectLanding();
+    const done = remade.evaluateMissions(KEY);
+    expect(done.map((d) => d.id)).toContain('w1_perfects');
+    expect(remade.getPlayerData().missionProgress['w1_perfects']).toBe(3);
+  });
+
+  it('resets the run delta guard between runs', () => {
+    const gm = new GameStateManager();
+    gm.startGame();
+    gm.addScore(20);
+    gm.evaluateMissions(KEY);
+    gm.resetGame();
+    gm.startGame();
+    gm.addScore(20);
+    gm.evaluateMissions(KEY);
+    expect(gm.getPlayerData().missionProgress['w1_score']).toBe(40);
   });
 });

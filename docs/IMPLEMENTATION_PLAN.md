@@ -191,6 +191,25 @@ No iteration is "a feature branch" — every layer sits on top of a working game
   completions, toast top-right, PLAY AGAIN rectangle; screenshots
   `docs/shots/iter7-*.png`.
 
+**Session-based missions rework (UX feedback, same iteration):**
+- Missions are now **session-based, not per-run**: general/world progress
+  accumulates across runs (1, 2, 5 … 100 runs) in a new persisted
+  `PlayerData.missionProgress` map and completes **permanently, once**.
+- `evaluateMissions` banks only the delta since the last evaluation this run
+  (`runMissionBanked` guard), so mid-run calls on every jump/gem are idempotent;
+  the guard resets between runs via `clearRunMissions`.
+- `getMissionProgressList` reads persisted progress (fills the mission page
+  correctly at the menu), `done` = `completedMissions` for all kinds, and world
+  missions unlock by the reached ladder (`max(run.score, bestScore)`) — earlier
+  worlds no longer show locked once reached.
+- Toast card shrunk 25% (`clamp(90px, 16.5vmin, 128px)`); missions container is
+  now a fixed uniform height (`clamp(340px, 72vh, 520px)`) so all three tabs
+  render the same size; missions button reverted to the inline bullseye SVG
+  (missions.png parked for later).
+- Tests: `tests/missions.test.ts` (26) + `tests/progression.test.ts` (13) →
+  136 total; typecheck + build green; browser-verified uniform tab heights,
+  persisted progress display (4/5 · 80%), unlocked world ladder.
+
 ## Iteration 8 — Art pass 1: per-world palettes + skies
 
 **Goal:** Dawn→Dusk identity lands on worlds.
