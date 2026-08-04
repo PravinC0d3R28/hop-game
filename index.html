@@ -167,36 +167,6 @@
       margin-bottom: 6px;
       letter-spacing: 3px;
     }
-    #best-score {
-      font-size: clamp(14px, 3vmin, 22px);
-      font-weight: 900;
-      color: #111;
-      margin-bottom: clamp(8px, 2vh, 22px);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      opacity: 0.7;
-    }
-    #best-score .crown { font-size: 0.9em; }
-    #theme-btn {
-      margin-top: clamp(4px, 1vh, 8px);
-      width: clamp(40px, 8vmin, 56px);
-      height: clamp(40px, 8vmin, 56px);
-      padding: 0;
-      background: #8838c8;
-      border: clamp(3px, 0.6vmin, 4px) solid #111;
-      border-radius: 50%;
-      cursor: pointer;
-      pointer-events: auto;
-      box-shadow: 3px 3px 0 #111;
-      transition: transform 0.1s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    #theme-btn:hover { transform: translateY(-2px); box-shadow: 4px 4px 0 #111; }
-    #theme-btn:active { transform: translateY(1px); box-shadow: 2px 2px 0 #111; }
-    .theme-icon { font-size: clamp(18px, 4vmin, 28px); line-height: 1; }
     #start-screen p {
       font-size: clamp(16px, 3.5vmin, 24px);
       color: #333;
@@ -225,7 +195,8 @@
       pointer-events: none;
     }
 
-    /* World nav: arrows + current world, pinned to the right edge, centered vertically */
+    /* World nav: next arrow pinned to the right edge, back arrow to the left,
+       both vertically centered on their edge (World labels float above). */
     #world-nav {
       position: absolute;
       right: clamp(10px, 2.5vw, 26px);
@@ -234,20 +205,20 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: clamp(8px, 1.6vh, 14px);
       pointer-events: auto;
       z-index: 5;
     }
-    /* Back arrow: center-left edge (worlds 2–3 only) */
+    /* Back arrow: center-left edge (worlds 2–3 only); stays usable above the lock overlay */
     #world-prev {
       position: absolute;
       left: clamp(10px, 2.5vw, 26px);
       top: 50%;
       transform: translateY(-50%);
       pointer-events: auto;
-      z-index: 5;
+      z-index: 60;
     }
     .nav-arrow {
+      position: relative;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -261,6 +232,19 @@
       cursor: pointer;
       user-select: none;
       flex-shrink: 0;
+    }
+    .nav-label {
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: clamp(11px, 2.2vmin, 14px);
+      font-weight: 900;
+      letter-spacing: 1px;
+      color: #111;
+      white-space: nowrap;
+      pointer-events: none;
+      text-shadow: 0 0 5px rgba(255, 255, 255, 0.85);
     }
     .nav-arrow .nav-chevron {
       font-size: clamp(18px, 4vmin, 26px);
@@ -284,33 +268,13 @@
       color: #999;
     }
     .nav-arrow.hidden { display: none; }
-    #world-current {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2px;
-      min-width: 0;
-    }
-    #world-current-name {
-      font-size: clamp(11px, 2.4vmin, 15px);
-      font-weight: 900;
-      letter-spacing: 1px;
-      color: #111;
-      text-align: center;
-      white-space: nowrap;
-    }
-    #world-current-best {
-      font-size: clamp(10px, 2vmin, 13px);
-      font-weight: 800;
-      color: #b8860b;
-      white-space: nowrap;
-    }
 
     /* Rage-bait thought bubble next to a locked next-arrow */
     #world-bubble {
       position: absolute;
       right: calc(100% + 16px);
-      bottom: 6px;
+      top: 50%;
+      transform: translateY(-50%);
       display: none;
       background: #fff;
       color: #111;
@@ -327,21 +291,22 @@
     #world-bubble::after {
       content: '';
       position: absolute;
-      right: -15px;
-      bottom: 16px;
-      width: 20px;
-      height: 20px;
+      right: -11px;
+      top: 50%;
+      transform: translateY(-50%) rotate(45deg);
+      width: 16px;
+      height: 16px;
       background: #fff;
       border-top: 3px solid #111;
       border-right: 3px solid #111;
       border-radius: 3px;
-      transform: rotate(45deg);
     }
     #world-bubble::before {
       content: '';
       position: absolute;
-      right: -24px;
-      bottom: 7px;
+      right: -22px;
+      top: 50%;
+      transform: translateY(-50%);
       width: 9px;
       height: 9px;
       border-radius: 50%;
@@ -349,14 +314,16 @@
       border: 2.5px solid #111;
     }
 
-    /* Locked-world overlay: translucent screen + big lock + progress to unlock */
+    /* Locked-world overlay: gaussian-blur screen + big lock + progress to unlock */
     #lock-overlay {
       position: absolute;
       inset: 0;
       display: none;
       align-items: center;
       justify-content: center;
-      background: rgba(12, 12, 28, 0.68);
+      background: rgba(12, 12, 28, 0.45);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       pointer-events: auto;
       z-index: 40;
     }
@@ -404,6 +371,12 @@
       letter-spacing: 2px;
       color: #111;
     }
+    #lock-desc {
+      font-size: clamp(12px, 2.6vmin, 16px);
+      font-weight: 700;
+      color: #444;
+      max-width: 30ch;
+    }
     #lock-tagline {
       font-size: clamp(12px, 2.6vmin, 16px);
       font-weight: 800;
@@ -434,37 +407,6 @@
       font-weight: 800;
       color: #333;
     }
-
-    /* World progress chips */
-    #world-progress {
-      display: flex;
-      gap: clamp(6px, 1.2vmin, 12px);
-      margin-top: clamp(8px, 1.6vh, 14px);
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-    .world-chip {
-      padding: 4px 10px;
-      border: 3px solid #111;
-      border-radius: 10px;
-      background: #fff;
-      font-size: clamp(10px, 2vmin, 14px);
-      font-weight: 900;
-      color: #111;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25);
-    }
-    .world-chip.unlocked { background: #d4f4dd; cursor: pointer; }
-    .world-chip.next { background: #ffe9a8; }
-    .world-chip.locked { background: #eee; color: #999; cursor: default; }
-    .world-chip.selected { outline: 3px solid #111; outline-offset: 1px; }
-    .world-chip .chip-best {
-      font-size: 0.85em;
-      color: #b8860b;
-    }
-    .world-chip.locked .chip-best { display: none; }
 
     /* Missions overlay — mission cards (rendered into #missions-list) */
     .mission-row {
@@ -540,36 +482,6 @@
     }
     .mission-row.done .m-bar-fill { background: #28a858; }
 
-    /* Drag hint */
-    .finger-hint {
-      margin-top: clamp(8px, 2vh, 18px);
-      margin-bottom: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-      width: clamp(140px, 28vmin, 220px);
-      height: clamp(50px, 10vmin, 80px);
-      pointer-events: none;
-    }
-    .finger-hint-icon {
-      width: clamp(36px, 8vmin, 56px);
-      height: clamp(36px, 8vmin, 56px);
-      position: absolute;
-      animation: dragHint 2s ease-in-out infinite;
-      filter: drop-shadow(2px 2px 0 rgba(0,0,0,0.3));
-    }
-    .finger-hint-line {
-      width: 80%;
-      height: clamp(4px, 0.8vmin, 6px);
-      background: #111;
-      border-radius: 3px;
-      opacity: 0.35;
-    }
-    @keyframes dragHint {
-      0%, 100% { left: 5%; opacity: 0.6; }
-      50% { left: 60%; opacity: 1; }
-    }
     .burst {
       position: absolute;
       font-size: clamp(20px, 4vmin, 32px);
@@ -623,13 +535,34 @@
       object-fit: contain;
     }
 
-    /* Middle group: hint + shop centered vertically */
+    /* Middle group: play button centered vertically */
     .start-middle {
       flex: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
+    }
+    #play-btn {
+      font-family: inherit;
+      font-size: clamp(18px, 4vmin, 28px);
+      font-weight: 900;
+      letter-spacing: 3px;
+      color: #fff;
+      background: #28a858;
+      border: clamp(3px, 0.6vmin, 5px) solid #111;
+      border-radius: 999px;
+      padding: clamp(14px, 2.5vmin, 22px) clamp(38px, 8vmin, 72px);
+      box-shadow: 4px 4px 0 #111;
+      cursor: pointer;
+      pointer-events: auto;
+      animation: playPulse 1.8s ease-in-out infinite;
+    }
+    #play-btn:hover { transform: translateY(-2px); }
+    #play-btn:active { transform: translateY(1px); box-shadow: 2px 2px 0 #111; }
+    @keyframes playPulse {
+      0%, 100% { box-shadow: 4px 4px 0 #111, 0 0 0 rgba(40, 168, 88, 0); }
+      50% { box-shadow: 4px 4px 0 #111, 0 0 26px rgba(40, 168, 88, 0.75); }
     }
 
     /* Menu buttons row (missions + shop) — bottom center */
@@ -641,6 +574,11 @@
       display: flex;
       align-items: center;
       gap: clamp(18px, 4vmin, 32px);
+      transition: opacity 0.25s ease;
+    }
+    .menu-btns.menu-hidden {
+      opacity: 0;
+      pointer-events: none;
     }
     #missions-btn,
     #shop-btn {
@@ -1213,25 +1151,21 @@
         <div id="coin-counter"><span class="coin-icon"><img src="Coin.png" alt="coin"></span><span id="coin-amount">0</span></div>
         <div id="start-screen">
           <h1 id="world-title">SUNRISE PEAKS</h1>
-          <div id="best-score"><span class="crown">&#x1F451;</span> <span id="best-score-val">0</span></div>
-          <button id="theme-btn" title="Toggle light/dark mode"><span class="theme-icon" id="theme-icon">&#x2600;</span></button>
-          <div id="world-prev" class="nav-arrow hidden" title="">&#9664;</div>
+          <div id="world-prev" class="nav-arrow hidden" title="">
+            <span class="nav-label">World 1</span>
+            <span class="nav-chevron">&#9664;</span>
+          </div>
           <div id="world-nav">
-            <div id="world-current">
-              <div id="world-current-name">SUNRISE PEAKS</div>
-              <div id="world-current-best">PLAY TO SET A BEST</div>
+            <div id="world-next" class="nav-arrow locked" title="">
+              <span class="nav-label">World 2</span>
+              <span class="nav-chevron">&#9654;</span>
             </div>
-            <div id="world-next" class="nav-arrow locked" title=""></div>
             <div id="world-bubble"></div>
           </div>
-          <div id="world-progress"></div>
           <div class="start-middle">
-            <div class="finger-hint">
-              <div class="finger-hint-line"></div>
-              <img class="finger-hint-icon" src="indicator.png" alt="tap">
-            </div>
+            <button id="play-btn">TAP TO PLAY</button>
           </div>
-          <div class="menu-btns">
+          <div id="menu-btns" class="menu-btns">
             <button id="missions-btn" title="Missions">
               <span class="menu-icon">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1267,7 +1201,8 @@
               <circle cx="50" cy="58" r="8.5" fill="#fff" stroke="#7a4b0d" stroke-width="3"/>
               <rect x="46.5" y="62" width="7" height="13" rx="3.5" fill="#fff" stroke="#7a4b0d" stroke-width="2.5"/>
             </svg>
-            <div id="lock-world-name">DUSK DISTRICT</div>
+            <div id="lock-world-name">????</div>
+            <div id="lock-desc"></div>
             <div id="lock-tagline">Unlocks at 1,000 total score</div>
             <div class="lock-track"><div id="lock-fill"></div></div>
             <div id="lock-progress-text">0 / 1,000</div>

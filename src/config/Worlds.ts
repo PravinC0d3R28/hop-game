@@ -21,6 +21,8 @@ export interface WorldConfig {
   id: WorldId;
   name: string;
   tagline: string;
+  /** Short teaser shown in the lock overlay while the world is still locked. */
+  lockedDescription: string;
   unlockScore: number;
   gateScore: number;
   ramps: RampOverrides;
@@ -38,6 +40,7 @@ export const WORLDS: WorldConfig[] = [
     id: 'sunrise',
     name: 'Sunrise Peaks',
     tagline: 'Golden hills, soft light',
+    lockedDescription: 'Golden peaks under a warm morning sun.',
     unlockScore: 0,
     gateScore: 0,
     ramps: {
@@ -55,6 +58,7 @@ export const WORLDS: WorldConfig[] = [
     id: 'dusk',
     name: 'Dusk District',
     tagline: 'Swaying streets at sunset',
+    lockedDescription: 'Streets sway as the sun melts below the skyline.',
     unlockScore: 1000,
     gateScore: 100,
     ramps: {
@@ -72,6 +76,7 @@ export const WORLDS: WorldConfig[] = [
     id: 'void',
     name: 'Deep Void',
     tagline: 'Where the neon never sleeps',
+    lockedDescription: 'A neon void where the ground never holds still.',
     unlockScore: 5000,
     gateScore: 250,
     ramps: {

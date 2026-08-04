@@ -6,7 +6,7 @@ import type { WorldId } from '../config/Worlds';
 import { getNextWorld, getPreviousWorld, getWorldById } from '../core/WorldLogic';
 import { WORLDS, type WorldConfig } from '../config/Worlds';
 import type { MissionKind, MissionReward } from '../config/Missions';
-import { getMissionProgressList, getWorldProgress, getTimeUntilNextReset, formatCountdown } from '../core/Progression';
+import { getMissionProgressList, getTimeUntilNextReset, formatCountdown } from '../core/Progression';
 import type { RendererSystem } from '../systems/RendererSystem';
 import type { ShadowSystem } from '../systems/ShadowSystem';
 import type { BackgroundSystem } from '../systems/BackgroundSystem';
@@ -14,16 +14,13 @@ import type { BallEntity } from '../entities/BallEntity';
 import { gsap } from 'gsap';
 
 /**
- * All DOM UI: start screen, score, coin counters, shop, game-over, theme toggle.
+ * All DOM UI: start screen, score, coin counters, shop, game-over.
  * Faithful port of the original `no` / `uc` / `as` / `io` / `zy` / `uc` handlers,
  * with localStorage persistence instead of the YouTube cloud.
  */
 export class UIManager {
   private scoreEl = this.el<HTMLElement>('score');
   private coinAmount = this.el<HTMLElement>('coin-amount');
-  private bestScoreVal = this.el<HTMLElement>('best-score-val');
-  private themeBtn = this.el<HTMLButtonElement>('theme-btn');
-  private themeIcon = this.el<HTMLElement>('theme-icon');
   private startScreen = this.el<HTMLElement>('start-screen');
   private gameOverScreen = this.el<HTMLElement>('gameover-screen');
   private goScore = this.el<HTMLElement>('go-score');
@@ -40,7 +37,6 @@ export class UIManager {
   private splashScreen = this.el<HTMLElement>('splash-screen');
   private shopBtn = this.el<HTMLButtonElement>('shop-btn');
   private worldTitle = this.el<HTMLElement>('world-title');
-  private worldProgress = this.el<HTMLElement>('world-progress');
   private missionsBtn = this.el<HTMLButtonElement>('missions-btn');
   private missionsOverlay = this.el<HTMLElement>('missions-overlay');
   private missionsClose = this.el<HTMLElement>('missions-close');
@@ -51,16 +47,16 @@ export class UIManager {
   private worldNav = this.el<HTMLElement>('world-nav');
   private worldPrev = this.el<HTMLElement>('world-prev');
   private worldNext = this.el<HTMLElement>('world-next');
-  private worldCurrentName = this.el<HTMLElement>('world-current-name');
-  private worldCurrentBest = this.el<HTMLElement>('world-current-best');
   private worldBubble = this.el<HTMLElement>('world-bubble');
   private lockOverlay = this.el<HTMLElement>('lock-overlay');
   private lockClose = this.el<HTMLButtonElement>('lock-close');
   private lockWorldName = this.el<HTMLElement>('lock-world-name');
+  private lockDesc = this.el<HTMLElement>('lock-desc');
   private lockTagline = this.el<HTMLElement>('lock-tagline');
   private lockFill = this.el<HTMLElement>('lock-fill');
   private lockProgressText = this.el<HTMLElement>('lock-progress-text');
   private lockRemaining = this.el<HTMLElement>('lock-remaining');
+  private menuBtns = this.el<HTMLElement>('menu-btns');
   private goWorld = this.el<HTMLElement>('go-world');
   private goMissions = this.el<HTMLElement>('go-missions');
   private goMissionsList = this.el<HTMLElement>('go-missions-list');
@@ -109,8 +105,6 @@ export class UIManager {
   }
 
   private bind(): void {
-    this.themeBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
-    this.themeBtn.addEventListener('click', () => this.toggleTheme());
     this.shopBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       this.openShop();
@@ -184,17 +178,11 @@ export class UIManager {
     if (persist) void this.state.getMutablePlayerData();
     this.renderer.setTheme(theme);
     this.shadow.setThemeColor(t.shadowColor);
-    this.themeIcon.textContent = t.icon;
     this.background.recolor();
     if (persist) this.onThemeChanged();
   }
 
   onThemeChanged: () => void = () => {};
-
-  private toggleTheme(): void {
-    const next = this.state.toggleTheme();
-    this.setTheme(next);
-  }
 
   /** Mirror `ts()` — persist happens via Game callback. */
 
@@ -205,16 +193,10 @@ export class UIManager {
     this.shopCoinDisplay.textContent = String(total);
   }
 
-  /** Mirror `io()`: best score on start screen. */
-  refreshBestScore(): void {
-    this.bestScoreVal.textContent = String(this.state.getPlayerData().bestScore);
-  }
-
   /** Render the compact progression block on the start screen (Iteration 7). */
   renderStartScreen(): void {
     this.renderWorldTitle();
     this.renderWorldNav();
-    this.renderWorldChips();
   }
 
   /** Navigate to an adjacent world via the start-screen arrows. */
@@ -228,6 +210,7 @@ export class UIManager {
   private selectWorld(id: WorldId): void {
     if (this.state.selectWorld(id)) {
       this.onWorldSelect(id);
+      this.closeLockOverlay();
       this.renderStartScreen();
       return;
     }
@@ -248,27 +231,27 @@ export class UIManager {
     this.worldTitle.style.color = this.WORLD_TITLE_COLORS[world.id];
   }
 
-  /** Right-edge nav: back arrow · current world + best · next arrow/lock. */
+  /** Edge nav: back arrow (left) · next arrow/lock (right), both centered on their edge. */
   private renderWorldNav(): void {
-    const data = this.state.getPlayerData();
     const world = this.state.getActiveWorld();
     const prev = getPreviousWorld(world);
     const next = getNextWorld(world);
 
-    this.worldCurrentName.textContent = world.name.toUpperCase();
-    const best = data.bestPerWorld[WORLDS.indexOf(world)] ?? 0;
-    this.worldCurrentBest.textContent = best > 0 ? `BEST ${best}` : 'PLAY TO SET A BEST';
-
     this.worldPrev.classList.toggle('hidden', !prev);
-    if (prev) this.worldPrev.title = `Back to ${prev.name}`;
+    if (prev) {
+      this.setNavLabel(this.worldPrev, `World ${WORLDS.indexOf(prev) + 1}`);
+      this.worldPrev.title = `Back to ${prev.name}`;
+    }
 
     this.worldNext.classList.toggle('hidden', !next);
     if (next) {
       const unlocked = this.state.canSelectWorld(next);
       this.worldNext.classList.toggle('locked', !unlocked);
+      const chevron = '<span class="nav-chevron">&#9654;</span>';
       this.worldNext.innerHTML = unlocked
-        ? '<span class="nav-chevron">&#9654;</span>'
+        ? chevron
         : `<span class="nav-lock-svg">${UIManager.LOCK_SVG}</span><span class="nav-lock-score">${next.unlockScore.toLocaleString()}</span>`;
+      this.setNavLabel(this.worldNext, `World ${WORLDS.indexOf(next) + 1}`);
       this.worldNext.title = unlocked
         ? `Go to ${next.name}`
         : `${next.name} unlocks at ${next.unlockScore.toLocaleString()} total score`;
@@ -281,6 +264,16 @@ export class UIManager {
       this.worldNext.innerHTML = '';
       this.stopBubble();
     }
+  }
+
+  private setNavLabel(arrow: HTMLElement, text: string): void {
+    let label = arrow.querySelector<HTMLElement>('.nav-label');
+    if (!label) {
+      label = document.createElement('span');
+      label.className = 'nav-label';
+      arrow.appendChild(label);
+    }
+    label.textContent = text;
   }
 
   /** Thought bubble taunts the player near a locked next arrow (rage-bait). */
@@ -340,54 +333,39 @@ export class UIManager {
     });
   }
 
-  /** Locked-world overlay: big lock + progress toward the unlock threshold. */
+  /** Locked-world overlay: world "loads" briefly, then a blur screen + lock card. */
+  private lockPending: number | null = null;
+
   private openLockOverlay(world: WorldConfig): void {
+    if (this.lockPending !== null) return;
     const data = this.state.getPlayerData();
-    this.lockWorldName.textContent = world.name.toUpperCase();
+    this.lockWorldName.textContent = '????';
+    this.lockDesc.textContent = world.lockedDescription;
     this.lockTagline.textContent = `Unlocks at ${world.unlockScore.toLocaleString()} total score`;
     const pct = Math.min(100, Math.round((data.totalScore / world.unlockScore) * 100));
     this.lockFill.style.width = `${pct}%`;
     this.lockProgressText.textContent = `${data.totalScore.toLocaleString()} / ${world.unlockScore.toLocaleString()}`;
     const remaining = Math.max(0, world.unlockScore - data.totalScore);
     this.lockRemaining.textContent = `${remaining.toLocaleString()} more points to go`;
-    this.lockOverlay.style.display = 'flex';
-    const card = this.lockOverlay.querySelector<HTMLElement>('.lock-card');
-    if (card) {
-      gsap.killTweensOf(card);
-      gsap.fromTo(card, { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.35, ease: 'back.out(1.7)' });
-    }
+    this.menuBtns.classList.add('menu-hidden');
+    this.lockPending = window.setTimeout(() => {
+      this.lockPending = null;
+      this.lockOverlay.style.display = 'flex';
+      const card = this.lockOverlay.querySelector<HTMLElement>('.lock-card');
+      if (card) {
+        gsap.killTweensOf(card);
+        gsap.fromTo(card, { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.35, ease: 'back.out(1.7)' });
+      }
+    }, 350);
   }
 
   private closeLockOverlay(): void {
-    this.lockOverlay.style.display = 'none';
-  }
-
-  private renderWorldChips(): void {
-    const data = this.state.getPlayerData();
-    const selectedId = this.state.getActiveWorld().id;
-    this.worldProgress.innerHTML = '';
-    for (const row of getWorldProgress(data)) {
-      const chip = document.createElement('div');
-      chip.className = `world-chip ${row.unlocked ? 'unlocked' : row.isNextUnlock ? 'next' : 'locked'}${
-        row.world.id === selectedId ? ' selected' : ''
-      }`;
-      chip.innerHTML = `<span class="chip-name">${row.unlocked ? '&#10003; ' : ''}${row.world.name}</span>`;
-      if (row.unlocked && row.best > 0) {
-        const best = document.createElement('span');
-        best.className = 'chip-best';
-        best.textContent = `BEST ${row.best}`;
-        chip.appendChild(best);
-      }
-      chip.title = row.unlocked
-        ? `Best run in ${row.world.name}: ${row.best}`
-        : `Unlocks at ${row.world.unlockScore.toLocaleString()} total`;
-      chip.addEventListener('pointerdown', (e) => e.stopPropagation());
-      chip.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.selectWorld(row.world.id);
-      });
-      this.worldProgress.appendChild(chip);
+    if (this.lockPending !== null) {
+      window.clearTimeout(this.lockPending);
+      this.lockPending = null;
     }
+    this.menuBtns.classList.remove('menu-hidden');
+    this.lockOverlay.style.display = 'none';
   }
 
   /** Open the missions tab: render the active tab, animate bars, confetti on done. */
@@ -740,10 +718,6 @@ export class UIManager {
     }
   }
 
-  showThemeButton(show: boolean): void {
-    this.themeBtn.style.display = show ? 'flex' : 'none';
-  }
-
   hideShop(): void {
     this.shopOverlay.style.display = 'none';
   }
@@ -754,11 +728,6 @@ export class UIManager {
 
   confettiContainerEl(): HTMLElement {
     return this.confettiContainer;
-  }
-
-  /** Mirror `no(r)` theme-button icon only. */
-  refreshThemeIcon(): void {
-    this.themeIcon.textContent = THEMES[this.state.getPlayerData().theme].icon;
   }
 
   applyThemeToDOM(): void {

@@ -161,10 +161,4 @@ describe('shop economy', () => {
     expect(gm.equipSkin('cyan')).toBe(true);
     expect(gm.getPlayerData().selectedSkin).toBe('cyan');
   });
-
-  it('theme toggle alternates', () => {
-    const gm = new GameStateManager();
-    expect(gm.toggleTheme()).toBe('dark');
-    expect(gm.toggleTheme()).toBe('light');
-  });
 });

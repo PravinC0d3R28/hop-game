@@ -62,10 +62,10 @@ while keeping the core loop unchanged and everything config-driven.
 - FR-5.2 Sawtooth difficulty: ramp params bind to **tier score** (score since world entry); each world's baseline ramp params come from world config; W1's early feel must match current game at equal scores until its ramp differs.
 
 ### FR-6 UI
-- FR-6.1 Start screen: selected world's name as the title, right-edge vertical world nav (prev/current/next arrows) that never starts a game on click, missions list with progress, per-world bests, existing skins shop intact.
+- FR-6.1 Start screen: selected world's name as the title; back arrow at the center-left and next arrow at the center-right edge, both vertically centered and labeled `World 1/2/3`; a `TAP TO PLAY` button is the only game-start trigger; missions list with progress, per-world bests, existing skins shop intact.
 - FR-6.2 Game over: `+N this run` on the run summary, mission rewards summary, world name of the run.
 - FR-6.3 In-run: combo counter near score; existing HUD intact.
-- FR-6.4 Locked-world UI: lock SVG + unlock threshold on the next arrow and world chips; clicking a locked world opens the lock overlay (large padlock, progress bar, points remaining); an occasional "too easy?"-style thought bubble near a locked next arrow; mission rows distinguish "Play in <world>…" from "Unlocks at <N>…" tooltips.
+- FR-6.4 Locked-world UI: lock SVG + unlock threshold on the next arrow; clicking a locked world briefly "loads" then shows a gaussian-blur screen with a lock card (name hidden as `????`, world description, progress bar, points remaining) — clicking anywhere never starts a run while locked, and the back arrow stays usable above the blur; missions/shop buttons fade out while locked; an occasional "too easy?"-style thought bubble near a locked next arrow; mission rows distinguish "Play in <world>…" from "Unlocks at <N>…" tooltips.
 
 ### FR-7 Debug
 - FR-7.1 `DEBUG.unlockAllWorlds` (bypass unlock thresholds) and `DEBUG.forceWorld` to playtest any world without grinding.

@@ -393,12 +393,6 @@ export class GameStateManager {
     this.playerData.theme = theme;
   }
 
-  toggleTheme(): ThemeName {
-    const next: ThemeName = this.playerData.theme === 'light' ? 'dark' : 'light';
-    this.playerData.theme = next;
-    return next;
-  }
-
   // ---- helpers ----
   updateBestScore(score: number): boolean {
     if (score > this.playerData.bestScore) {

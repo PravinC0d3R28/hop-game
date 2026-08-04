@@ -109,6 +109,7 @@ export class Game {
     const shopBtn = document.getElementById('shop-btn')!;
     const missionsOverlay = document.getElementById('missions-overlay')!;
     const missionsBtn = document.getElementById('missions-btn')!;
+    const playBtn = document.getElementById('play-btn')!;
 
     this.input = new InputSystem(
       this.renderer.renderer.domElement,
@@ -119,6 +120,7 @@ export class Game {
       shopBtn,
       missionsOverlay,
       missionsBtn,
+      playBtn,
       this.state
     );
     this.input.onGameStart = () => this.startGame();
@@ -134,7 +136,6 @@ export class Game {
     this.applySkin(this.state.getPlayerData().selectedSkin);
     this.ui.applyThemeToDOM();
     this.ui.refreshCoins();
-    this.ui.refreshBestScore();
     this.ui.renderStartScreen();
   }
 
@@ -159,7 +160,6 @@ export class Game {
     this.state.getMutableState().isStarted = true;
     this.state.getMutableState().isWaitingForTap = true;
     this.ui.showStartScreen(false);
-    this.ui.showThemeButton(false);
     this.ui.hideShop();
     this.ui.hideGameOver();
     this.ui.showScoreUI(true);
@@ -201,13 +201,11 @@ export class Game {
     this.ui.hideGameOver();
     this.ui.clearConfetti();
     this.ui.setStreakGlow('off');
-    this.ui.refreshBestScore();
     this.ui.renderStartScreen();
     this.ui.setScore(0);
     this.ui.showScoreUI(false);
     this.ui.showCoinCounter(false);
     this.ui.showStartScreen(true);
-    this.ui.showThemeButton(true);
 
     PlatformEntity.randomizePaletteStart();
     this.ball.reset();

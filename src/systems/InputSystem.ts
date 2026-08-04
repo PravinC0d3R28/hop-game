@@ -19,6 +19,7 @@ export class InputSystem {
     private shopBtn: HTMLElement,
     private missionsOverlay: HTMLElement,
     private missionsBtn: HTMLElement,
+    private playBtn: HTMLElement,
     private state: GameStateManager
   ) {
     this.bind();
@@ -58,6 +59,8 @@ export class InputSystem {
     if (paused || shopOpen || missionsOpen || isShopBtn || isMissionsBtn || this.resetCooldown || gameOverOpen) return;
 
     if (!st.isStarted) {
+      // The game only starts from the play button, not from anywhere on the screen.
+      if (!this.playBtn.contains(e.target as Node)) return;
       this.onGameStart();
       return;
     }

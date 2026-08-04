@@ -266,20 +266,25 @@ runs never change worlds mid-flight.
 - `Missions.ts` — `getActiveMissions(worldId, dateKey)`; world missions active
   only for the selected world; `getRunWorldId` deleted.
 - `Progression` — `RunStats.selectedWorld`; `locked = m.world !== selected`.
-- `UIManager` — start-screen right-edge vertical nav (`world-prev`/`world-current`/
-  `world-next`): back arrow on worlds 2–3, locked next = lock SVG + unlock
-  threshold, unlocked = green ▶; nav arrows/chips stop `pointerdown`
-  propagation so clicks never start a game; locked selection opens the lock
-  overlay (big padlock, `totalScore/unlockScore` progress bar, points
-  remaining, close via ✕ or backdrop); start-screen title = selected world
+- `UIManager` — start-screen edge nav: back arrow (`world-prev`) pinned
+  center-left, next arrow (`world-next`) pinned center-right, both vertically
+  centered with `World 1/2/3` labels floating above; locked next = lock SVG +
+  unlock threshold, unlocked = green ▶; arrows stop `pointerdown` propagation
+  so clicks never start a game; locked selection opens the lock overlay after a
+  ≈350 ms "load" — gaussian-blur screen, big padlock, name shown as `????` +
+  `lockedDescription`, `totalScore/unlockScore` progress bar, points remaining,
+  close via ✕ or backdrop, missions/shop buttons fade out; back arrow stays
+  clickable above the blur (z-index 60); start-screen title = selected world
   name (logo retired to a future loading screen); occasional rage-bait thought
   bubble ("too easy?"…) next to a locked next arrow, stopped when the game
-  starts; ledger bar removed; world chips clickable (`.selected` outline);
+  starts; chips row, best-score crown, `world-current` block, finger-hint and
+  day/night theme toggle all removed; a `TAP TO PLAY` button is the only
+  game-start trigger (`InputSystem` checks `playBtn.contains(target)`);
   world mission rows get lock tooltips ("Play in <world>…" vs "Unlocks at
   <N>…"); game-over world label = selected world name; `WORLD_CHANGED` handler +
   `showWorldBanner` removed. `Game.reset()` calls `ui.clearTransientFx()`.
 - Tests: selection/unlock/clamp round-trips, per-world curve parity, sway re-roll
-  on selection, mission activation per world → 145 total; typecheck + build
+  on selection, mission activation per world → 144 total; typecheck + build
   green.
 - Browser-verified: locked arrow refuses selection; 1,000 unlocks dusk (arrow +
   chip); run stays in dusk (score 0 start, game-over shows "DUSK DISTRICT");

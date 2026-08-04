@@ -274,16 +274,23 @@ Cadence: `JUMP_DURATION_BASE` 0.5s → 0.35s, so a focused player sustains
 
 ### 15.3 Worlds (selection, not run gates)
 
-Each world is a **separate playable space** chosen on the start screen: a
-right-edge vertical nav (back arrow · current world name + best · next
-arrow) plus clickable world chips. The Bounce Tiles logo is replaced by the
-selected world's name. Worlds unlock by **lifetime total score** (1,000 → dusk,
-5,000 → void); a locked arrow shows a small lock + threshold and a click opens
-the lock overlay (translucent screen, large padlock, unlock progress bar,
-points remaining). An occasional "too easy?"-style thought bubble taunts the
-player near a locked next arrow. The selection persists in the save
-(`selectedWorld`) and survives reloads; the safety clamp falls back to the
-highest unlocked world for hand-edited saves.
+Each world is a **separate playable space** chosen on the start screen: a back
+arrow pinned to the **center-left edge** and a next arrow pinned to the
+**center-right edge**, both vertically centered, each labeled `World 1/2/3`.
+The selected world's name is the start-screen title (the old Bounce Tiles logo
+is retired to a future loading screen). Worlds unlock by **lifetime total
+score** (1,000 → dusk, 5,000 → void); a locked arrow shows a small lock +
+threshold. Clicking a locked arrow makes the world "load" briefly (≈350 ms),
+then a **gaussian-blur translucent screen** covers the view with a lock card:
+name hidden as `????`, a one-line description, an unlock progress bar and the
+points remaining. While locked, clicking anywhere never starts a run; the back
+arrow stays clickable above the blur so the player can navigate away. Missions
+and shop buttons fade out under the blur. An occasional "too easy?"-style
+thought bubble taunts the player near a locked next arrow. The selection
+persists in the save (`selectedWorld`) and survives reloads; the safety clamp
+falls back to the highest unlocked world for hand-edited saves. A dedicated
+**TAP TO PLAY** button is the only start-screen area that starts a run (no more
+tap-anywhere), and the day/night theme toggle is removed.
 
 A run **never changes worlds**: score always starts at 0 and the difficulty
 curves bind to the *tier score* = run score − the world's entry offset
