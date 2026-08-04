@@ -238,6 +238,15 @@
       pointer-events: auto;
       z-index: 5;
     }
+    /* Back arrow: center-left edge (worlds 2–3 only) */
+    #world-prev {
+      position: absolute;
+      left: clamp(10px, 2.5vw, 26px);
+      top: 50%;
+      transform: translateY(-50%);
+      pointer-events: auto;
+      z-index: 5;
+    }
     .nav-arrow {
       display: flex;
       flex-direction: column;
@@ -1206,8 +1215,8 @@
           <h1 id="world-title">SUNRISE PEAKS</h1>
           <div id="best-score"><span class="crown">&#x1F451;</span> <span id="best-score-val">0</span></div>
           <button id="theme-btn" title="Toggle light/dark mode"><span class="theme-icon" id="theme-icon">&#x2600;</span></button>
+          <div id="world-prev" class="nav-arrow hidden" title="">&#9664;</div>
           <div id="world-nav">
-            <div id="world-prev" class="nav-arrow hidden" title="">&#9664;</div>
             <div id="world-current">
               <div id="world-current-name">SUNRISE PEAKS</div>
               <div id="world-current-best">PLAY TO SET A BEST</div>
