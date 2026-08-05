@@ -12,6 +12,7 @@ import type { ShadowSystem } from '../systems/ShadowSystem';
 import type { BackgroundSystem } from '../systems/BackgroundSystem';
 import type { BallEntity } from '../entities/BallEntity';
 import { gsap } from 'gsap';
+import { Vector3 } from 'three';
 
 /**
  * All DOM UI: start screen, score, coin counters, shop, game-over.
@@ -47,6 +48,7 @@ export class UIManager {
   private worldNav = this.el<HTMLElement>('world-nav');
   private worldPrev = this.el<HTMLElement>('world-prev');
   private worldNext = this.el<HTMLElement>('world-next');
+  private worldFar = this.el<HTMLElement>('world-far');
   private worldBubble = this.el<HTMLElement>('world-bubble');
   private lockOverlay = this.el<HTMLElement>('lock-overlay');
   private lockClose = this.el<HTMLButtonElement>('lock-close');
@@ -60,6 +62,17 @@ export class UIManager {
   private goWorld = this.el<HTMLElement>('go-world');
   private goMissions = this.el<HTMLElement>('go-missions');
   private goMissionsList = this.el<HTMLElement>('go-missions-list');
+  private playBtn = this.el<HTMLElement>('play-btn');
+  private bestScore = this.el<HTMLElement>('best-score');
+  private bestScoreVal = this.el<HTMLElement>('best-score-value');
+  private bestScoreCallout = this.el<HTMLElement>('best-score-callout');
+  private unlockDialog = this.el<HTMLElement>('unlock-dialog');
+  private unlockDialogConfetti = this.el<HTMLElement>('unlock-dialog-confetti');
+  private unlockCardTitle = this.el<HTMLElement>('unlock-card-title');
+  private unlockCardTag = this.el<HTMLElement>('unlock-card-tag');
+  private unlockCardMeta = this.el<HTMLElement>('unlock-card-meta');
+  private unlockShowmeBtn = this.el<HTMLButtonElement>('unlock-showme-btn');
+  private unlockClose = this.el<HTMLButtonElement>('unlock-close');
   private streakGlow: HTMLElement | null = null;
   private missionQueue: boolean[] = [];
   private missionBusy = false;
@@ -68,18 +81,16 @@ export class UIManager {
   /** Done missions already celebrated with per-card confetti (one-time per session). */
   private celebratedIds = new Set<string>();
   private celebratedSeeded = false;
+  private bestCalloutTimer: number | null = null;
+  private lastUnlockedCount: number | null = null;
+  private pendingUnlockWorld: WorldId | null = null;
+  private tapTimeline: gsap.core.Timeline | null = null;
+  private canvasResizeObserver: ResizeObserver | null = null;
 
   private static CHECK_SVG =
     '<svg class="m-check-svg" viewBox="0 0 24 24" aria-hidden="true">' +
     '<circle cx="12" cy="12" r="10.5" fill="#ffd700" stroke="#b8860b" stroke-width="1.4"/>' +
     '<path d="M7 12.6l3.3 3.3 6.6-7.2" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '</svg>';
-
-  private static LOCK_SVG =
-    '<svg class="nav-lock-svg" viewBox="0 0 100 100" aria-hidden="true">' +
-    '<path d="M50 8a18 18 0 0 1 18 18v13H32V26a18 18 0 0 1 18-18z" fill="#c9c9c9" stroke="#8a8a8a" stroke-width="6"/>' +
-    '<rect x="16" y="39" width="68" height="47" rx="11" fill="#bcbcbc" stroke="#8a8a8a" stroke-width="6"/>' +
-    '<circle cx="50" cy="58" r="8.5" fill="#fff" stroke="#8a8a8a" stroke-width="5"/>' +
     '</svg>';
 
   constructor(
@@ -96,6 +107,15 @@ export class UIManager {
     this.events.on(GAME_EVENTS.STREAK_MILESTONE, (payload) =>
       this.showStreakBanner(payload as { milestone: 'fire'; shield: boolean })
     );
+    // The start screen renders via HTML defaults at boot (no showStartScreen
+    // call), so prime the per-start-screen features here.
+    this.positionPlayButton();
+    this.startTapAnimation();
+    this.refreshBestScore();
+    // Re-pin the overlay whenever the canvas resizes (window/orientation/layout
+    // changes) so it stays centered on the ball on any device.
+    this.canvasResizeObserver = new ResizeObserver(() => this.positionPlayButton());
+    this.canvasResizeObserver.observe(this.renderer.renderer.domElement);
   }
 
   private el<T extends HTMLElement>(id: string): T {
@@ -163,6 +183,21 @@ export class UIManager {
     this.lockOverlay.addEventListener('click', (e) => {
       if (e.target === this.lockOverlay) this.closeLockOverlay();
     });
+    this.unlockClose.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.closeUnlockDialog();
+    });
+    this.unlockDialog.addEventListener('click', (e) => {
+      if (e.target === this.unlockDialog) this.closeUnlockDialog();
+    });
+    this.unlockShowmeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.closeUnlockDialog();
+      if (this.pendingUnlockWorld) {
+        this.selectWorld(this.pendingUnlockWorld);
+        this.pendingUnlockWorld = null;
+      }
+    });
     window.addEventListener('resize', () => this.onResize());
   }
 
@@ -195,8 +230,11 @@ export class UIManager {
 
   /** Render the compact progression block on the start screen (Iteration 7). */
   renderStartScreen(): void {
+    this.startScreen.classList.toggle('locked', this.state.isPreviewLocked());
     this.renderWorldTitle();
     this.renderWorldNav();
+    this.refreshBestScore();
+    this.checkWorldUnlocks();
   }
 
   /** Navigate to an adjacent world via the start-screen arrows. */
@@ -206,16 +244,22 @@ export class UIManager {
     this.selectWorld(target.id);
   }
 
-  /** Select a world (arrow or chip click); a locked world opens the lock overlay. */
+  /** Select a world (arrow or chip click); a locked world loads as a non-playable preview. */
   private selectWorld(id: WorldId): void {
     if (this.state.selectWorld(id)) {
+      this.state.clearPreview();
       this.onWorldSelect(id);
       this.closeLockOverlay();
       this.renderStartScreen();
       return;
     }
     const world = getWorldById(id);
-    if (world && !this.state.canSelectWorld(world)) this.openLockOverlay(world);
+    if (world && !this.state.canSelectWorld(world)) {
+      this.state.previewWorld(id);
+      this.onWorldSelect(id);
+      this.renderStartScreen();
+      this.openLockOverlay(world);
+    }
   }
 
   private readonly WORLD_TITLE_COLORS: Record<WorldId, string> = {
@@ -227,8 +271,9 @@ export class UIManager {
   /** Start-screen title: the current world name (replaces the logo). */
   private renderWorldTitle(): void {
     const world = this.state.getActiveWorld();
-    this.worldTitle.textContent = world.name.toUpperCase();
-    this.worldTitle.style.color = this.WORLD_TITLE_COLORS[world.id];
+    const locked = this.state.isPreviewLocked();
+    this.worldTitle.textContent = locked ? '????' : world.name.toUpperCase();
+    this.worldTitle.style.color = locked ? '#8a8a96' : this.WORLD_TITLE_COLORS[world.id];
   }
 
   /** Edge nav: back arrow (left) · next arrow/lock (right), both centered on their edge. */
@@ -241,28 +286,37 @@ export class UIManager {
     if (prev) {
       this.setNavLabel(this.worldPrev, `World ${WORLDS.indexOf(prev) + 1}`);
       this.worldPrev.title = `Back to ${prev.name}`;
+      // Back arrow dims while the CURRENT world is still locked (preview) and
+      // turns green again once it's unlocked — mirrors the next-arrow behavior.
+      this.worldPrev.classList.toggle('locked', !this.state.canSelectWorld(world));
     }
 
     this.worldNext.classList.toggle('hidden', !next);
     if (next) {
       const unlocked = this.state.canSelectWorld(next);
+      // Locked worlds keep the arrow (no lock/score preview) — the lock card
+      // is the reveal. Dimmed arrow hints the world isn't ready yet.
       this.worldNext.classList.toggle('locked', !unlocked);
-      const chevron = '<span class="nav-chevron">&#9654;</span>';
-      this.worldNext.innerHTML = unlocked
-        ? chevron
-        : `<span class="nav-lock-svg">${UIManager.LOCK_SVG}</span><span class="nav-lock-score">${next.unlockScore.toLocaleString()}</span>`;
+      this.worldNext.innerHTML = '<span class="nav-chevron">&#9654;</span>';
       this.setNavLabel(this.worldNext, `World ${WORLDS.indexOf(next) + 1}`);
       this.worldNext.title = unlocked
         ? `Go to ${next.name}`
         : `${next.name} unlocks at ${next.unlockScore.toLocaleString()} total score`;
-      if (unlocked) {
+      // Bubble only when an UNLOCKED world faces its locked +1 (not during
+      // locked previews, not for +2 "coming soon" worlds).
+      if (unlocked || !this.state.canSelectWorld(world)) {
         this.stopBubble();
       } else {
         this.scheduleBubble();
       }
+      this.worldFar.classList.add('hidden');
     } else {
       this.worldNext.innerHTML = '';
       this.stopBubble();
+      // Last world: no next arrow — tease future worlds with a non-clickable "coming soon".
+      this.worldFar.classList.remove('hidden');
+      this.setNavLabel(this.worldFar, 'coming soon');
+      this.worldFar.title = 'More worlds coming soon';
     }
   }
 
@@ -276,14 +330,16 @@ export class UIManager {
     label.textContent = text;
   }
 
-  /** Thought bubble taunts the player near a locked next arrow (rage-bait). */
+  /** Thought bubble teases the locked next world (curiosity, not rage-bait). */
   private static readonly BUBBLE_TAUNTS = [
-    'too easy?',
-    'bored yet?',
-    'still stuck?',
-    'come on\u2026',
-    'dusk is waiting\u2026',
-    'not ready yet?'
+    'what lies beyond?',
+    'don\u2019t you wonder what\u2019s out there?',
+    'the dark is calling\u2026',
+    'another world is waiting\u2026',
+    'see what the fog hides\u2026',
+    'somewhere the sun is setting\u2026',
+    'curious yet?',
+    'the neon hums your name\u2026'
   ];
   private bubbleTimer: number | null = null;
 
@@ -333,11 +389,174 @@ export class UIManager {
     });
   }
 
-  /** Locked-world overlay: world "loads" briefly, then a blur screen + lock card. */
-  private lockPending: number | null = null;
+  // ---- play button: hand taps the ball, arrows burst on each tap ----
 
+  /** Project the ball's start position onto the screen and park the play button there. */
+  /** Center the tap-to-play overlay on the ball's projected position.
+   *  Nudges come from the CSS vars --tap-offset-x / --tap-offset-y (see :root
+   *  in index.html) so the overlay can be repositioned without touching JS. */
+  private positionPlayButton(): void {
+    const canvas = this.renderer.renderer.domElement;
+    const rect = canvas.getBoundingClientRect();
+    const cam = this.renderer.camera;
+    cam.updateMatrixWorld(true);
+    cam.updateProjectionMatrix();
+    const vec = new Vector3(
+      0,
+      GAME_CONFIG.PLATFORM_HEIGHT / 2 + GAME_CONFIG.BALL_RADIUS,
+      0
+    );
+    vec.project(cam);
+    const x = (vec.x * 0.5 + 0.5) * rect.width;
+    const y = (-vec.y * 0.5 + 0.5) * rect.height;
+    const rs = getComputedStyle(document.documentElement);
+    const ox = parseFloat(rs.getPropertyValue('--tap-offset-x')) || 0;
+    const oy = parseFloat(rs.getPropertyValue('--tap-offset-y')) || 0;
+    this.playBtn.style.left = `${x + ox}px`;
+    this.playBtn.style.top = `${y + oy}px`;
+  }
+
+  /** Looping tap-to-play overlay: fades in, stays a while, fades out, then
+   *  reappears. Timings come from the CSS vars --tap-fade-in / --tap-hold /
+   *  --tap-fade-out / --tap-gap (see :root in index.html). The button stays
+   *  tappable the whole cycle, even while the overlay is invisible. */
+  private startTapAnimation(): void {
+    this.stopTapAnimation();
+    const rs = getComputedStyle(document.documentElement);
+    const sec = (v: string, fallback: number): number => {
+      const n = parseFloat(v);
+      return Number.isFinite(n) ? n : fallback;
+    };
+    const fadeIn = sec(rs.getPropertyValue('--tap-fade-in'), 0.6);
+    const hold = sec(rs.getPropertyValue('--tap-hold'), 7);
+    const fadeOut = sec(rs.getPropertyValue('--tap-fade-out'), 0.6);
+    const gap = sec(rs.getPropertyValue('--tap-gap'), 7);
+    this.playBtn.style.pointerEvents = 'auto';
+    gsap.set(this.playBtn, { opacity: 0 });
+    this.tapTimeline = gsap
+      .timeline({ repeat: -1 })
+      .to(this.playBtn, { opacity: 1, duration: fadeIn, ease: 'power1.out' })
+      .to({}, { duration: hold })
+      .to(this.playBtn, { opacity: 0, duration: fadeOut, ease: 'power1.in' })
+      .to({}, { duration: gap });
+  }
+
+  private stopTapAnimation(): void {
+    if (this.tapTimeline) {
+      this.tapTimeline.kill();
+      this.tapTimeline = null;
+    }
+    gsap.killTweensOf(this.playBtn);
+    gsap.set(this.playBtn, { opacity: 1 });
+    this.playBtn.style.pointerEvents = 'auto';
+  }
+
+  // ---- best score chip (crown asset) + occasional "can you beat this?" ----
+
+  private refreshBestScore(): void {
+    const world = this.state.getActiveWorld();
+    const idx = WORLDS.indexOf(world);
+    const best = this.state.getPlayerData().bestPerWorld[idx] ?? 0;
+    const unlocked = this.state.canSelectWorld(world);
+    this.bestScore.classList.toggle('hidden', !unlocked);
+    this.bestScoreVal.textContent = String(best);
+    if (unlocked && best > 0) this.startBestCallout();
+  }
+
+  private startBestCallout(): void {
+    this.stopBestCallout();
+    const tick = () => {
+      gsap.to(this.bestScoreCallout, { opacity: 1, duration: 0.4 });
+      this.bestCalloutTimer = window.setTimeout(() => {
+        gsap.to(this.bestScoreCallout, { opacity: 0, duration: 0.4 });
+        this.bestCalloutTimer = window.setTimeout(tick, 6000 + Math.random() * 6000);
+      }, 3200);
+    };
+    this.bestCalloutTimer = window.setTimeout(tick, 4000 + Math.random() * 5000);
+  }
+
+  private stopBestCallout(): void {
+    if (this.bestCalloutTimer !== null) {
+      window.clearTimeout(this.bestCalloutTimer);
+      this.bestCalloutTimer = null;
+    }
+    gsap.killTweensOf(this.bestScoreCallout);
+    this.bestScoreCallout.style.opacity = '0';
+  }
+
+  // ---- new-world unlock dialog ----
+
+  private checkWorldUnlocks(): void {
+    const count = WORLDS.filter((w) => this.state.canSelectWorld(w)).length;
+    if (this.lastUnlockedCount !== null && count > this.lastUnlockedCount) {
+      const unlockedWorld = WORLDS[count - 1];
+      if (unlockedWorld) this.showUnlockDialog(unlockedWorld);
+    }
+    this.lastUnlockedCount = count;
+  }
+
+  /** Reveal the newly unlocked world behind a lock screen with confetti. */
+  private showUnlockDialog(world: WorldConfig): void {
+    this.pendingUnlockWorld = world.id;
+    this.unlockCardTitle.textContent = world.name.toUpperCase();
+    this.unlockCardTitle.style.color = this.WORLD_TITLE_COLORS[world.id];
+    this.unlockCardTag.textContent = world.tagline;
+    this.unlockCardMeta.textContent = `UNLOCKED AT ${world.unlockScore.toLocaleString()} TOTAL SCORE`;
+    this.unlockDialog.classList.remove('hidden');
+    this.spawnDialogConfetti();
+    const card = this.unlockDialog.querySelector<HTMLElement>('#unlock-card');
+    if (card) {
+      gsap.killTweensOf(card);
+      gsap.fromTo(
+        card,
+        { scale: 0.7, opacity: 0, y: 20 },
+        { scale: 1, opacity: 1, y: 0, duration: 0.5, ease: 'back.out(2)' }
+      );
+    }
+  }
+
+  private closeUnlockDialog(): void {
+    this.unlockDialog.classList.add('hidden');
+    gsap.killTweensOf(this.unlockDialogConfetti);
+    this.unlockDialogConfetti.innerHTML = '';
+  }
+
+  /** Confetti raining behind the card inside the unlock dialog. */
+  private spawnDialogConfetti(): void {
+    this.unlockDialogConfetti.innerHTML = '';
+    const colors = ['#ffd23f', '#c98bff', '#8ef1ff', '#ff7ac8', '#ff9d6b', '#28a858', '#ff4d4d'];
+    for (let i = 0; i < 70; i++) {
+      const piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+      piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+      piece.style.left = `${Math.random() * 100}%`;
+      piece.style.width = `${6 + Math.random() * 8}px`;
+      piece.style.height = `${6 + Math.random() * 8}px`;
+      piece.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+      this.unlockDialogConfetti.appendChild(piece);
+      const xOffset = (Math.random() - 0.5) * 140;
+      const duration = 1.6 + Math.random() * 1.8;
+      const delay = Math.random() * 1.2;
+      const rotation = Math.random() * 720 - 360;
+      gsap.fromTo(
+        piece,
+        { y: -20, x: 0, rotation: 0, opacity: 1 },
+        {
+          y: window.innerHeight + 30,
+          x: xOffset,
+          rotation,
+          opacity: 0,
+          duration,
+          delay,
+          ease: 'power1.in',
+          onComplete: () => piece.remove()
+        }
+      );
+    }
+  }
+
+  /** Locked-world overlay: lock covers the world instantly so its layout stays hidden. */
   private openLockOverlay(world: WorldConfig): void {
-    if (this.lockPending !== null) return;
     const data = this.state.getPlayerData();
     this.lockWorldName.textContent = '????';
     this.lockDesc.textContent = world.lockedDescription;
@@ -348,24 +567,25 @@ export class UIManager {
     const remaining = Math.max(0, world.unlockScore - data.totalScore);
     this.lockRemaining.textContent = `${remaining.toLocaleString()} more points to go`;
     this.menuBtns.classList.add('menu-hidden');
-    this.lockPending = window.setTimeout(() => {
-      this.lockPending = null;
-      this.lockOverlay.style.display = 'flex';
-      const card = this.lockOverlay.querySelector<HTMLElement>('.lock-card');
-      if (card) {
-        gsap.killTweensOf(card);
-        gsap.fromTo(card, { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.35, ease: 'back.out(1.7)' });
-      }
-    }, 350);
+    this.lockOverlay.style.display = 'flex';
   }
 
   private closeLockOverlay(): void {
-    if (this.lockPending !== null) {
-      window.clearTimeout(this.lockPending);
-      this.lockPending = null;
-    }
+    if (this.state.isPreviewLocked()) this.revertPreview();
     this.menuBtns.classList.remove('menu-hidden');
     this.lockOverlay.style.display = 'none';
+  }
+
+  /** Leaving a locked preview (overlay close / back arrow): revert to the highest unlocked world. */
+  private revertPreview(): void {
+    let highest: WorldConfig | null = null;
+    for (const w of WORLDS) if (this.state.canSelectWorld(w)) highest = w;
+    this.state.clearPreview();
+    if (highest) {
+      this.state.selectWorld(highest.id);
+      this.onWorldSelect(highest.id);
+    }
+    this.renderStartScreen();
   }
 
   /** Open the missions tab: render the active tab, animate bars, confetti on done. */
@@ -437,7 +657,34 @@ export class UIManager {
       celebrate.push(m.id);
     }
 
+    let lastWorld: string | null = null;
     for (const m of rows) {
+      // World tab: group each world's missions under a world-name header.
+      if (this.activeMissionTab === 'world') {
+        const wKey = m.world ?? '';
+        if (wKey !== lastWorld) {
+          lastWorld = wKey;
+          const world = getWorldById(wKey as WorldId);
+          const header = document.createElement('div');
+          header.className = 'mission-world-header';
+          const name = document.createElement('span');
+          name.className = 'mission-world-name';
+          name.textContent = world ? world.name.toUpperCase() : '';
+          const lockHint = document.createElement('span');
+          lockHint.className = 'mission-world-hint';
+          if (world) {
+            if (this.state.canSelectWorld(world)) {
+              lockHint.textContent = world.unlockScore > 0 ? 'UNLOCKED' : '';
+            } else {
+              lockHint.textContent = `UNLOCKS AT ${world.unlockScore.toLocaleString()}`;
+            }
+            lockHint.classList.toggle('closed', !this.state.canSelectWorld(world));
+          }
+          header.append(name, lockHint);
+          this.missionsList.appendChild(header);
+        }
+      }
+
       const row = document.createElement('div');
       row.className = `mission-row${m.done ? ' done' : ''}${m.locked ? ' locked' : ''}`;
       row.dataset.id = m.id;
@@ -466,18 +713,7 @@ export class UIManager {
       row.append(info, bar, metric);
 
       if (m.locked) {
-        const lock = document.createElement('span');
-        lock.className = 'm-lock';
-        lock.textContent = '\u{1F512}';
-        if (m.kind === 'world' && m.world) {
-          const w = getWorldById(m.world);
-          if (w) {
-            lock.title = this.state.canSelectWorld(w)
-              ? `Play in ${w.name} to progress its missions`
-              : `Unlocks at ${w.unlockScore.toLocaleString()} total score`;
-          }
-        }
-        row.appendChild(lock);
+        // no lock icon — user asked to keep it clean
       } else if (m.done) {
         const check = document.createElement('span');
         check.className = 'm-check';
@@ -712,9 +948,16 @@ export class UIManager {
 
   showStartScreen(show: boolean): void {
     this.startScreen.style.display = show ? 'flex' : 'none';
-    if (!show) {
+    if (show) {
+      this.positionPlayButton();
+      this.startTapAnimation();
+      this.startBestCallout();
+    } else {
       this.stopBubble();
+      this.stopTapAnimation();
+      this.stopBestCallout();
       this.closeLockOverlay();
+      this.closeUnlockDialog();
     }
   }
 
@@ -749,7 +992,7 @@ export class UIManager {
   }
 
   private onResize(): void {
-    // CSS handles responsive sizing; nothing to do.
+    this.positionPlayButton();
   }
 
   /** Constant flame corner glow (v1 simplified): on once the fire reward fires,
@@ -833,7 +1076,7 @@ export class UIManager {
       '<path d="M7 12.5l3.2 3.2L17 8.5" stroke="#fff" stroke-width="2.6" fill="none" ' +
       'stroke-linecap="round" stroke-linejoin="round"/>' +
       '</svg>' +
-      '<div class="mc-label">MISSION<br/>COMPLETED</div>';
+      '<div class="mc-label">MISSIONS<br/>COMPLETED</div>';
     overlay.appendChild(card);
 
     const tick = card.querySelector<HTMLElement>('.mc-tick');
@@ -904,6 +1147,7 @@ export class UIManager {
   }
 
   dispose(): void {
-    // DOM listeners persist for app lifetime
+    this.canvasResizeObserver?.disconnect();
+    this.canvasResizeObserver = null;
   }
 }

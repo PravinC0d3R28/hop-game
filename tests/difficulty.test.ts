@@ -147,4 +147,31 @@ describe('world selection via unlock score and overrides', () => {
     const gm = new GameStateManager();
     expect(gm.selectWorld('nope' as never)).toBe(false);
   });
+
+  it('previewWorld loads a locked world as active but never selects it', () => {
+    const gm = new GameStateManager();
+    expect(gm.previewWorld('dusk')).toBe(true);
+    expect(gm.isPreviewLocked()).toBe(true);
+    expect(gm.getActiveWorld().id).toBe('dusk');
+    expect(gm.getPlayerData().selectedWorld).toBe('sunrise');
+    gm.clearPreview();
+    expect(gm.isPreviewLocked()).toBe(false);
+    expect(gm.getActiveWorld().id).toBe('sunrise');
+  });
+
+  it('previewWorld refuses unlocked worlds and locked ids stay non-playable', () => {
+    const gm = new GameStateManager();
+    expect(gm.previewWorld('sunrise')).toBe(false);
+    gm.setTotalScore(1000);
+    expect(gm.previewWorld('dusk')).toBe(false);
+    expect(gm.selectWorld('void')).toBe(false);
+  });
+
+  it('loadPlayerData clears a stale locked preview', () => {
+    const gm = new GameStateManager();
+    gm.previewWorld('dusk');
+    gm.loadPlayerData({ ...gm.getPlayerData() });
+    expect(gm.isPreviewLocked()).toBe(false);
+    expect(gm.getActiveWorld().id).toBe('sunrise');
+  });
 });

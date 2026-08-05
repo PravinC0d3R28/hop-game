@@ -136,6 +136,19 @@ describe('mission progress list', () => {
     expect(w3.locked).toBe(true);
   });
 
+  it('done world missions show as done, never locked, even outside their world', () => {
+    const rows = getMissionProgressList(
+      { ...FRESH_PLAYER, completedMissions: ['w1_perfects'] },
+      { ...FRESH_RUN, selectedWorld: 'dusk' },
+      KEY
+    );
+    const doneSunrise = rows.find((r) => r.id === 'w1_perfects')!;
+    const pendingSunrise = rows.find((r) => r.id === 'w1_gems')!;
+    expect(doneSunrise.done).toBe(true);
+    expect(doneSunrise.locked).toBe(false);
+    expect(pendingSunrise.locked).toBe(true);
+  });
+
   it('veteran save: lifetime missions show real progress and done state', () => {
     const rows = getMissionProgressList(
       { ...FRESH_PLAYER, totalScore: 1500, totalGems: 60, completedMissions: ['l_thousand'] },

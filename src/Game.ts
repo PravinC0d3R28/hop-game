@@ -156,6 +156,7 @@ export class Game {
 
   /** Original `Gy()`: first tap on menu starts the run. */
   private startGame(): void {
+    if (!this.state.canSelectWorld(this.state.getActiveWorld())) return;
     this.audio.resume();
     this.state.getMutableState().isStarted = true;
     this.state.getMutableState().isWaitingForTap = true;
@@ -201,18 +202,23 @@ export class Game {
     this.ui.hideGameOver();
     this.ui.clearConfetti();
     this.ui.setStreakGlow('off');
-    this.ui.renderStartScreen();
-    this.ui.setScore(0);
-    this.ui.showScoreUI(false);
-    this.ui.showCoinCounter(false);
-    this.ui.showStartScreen(true);
 
+    // Restore camera/entities BEFORE the start screen positions the play button,
+    // so its projection uses the boot camera (not the end-of-run one).
     PlatformEntity.randomizePaletteStart();
     this.ball.reset();
     this.ball.setShield(false);
     this.platforms.reset();
     this.camera.reset();
     this.background.reset();
+    this.effects.clearParticles();
+    this.effects.clearSpeedLines();
+
+    this.ui.renderStartScreen();
+    this.ui.setScore(0);
+    this.ui.showScoreUI(false);
+    this.ui.showCoinCounter(false);
+    this.ui.showStartScreen(true);
     this.effects.clearParticles();
     this.effects.clearSpeedLines();
 

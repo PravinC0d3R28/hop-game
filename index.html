@@ -8,7 +8,36 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
+    /* Locked-world overlay tuning: darkness (alpha) + blur. Lower alpha/blur
+       lets a hint of the locked world show through the lock screen. */
+    :root {
+      --lock-overlay-alpha: 0.10;
+      --lock-overlay-blur: 10px;
+
+      /* Tap-to-play overlay (tap-to-play.gif) tuning.
+         --tap-size     : square size of the GIF overlay (CSS width).
+         --tap-offset-x : screen-space horizontal nudge from the ball's center (px).
+         --tap-offset-y : screen-space vertical nudge from the ball's center (px,
+                          + shifts the GIF down, - floats it up).
+         --tap-text-gap : gap between "tap to play" and the GIF.
+         --tap-fade-in  : seconds the overlay fades in.
+         --tap-hold     : seconds it stays fully visible.
+         --tap-fade-out : seconds it fades out.
+         --tap-gap      : seconds it stays hidden before looping back. */
+      --tap-size: clamp(90px, 17vmin, 150px);
+      --tap-offset-x: 0px;
+      --tap-offset-y: 0px;
+      --tap-text-gap: 10px;
+      --tap-fade-in: 0.6s;
+      --tap-hold: 7s;
+      --tap-fade-out: 0.6s;
+      --tap-gap: 7s;
+
+      /* Text stroke width — tweak this to test different outlines. */
+      --stroke-width: 4px;
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Fredoka', sans-serif; }
+    .hidden { display: none !important; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #2a2a2a; }
     body.game-paused * { pointer-events: none !important; }
 
@@ -25,6 +54,11 @@
       height: 100%;
       background: #2a2a2a;
       overflow: hidden;
+    }
+    #game-container canvas {
+      width: 100% !important;
+      height: 100% !important;
+      display: block;
     }
     #game-container canvas {
       display: block;
@@ -54,12 +88,9 @@
       font-weight: 900;
       letter-spacing: 2px;
       line-height: 1.1;
-      text-shadow:
-        -2px -2px 0 #111,
-        2px -2px 0 #111,
-        -2px 2px 0 #111,
-        2px 2px 0 #111,
-        4px 4px 0 #111;
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
+      text-shadow: 4px 4px 0 rgba(17, 17, 17, 0.25);
     }
     .world-banner-tag {
       font-size: clamp(16px, 4vmin, 28px);
@@ -67,11 +98,8 @@
       opacity: 0.92;
       margin-top: 6px;
       letter-spacing: 1px;
-      text-shadow:
-        -1px -1px 0 #111,
-        1px -1px 0 #111,
-        -1px 1px 0 #111,
-        1px 1px 0 #111;
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
     }
     .world-flash {
       position: absolute;
@@ -114,13 +142,11 @@
     .streak-corners.fire::after { opacity: 1; }
     .streak-banner.fire .world-banner-title {
       color: #ffb14d;
+      -webkit-text-stroke: var(--stroke-width) #7a1e00;
+      paint-order: stroke fill;
       text-shadow:
-        -2px -2px 0 #7a1e00,
-        2px -2px 0 #7a1e00,
-        -2px 2px 0 #7a1e00,
-        2px 2px 0 #7a1e00,
-        4px 4px 0 #3a0d00,
-        0 0 24px rgba(255, 110, 30, 0.85);
+        4px 4px 0 rgba(58, 13, 0, 0.25),
+        0 0 24px rgba(255, 110, 30, 0.25);
     }
     #score {
       position: absolute;
@@ -130,13 +156,11 @@
       font-size: clamp(36px, 10vmin, 72px);
       font-weight: 900;
       color: #fff;
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
       text-shadow:
-        -2px -2px 0 #111,
-        2px -2px 0 #111,
-        -2px 2px 0 #111,
-        2px 2px 0 #111,
-        3px 3px 0 #111,
-        0 0 12px rgba(0,0,0,0.15);
+        3px 3px 0 rgba(17, 17, 17, 0.25),
+        0 0 12px rgba(0, 0, 0, 0.25);
       line-height: 1.2;
       user-select: none;
       letter-spacing: 2px;
@@ -157,12 +181,9 @@
     #start-screen h1 {
       font-size: clamp(32px, 8vmin, 56px);
       color: #fff;
-      text-shadow:
-        -2px -2px 0 #111,
-        2px -2px 0 #111,
-        -2px 2px 0 #111,
-        2px 2px 0 #111,
-        4px 4px 0 #111;
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
+      text-shadow: 4px 4px 0 rgba(17, 17, 17, 0.25);
       line-height: 1.2;
       margin-bottom: 6px;
       letter-spacing: 3px;
@@ -185,12 +206,9 @@
       line-height: 1.1;
       margin-bottom: clamp(4px, 1vh, 10px);
       text-align: center;
-      text-shadow:
-        -2px -2px 0 #111,
-        2px -2px 0 #111,
-        -2px 2px 0 #111,
-        2px 2px 0 #111,
-        4px 4px 0 #111;
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
+      text-shadow: 4px 4px 0 rgba(17, 17, 17, 0.25);
       user-select: none;
       pointer-events: none;
     }
@@ -205,8 +223,10 @@
       display: flex;
       flex-direction: column;
       align-items: center;
+      gap: clamp(10px, 2vmin, 16px);
       pointer-events: auto;
-      z-index: 5;
+      /* Above the lock overlay (40) so locked-world previews stay navigable. */
+      z-index: 60;
     }
     /* Back arrow: center-left edge (worlds 2–3 only); stays usable above the lock overlay */
     #world-prev {
@@ -242,14 +262,21 @@
       font-weight: 900;
       letter-spacing: 1px;
       color: #111;
-      white-space: nowrap;
       pointer-events: none;
-      text-shadow: 0 0 5px rgba(255, 255, 255, 0.85);
+      text-shadow: 0 0 5px rgba(255, 255, 255, 0.25);
+      text-align: center;
+      line-height: 1.2;
     }
     .nav-arrow .nav-chevron {
       font-size: clamp(18px, 4vmin, 26px);
       line-height: 1;
       color: #28a858;
+      /* ▶ glyph's ink sits slightly left of its em-box center — optical fix */
+      transform: translateX(2px);
+    }
+    /* Back arrow: ◀ glyph's ink sits slightly RIGHT of its em-box center. */
+    #world-prev .nav-chevron {
+      transform: translateX(-2px);
     }
     .nav-arrow.locked {
       background: #eee;
@@ -257,22 +284,20 @@
       cursor: pointer;
       box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.15);
     }
-    .nav-arrow.locked .nav-lock-svg {
-      width: clamp(16px, 3.4vmin, 22px);
-      height: clamp(16px, 3.4vmin, 22px);
-      display: block;
+    .nav-arrow.locked .nav-chevron {
+      color: #b0b0b8;
     }
-    .nav-arrow.locked .nav-lock-score {
-      font-size: clamp(9px, 1.8vmin, 12px);
-      font-weight: 900;
-      color: #999;
+    /* Far-future world: teaser arrow, present but never clickable. */
+    .nav-arrow.coming-soon {
+      pointer-events: none;
+      cursor: default;
     }
     .nav-arrow.hidden { display: none; }
 
     /* Rage-bait thought bubble next to a locked next-arrow */
     #world-bubble {
       position: absolute;
-      right: calc(100% + 16px);
+      right: calc(100% + 12px);
       top: 50%;
       transform: translateY(-50%);
       display: none;
@@ -314,16 +339,17 @@
       border: 2.5px solid #111;
     }
 
-    /* Locked-world overlay: gaussian-blur screen + big lock + progress to unlock */
+    /* Locked-world overlay: gaussian-blur screen + big lock + progress to unlock.
+       Heavy blur + dark so the locked world's layout stays hidden (no reveal). */
     #lock-overlay {
       position: absolute;
       inset: 0;
       display: none;
       align-items: center;
       justify-content: center;
-      background: rgba(12, 12, 28, 0.45);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
+      background: rgba(10, 10, 22, var(--lock-overlay-alpha));
+      backdrop-filter: blur(var(--lock-overlay-blur));
+      -webkit-backdrop-filter: blur(var(--lock-overlay-blur));
       pointer-events: auto;
       z-index: 40;
     }
@@ -482,6 +508,31 @@
     }
     .mission-row.done .m-bar-fill { background: #28a858; }
 
+    /* World-tab section headers: one per world, with unlocked/locked hint */
+    .mission-world-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 10px 2px 4px;
+      padding-bottom: 2px;
+      border-bottom: 2px solid #111;
+    }
+    .mission-world-header:first-child { margin-top: 0; }
+    .mission-world-name {
+      font-size: clamp(11px, 2.2vmin, 14px);
+      font-weight: 900;
+      letter-spacing: 1px;
+      color: #111;
+    }
+    .mission-world-hint {
+      font-size: clamp(9px, 1.6vmin, 11px);
+      font-weight: 900;
+      letter-spacing: 1px;
+      color: #28a858;
+    }
+    .mission-world-hint.closed { color: #999; }
+
     .burst {
       position: absolute;
       font-size: clamp(20px, 4vmin, 32px);
@@ -513,12 +564,9 @@
       font-size: clamp(20px, 5vmin, 36px);
       font-weight: 900;
       color: #FFD700;
-      text-shadow:
-        -1px -1px 0 #111,
-        1px -1px 0 #111,
-        -1px 1px 0 #111,
-        1px 1px 0 #111,
-        2px 2px 0 #111;
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
+      text-shadow: 2px 2px 0 rgba(17, 17, 17, 0.25);
       line-height: 1.2;
       user-select: none;
     }
@@ -543,26 +591,231 @@
       align-items: center;
       justify-content: center;
     }
+    /* Play: GIF overlay centered on the ball (positioned by projection),
+       "tap to play" text floats above it, arrow burst at the ball on each tap. */
     #play-btn {
-      font-family: inherit;
-      font-size: clamp(18px, 4vmin, 28px);
-      font-weight: 900;
-      letter-spacing: 3px;
-      color: #fff;
-      background: #28a858;
-      border: clamp(3px, 0.6vmin, 5px) solid #111;
-      border-radius: 999px;
-      padding: clamp(14px, 2.5vmin, 22px) clamp(38px, 8vmin, 72px);
-      box-shadow: 4px 4px 0 #111;
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: var(--tap-size);
+      height: var(--tap-size);
+      transform: translate(-50%, -50%);
       cursor: pointer;
       pointer-events: auto;
-      animation: playPulse 1.8s ease-in-out infinite;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
     }
-    #play-btn:hover { transform: translateY(-2px); }
-    #play-btn:active { transform: translateY(1px); box-shadow: 2px 2px 0 #111; }
-    @keyframes playPulse {
-      0%, 100% { box-shadow: 4px 4px 0 #111, 0 0 0 rgba(40, 168, 88, 0); }
-      50% { box-shadow: 4px 4px 0 #111, 0 0 26px rgba(40, 168, 88, 0.75); }
+    /* 50% bigger invisible hit target around the text + gif so the tap area is
+       generous even while the overlay is faded out. */
+    #play-btn::before {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 150%;
+      height: 150%;
+      transform: translate(-50%, -50%);
+    }
+    #tap-text {
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + var(--tap-text-gap));
+      transform: translateX(-50%);
+      white-space: nowrap;
+      font-size: clamp(20px, 5vmin, 34px);
+      font-weight: 900;
+      letter-spacing: 4px;
+      color: #fff;
+      background: none;
+      padding: 0;
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
+      text-shadow: 3px 3px 0 rgba(17, 17, 17, 0.25);
+      pointer-events: auto;
+      cursor: pointer;
+    }
+    #tap-hand {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+      filter: drop-shadow(0 4px 4px rgba(0, 0, 0, 0.35));
+    }
+    /* Locked world preview: hide the start button so the world is never playable. */
+    #start-screen.locked #play-btn { display: none; }
+
+    /* Best-score block under the world title: heading, then a single centered
+       line with the crown + score, and the "can you beat this?" callout below. */
+    #best-score {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: clamp(2px, 0.6vh, 6px);
+      pointer-events: none;
+    }
+    #best-score-label {
+      font-size: clamp(12px, 2.6vmin, 18px);
+      font-weight: 900;
+      letter-spacing: 4px;
+      color: #ffd700;
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
+      text-shadow: 2px 2px 0 rgba(17, 17, 17, 0.25);
+    }
+    #best-score-line {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(4px, 1vmin, 8px);
+      margin-top: 2px;
+    }
+    #best-score-crown {
+      width: clamp(26px, 5.5vmin, 42px);
+      height: auto;
+      filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.4));
+    }
+    #best-score-value {
+      font-size: clamp(26px, 6vmin, 44px);
+      font-weight: 900;
+      line-height: 1.1;
+      color: #fff;
+      letter-spacing: 2px;
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
+      text-shadow: 3px 3px 0 rgba(17, 17, 17, 0.25);
+    }
+    #best-score-callout {
+      font-size: clamp(11px, 2.2vmin, 15px);
+      font-weight: 800;
+      color: #ffd700;
+      letter-spacing: 1px;
+      margin-top: 2px;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
+      text-shadow: 0 0 6px rgba(0, 0, 0, 0.25);
+    }
+
+    /* New-world-unlocked dialog: full-screen lock with confetti behind the card */
+    #unlock-dialog {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 999;
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #unlock-dialog-bg {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(10, 10, 22, 0.62);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+    #unlock-dialog-confetti {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 1;
+    }
+    #unlock-card {
+      position: relative;
+      z-index: 2;
+      width: min(88vw, 400px);
+      max-height: 85vh;
+      overflow-y: auto;
+      background: #fff;
+      border: 5px solid #111;
+      border-radius: 18px;
+      box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.35);
+      padding: clamp(18px, 4vmin, 28px) clamp(16px, 4vmin, 30px);
+      text-align: center;
+    }
+    #unlock-close {
+      position: absolute;
+      top: 8px; right: 8px;
+      width: 34px; height: 34px;
+      border: 3px solid #111;
+      border-radius: 50%;
+      background: #f5f5f5;
+      color: #111;
+      font-size: 16px;
+      font-weight: 900;
+      cursor: pointer;
+      line-height: 1;
+    }
+    #unlock-card-icon {
+      font-size: clamp(44px, 9vmin, 64px);
+      line-height: 1;
+      display: block;
+    }
+    #unlock-card-kicker {
+      display: block;
+      margin-top: 8px;
+      font-size: clamp(13px, 2.8vmin, 17px);
+      font-weight: 900;
+      letter-spacing: 4px;
+      color: #b8860b;
+    }
+    #unlock-card-title {
+      margin-top: 6px;
+      font-size: clamp(26px, 6vmin, 40px);
+      font-weight: 900;
+      letter-spacing: 3px;
+      line-height: 1.1;
+      color: #111;
+      text-transform: uppercase;
+    }
+    #unlock-card-tag {
+      margin-top: 6px;
+      font-size: clamp(14px, 3vmin, 18px);
+      font-weight: 700;
+      color: #444;
+    }
+    #unlock-card-meta {
+      margin-top: 10px;
+      font-size: clamp(11px, 2.2vmin, 13px);
+      font-weight: 800;
+      letter-spacing: 1px;
+      color: #777;
+    }
+    #unlock-card-btns {
+      display: flex;
+      justify-content: center;
+      gap: clamp(10px, 2.5vmin, 16px);
+      margin-top: clamp(14px, 3vmin, 20px);
+      flex-wrap: wrap;
+    }
+    #unlock-showme-btn {
+      border: 3px solid #111;
+      border-radius: 999px;
+      padding: clamp(9px, 2vmin, 12px) clamp(20px, 4vmin, 30px);
+      font-size: clamp(15px, 3.4vmin, 20px);
+      font-weight: 900;
+      letter-spacing: 2px;
+      cursor: pointer;
+      box-shadow: 4px 4px 0 #111;
+      transition: box-shadow 0.1s, transform 0.1s;
+      background: #fff;
+      color: #111;
+    }
+    #unlock-showme-btn:hover {
+      box-shadow: 6px 6px 0 #111;
+      transform: translateY(-2px);
+    }
+    #unlock-showme-btn:active {
+      box-shadow: 2px 2px 0 #111;
+      transform: translateY(1px);
     }
 
     /* Menu buttons row (missions + shop) — bottom center */
@@ -580,6 +833,24 @@
       opacity: 0;
       pointer-events: none;
     }
+    .menu-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(4px, 1vmin, 8px);
+    }
+    .menu-label {
+      font-size: clamp(14px, 3.2vmin, 22px);
+      font-weight: 900;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #fff;
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
+      text-shadow: 2px 2px 0 rgba(17, 17, 17, 0.25);
+      pointer-events: none;
+      user-select: none;
+    }
     #missions-btn,
     #shop-btn {
       width: clamp(64px, 12vmin, 100px);
@@ -590,7 +861,7 @@
       border-radius: 50%;
       cursor: pointer;
       pointer-events: auto;
-      box-shadow: 5px 5px 0 #111;
+      box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.25);
       transition: box-shadow 0.1s, transform 0.1s;
       display: flex;
       align-items: center;
@@ -598,12 +869,12 @@
     }
     #missions-btn:hover,
     #shop-btn:hover {
-      box-shadow: 7px 7px 0 #111;
+      box-shadow: 7px 7px 0 rgba(0, 0, 0, 0.25);
       transform: translateY(-2px);
     }
     #missions-btn:active,
     #shop-btn:active {
-      box-shadow: 3px 3px 0 #111;
+      box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.25);
       transform: translateY(1px);
     }
     .menu-icon {
@@ -684,12 +955,9 @@
     #gameover-screen h1 {
       font-size: clamp(36px, 9vmin, 64px);
       color: #fff;
-      text-shadow:
-        -2px -2px 0 #111,
-        2px -2px 0 #111,
-        -2px 2px 0 #111,
-        2px 2px 0 #111,
-        4px 4px 0 #111;
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
+      text-shadow: 4px 4px 0 rgba(17, 17, 17, 0.25);
       line-height: 1.2;
       letter-spacing: 3px;
       margin-bottom: clamp(4px, 1vh, 12px);
@@ -706,12 +974,9 @@
       font-size: clamp(48px, 14vmin, 100px);
       font-weight: 900;
       color: #fff;
-      text-shadow:
-        -2px -2px 0 #111,
-        2px -2px 0 #111,
-        -2px 2px 0 #111,
-        2px 2px 0 #111,
-        4px 4px 0 #111;
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
+      text-shadow: 4px 4px 0 rgba(17, 17, 17, 0.25);
       line-height: 1.2;
       margin-bottom: clamp(4px, 1vh, 10px);
     }
@@ -730,12 +995,9 @@
       font-size: clamp(18px, 4vmin, 28px);
       font-weight: 900;
       color: #FFD700;
-      text-shadow:
-        -1px -1px 0 #111,
-        1px -1px 0 #111,
-        -1px 1px 0 #111,
-        1px 1px 0 #111,
-        2px 2px 0 #111;
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
+      text-shadow: 2px 2px 0 rgba(17, 17, 17, 0.25);
       line-height: 1.2;
       margin-bottom: clamp(6px, 1.5vh, 14px);
       animation: newBestPulse 0.6s ease-in-out infinite alternate;
@@ -751,12 +1013,9 @@
       font-size: clamp(22px, 5vmin, 36px);
       font-weight: 900;
       color: #FFD700;
-      text-shadow:
-        -1px -1px 0 #111,
-        1px -1px 0 #111,
-        -1px 1px 0 #111,
-        1px 1px 0 #111,
-        2px 2px 0 #111;
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
+      text-shadow: 2px 2px 0 rgba(17, 17, 17, 0.25);
       line-height: 1.2;
       margin-bottom: clamp(4px, 1vh, 8px);
     }
@@ -780,11 +1039,8 @@
       font-size: clamp(13px, 2.6vmin, 18px);
       font-weight: 900;
       color: #ffd54d;
-      text-shadow:
-        -1px -1px 0 #111,
-        1px -1px 0 #111,
-        -1px 1px 0 #111,
-        1px 1px 0 #111;
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
       margin-bottom: clamp(6px, 1.2vh, 12px);
       letter-spacing: 1px;
     }
@@ -803,11 +1059,8 @@
       font-size: clamp(11px, 2.2vmin, 14px);
       font-weight: 900;
       color: #ffd54d;
-      text-shadow:
-        -1px -1px 0 #111,
-        1px -1px 0 #111,
-        -1px 1px 0 #111,
-        1px 1px 0 #111;
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
       letter-spacing: 2px;
       margin-bottom: 2px;
       text-align: center;
@@ -854,7 +1107,7 @@
       font-weight: 900;
       color: #fff;
       letter-spacing: 2px;
-      text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.35);
+      text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25);
     }
     #go-continue-btn:hover { transform: translateY(-2px); box-shadow: 7px 7px 0 #111; }
     #go-continue-btn:active { transform: translateY(1px); box-shadow: 3px 3px 0 #111; }
@@ -992,11 +1245,8 @@
       font-size: clamp(18px, 3.5vmin, 24px);
       font-weight: 900;
       color: #FFD700;
-      text-shadow:
-        -1px -1px 0 #111,
-        1px -1px 0 #111,
-        -1px 1px 0 #111,
-        1px 1px 0 #111;
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
       line-height: 1.2;
     }
 
@@ -1151,6 +1401,29 @@
         <div id="coin-counter"><span class="coin-icon"><img src="Coin.png" alt="coin"></span><span id="coin-amount">0</span></div>
         <div id="start-screen">
           <h1 id="world-title">SUNRISE PEAKS</h1>
+          <div id="unlock-dialog" class="hidden">
+            <div id="unlock-dialog-bg"></div>
+            <div id="unlock-dialog-confetti"></div>
+            <div id="unlock-card">
+              <button id="unlock-close" title="Later">&#x2715;</button>
+              <span id="unlock-card-icon">🌍</span>
+              <span id="unlock-card-kicker">NEW WORLD UNLOCKED</span>
+              <h2 id="unlock-card-title">DUSK DISTRICT</h2>
+              <p id="unlock-card-tag">Swaying streets at sunset</p>
+              <p id="unlock-card-meta"></p>
+              <div id="unlock-card-btns">
+                <button id="unlock-showme-btn">SHOW ME</button>
+              </div>
+            </div>
+          </div>
+          <div id="best-score" class="hidden">
+            <span id="best-score-label">BEST SCORE</span>
+            <div id="best-score-line">
+              <img id="best-score-crown" src="crown.svg" alt="">
+              <span id="best-score-value">0</span>
+            </div>
+            <span id="best-score-callout">can you beat this?</span>
+          </div>
           <div id="world-prev" class="nav-arrow hidden" title="">
             <span class="nav-label">World 1</span>
             <span class="nav-chevron">&#9664;</span>
@@ -1160,22 +1433,34 @@
               <span class="nav-label">World 2</span>
               <span class="nav-chevron">&#9654;</span>
             </div>
+            <div id="world-far" class="nav-arrow locked coming-soon hidden" title="Coming soon">
+              <span class="nav-chevron">&#9654;</span>
+            </div>
             <div id="world-bubble"></div>
           </div>
           <div class="start-middle">
-            <button id="play-btn">TAP TO PLAY</button>
+            <div id="play-btn" role="button" title="Tap to play">
+              <span id="tap-text">tap to play</span>
+              <img id="tap-hand" src="tap-to-play.gif" alt="" draggable="false">
+            </div>
           </div>
           <div id="menu-btns" class="menu-btns">
-            <button id="missions-btn" title="Missions">
-              <span class="menu-icon">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <circle cx="12" cy="12" r="10.5" fill="#fff" stroke="#111" stroke-width="1.6"/>
-                  <circle cx="12" cy="12" r="7" fill="none" stroke="#111" stroke-width="1.6"/>
-                  <circle cx="12" cy="12" r="3.5" fill="#ff4d4d" stroke="#111" stroke-width="1.6"/>
-                </svg>
-              </span>
-            </button>
-            <button id="shop-btn"><span class="shop-coin"><img src="cart.png" alt="shop"></span></button>
+            <div class="menu-item">
+              <span class="menu-label">missions</span>
+              <button id="missions-btn" title="Missions">
+                <span class="menu-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10.5" fill="#fff" stroke="#111" stroke-width="1.6"/>
+                    <circle cx="12" cy="12" r="7" fill="none" stroke="#111" stroke-width="1.6"/>
+                    <circle cx="12" cy="12" r="3.5" fill="#ff4d4d" stroke="#111" stroke-width="1.6"/>
+                  </svg>
+                </span>
+              </button>
+            </div>
+            <div class="menu-item">
+              <span class="menu-label">shop</span>
+              <button id="shop-btn"><span class="shop-coin"><img src="cart.png" alt="shop"></span></button>
+            </div>
           </div>
         </div>
         <div id="lock-overlay">

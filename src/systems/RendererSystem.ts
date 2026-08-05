@@ -71,7 +71,8 @@ export class RendererSystem {
     const fov = rect.width / rect.height < 1 ? 55 + (1 - this.camera.aspect) * 30 : 55;
     this.camera.fov = fov;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(rect.width, rect.height);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setSize(rect.width, rect.height, false);
   };
 
   start(): void {

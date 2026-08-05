@@ -57,6 +57,8 @@ export class GameStateManager {
     missionProgress: {}
   };
   private worldOverride: WorldId | null = null;
+  /** Transient "locked preview": loads a locked world's look without making it playable. */
+  private previewWorldId: WorldId | null = null;
   private unlockAllWorlds = false;
   private totalScore = 0;
   private pendingMissionCoins = 0;
@@ -82,6 +84,7 @@ export class GameStateManager {
   }
 
   loadPlayerData(data: PlayerData): void {
+    this.previewWorldId = null;
     this.playerData = sanitizePlayerData(data);
     this.setTotalScore(this.playerData.totalScore);
     // Safety clamp: a save pointing at a world the ledger can't reach yet
@@ -141,7 +144,31 @@ export class GameStateManager {
       const override = getWorldById(this.worldOverride);
       if (override) return override;
     }
+    if (this.previewWorldId) {
+      const preview = getWorldById(this.previewWorldId);
+      if (preview) return preview;
+    }
     return getWorldById(this.playerData.selectedWorld) ?? WORLDS[0];
+  }
+
+  /** Load a world as a locked preview (visuals only — never persisted, never playable). */
+  previewWorld(id: WorldId): boolean {
+    const world = getWorldById(id);
+    if (!world || this.canSelectWorld(world)) return false;
+    this.previewWorldId = world.id;
+    return true;
+  }
+
+  /** End the locked preview, reverting to the persisted selection. */
+  clearPreview(): void {
+    this.previewWorldId = null;
+  }
+
+  /** True while a locked world is previewed behind the lock overlay. */
+  isPreviewLocked(): boolean {
+    if (!this.previewWorldId) return false;
+    const world = getWorldById(this.previewWorldId);
+    return !world || !this.canSelectWorld(world);
   }
 
   // ---- difficulty curves (world ramps over tier score) ----

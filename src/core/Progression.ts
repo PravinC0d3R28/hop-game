@@ -143,7 +143,9 @@ export function getMissionProgressList(
       ? getMetricValue(m.metric, playerData, run)
       : (playerData.missionProgress[m.id] ?? 0);
     const done = playerData.completedMissions.includes(m.id);
-    const locked = m.kind === 'world' && m.world !== run.selectedWorld;
+    // Done missions always read as done (checkmark), even outside their world —
+    // only unfinished missions of non-selected worlds stay locked.
+    const locked = m.kind === 'world' && m.world !== run.selectedWorld && !done;
     return {
       id: m.id,
       title: m.title,
