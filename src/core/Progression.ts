@@ -11,7 +11,7 @@ import type { PlayerData } from './Types';
 export interface RunStats {
   score: number;
   runPerfects: number;
-  runGems: number;
+  runCoins: number;
   maxStreak: number;
   /** World the run targets (world-based model: missions gate on this). */
   selectedWorld: WorldId;
@@ -27,14 +27,14 @@ export function getMetricValue(
   run: RunStats
 ): number {
   switch (metric) {
-    case 'gems':
-      return run.runGems;
+    case 'coins':
+      return run.runCoins;
     case 'perfects':
       return run.runPerfects;
     case 'streak':
       return run.maxStreak;
-    case 'totalGems':
-      return playerData.totalGems;
+    case 'totalCoinsCollected':
+      return playerData.totalCoinsCollected;
     case 'totalPerfects':
       return playerData.totalPerfects;
     case 'bestStreak':

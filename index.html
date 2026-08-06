@@ -35,6 +35,29 @@
 
       /* Text stroke width — tweak this to test different outlines. */
       --stroke-width: 4px;
+
+      /* Green check circle on claimed mission rows — also the exact diameter the
+         claim capsule collapses into, so the two superimpose perfectly. */
+      --check-size: clamp(22px, 3.6vmin, 30px);
+
+      /* World-nav button shape tuning (the "world 2 / world 3" arrows).
+         Presets to paste in and fine-tune:
+           circle   → --world-btn-radius: 50%;            --world-btn-rotate: 0deg;  --world-btn-chevron-rotate: 0deg;
+           diamond  → --world-btn-radius: 10px;           --world-btn-rotate: 45deg; --world-btn-chevron-rotate: -45deg;
+           capsule  → --world-btn-radius: 999px;          --world-btn-rotate: 0deg;  --world-btn-chevron-rotate: 0deg;
+                       (capsule reads best as a horizontal pill: swap the
+                       --world-btn-width / --world-btn-height lines below.)
+         Circle is the default. */
+      --world-btn-size: clamp(44px, 9vmin, 62px);
+      --world-btn-radius: 50%;
+      --world-btn-rotate: 0deg;
+      --world-btn-chevron-rotate: 0deg;
+      /* Gap between the button and its "World N" label (diamond presets need
+         a bigger gap — the rotated corners poke up toward the label). */
+      --world-btn-label-gap: 6px;
+      /* Capsule preset: uncomment and set --world-btn-radius: 999px.
+         --world-btn-width: clamp(56px, 11vmin, 78px);
+         --world-btn-height: clamp(36px, 7vmin, 48px); */
     }
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Fredoka', sans-serif; }
     .hidden { display: none !important; }
@@ -243,11 +266,12 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      width: clamp(44px, 9vmin, 62px);
-      height: clamp(44px, 9vmin, 62px);
+      width: var(--world-btn-size, clamp(44px, 9vmin, 62px));
+      height: var(--world-btn-size, clamp(44px, 9vmin, 62px));
       background: #fff;
       border: 3px solid #111;
-      border-radius: 50%;
+      border-radius: var(--world-btn-radius, 50%);
+      rotate: var(--world-btn-rotate, 0deg);
       box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.25);
       cursor: pointer;
       user-select: none;
@@ -255,7 +279,7 @@
     }
     .nav-label {
       position: absolute;
-      bottom: calc(100% + 6px);
+      bottom: calc(100% + var(--world-btn-label-gap, 6px));
       left: 50%;
       transform: translateX(-50%);
       font-size: clamp(11px, 2.2vmin, 14px);
@@ -272,11 +296,11 @@
       line-height: 1;
       color: #28a858;
       /* ▶ glyph's ink sits slightly left of its em-box center — optical fix */
-      transform: translateX(2px);
+      transform: rotate(var(--world-btn-chevron-rotate, 0deg)) translateX(2px);
     }
     /* Back arrow: ◀ glyph's ink sits slightly RIGHT of its em-box center. */
     #world-prev .nav-chevron {
-      transform: translateX(-2px);
+      transform: rotate(var(--world-btn-chevron-rotate, 0deg)) translateX(-2px);
     }
     .nav-arrow.locked {
       background: #eee;
@@ -294,12 +318,14 @@
     }
     .nav-arrow.hidden { display: none; }
 
-    /* Rage-bait thought bubble next to a locked next-arrow */
+    /* Rage-bait thought bubble next to a locked next-arrow (multi-line friendly).
+       Vertical centering is done via GSAP `yPercent: -50` in showBubble() — a
+       CSS translateY(-50%) here would be frozen into pixels by GSAP, un-centering
+       the bubble whenever the taunt wraps to a different number of lines. */
     #world-bubble {
       position: absolute;
       right: calc(100% + 12px);
       top: 50%;
-      transform: translateY(-50%);
       display: none;
       background: #fff;
       color: #111;
@@ -308,7 +334,10 @@
       padding: 8px 13px;
       font-size: clamp(11px, 2.4vmin, 15px);
       font-weight: 900;
-      white-space: nowrap;
+      white-space: normal;
+      max-width: clamp(140px, 38vmin, 200px);
+      text-align: left;
+      line-height: 1.25;
       box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.25);
       pointer-events: none;
       z-index: 6;
@@ -326,19 +355,6 @@
       border-right: 3px solid #111;
       border-radius: 3px;
     }
-    #world-bubble::before {
-      content: '';
-      position: absolute;
-      right: -22px;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 9px;
-      height: 9px;
-      border-radius: 50%;
-      background: #fff;
-      border: 2.5px solid #111;
-    }
-
     /* Locked-world overlay: gaussian-blur screen + big lock + progress to unlock.
        Heavy blur + dark so the locked world's layout stays hidden (no reveal). */
     #lock-overlay {
@@ -482,9 +498,57 @@
       align-items: center;
     }
     .m-check-svg {
-      width: clamp(18px, 3.2vmin, 24px);
-      height: clamp(18px, 3.2vmin, 24px);
+      /* Single source of truth for the check-circle size: the claim capsule
+         collapses to this same resolved value (`--check-size`), so the
+         re-rendered check superimposes the collapsed circle exactly — no shrink
+         after tab switches or re-renders. */
+      width: var(--check-size);
+      height: var(--check-size);
       display: block;
+    }
+    .m-tick-svg {
+      display: block;
+    }
+    /* Claim button on a done-but-unclaimed mission row (claim-based rewards) */
+    .mission-row .m-claim-btn {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: clamp(3px, 0.8vmin, 6px) clamp(8px, 1.6vmin, 12px);
+      font-family: 'Arial Black', sans-serif;
+      font-size: clamp(9px, 1.8vmin, 12px);
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      color: #fff;
+      background: #28a858;
+      border: 2px solid #111;
+      border-radius: 999px;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+      box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.2);
+    }
+    .mission-row .m-claim-btn .coin-icon {
+      width: clamp(13px, 2.4vmin, 17px);
+      height: clamp(13px, 2.4vmin, 17px);
+      -webkit-text-stroke: 0;
+      flex-shrink: 0;
+    }
+    .mission-row .m-claim-btn .claim-amount {
+      color: #fff;
+      text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.35);
+    }
+    /* Claim capsule morphs into a circle before flipping to the green check.
+       box-shadow is dropped here so the collapsed circle looks exactly like the
+       re-rendered check (which has no shadow) — no shadow "pop" at the swap. */
+    .mission-row .m-claim-btn.claiming {
+      justify-content: center;
+      overflow: hidden;
+      box-shadow: none;
+    }
+    .mission-row .m-claim-btn.claiming .coin-icon {
+      position: relative;
+      z-index: 1;
     }
     .mission-row .m-lock {
       font-size: clamp(12px, 2.2vmin, 15px);
@@ -504,7 +568,6 @@
       height: 100%;
       width: 0%;
       background: linear-gradient(90deg, #ffd700, #ffb020);
-      transition: width 0.3s ease;
     }
     .mission-row.done .m-bar-fill { background: #28a858; }
 
@@ -645,8 +708,11 @@
       pointer-events: none;
       filter: drop-shadow(0 4px 4px rgba(0, 0, 0, 0.35));
     }
-    /* Locked world preview: hide the start button so the world is never playable. */
+    /* Locked world preview: hide the start button so the world is never playable.
+       Settings/stats + wallet stay hidden too — a locked world is a pure teaser. */
     #start-screen.locked #play-btn { display: none; }
+    #start-screen.locked #top-right-btns { display: none; }
+    #start-screen.locked #coin-card { display: none; }
 
     /* Best-score block under the world title: heading, then a single centered
        line with the crown + score, and the "can you beat this?" callout below. */
@@ -818,11 +884,121 @@
       transform: translateY(1px);
     }
 
-    /* Menu buttons row (missions + shop) — bottom center */
+    /* One-time shield powerup card (first arrival at world 2) — styled to match
+       the unlock card, but with a blue kicker + green CTA. */
+    #shield-card-dialog {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 1000;
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #shield-card-bg {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(10, 10, 22, 0.62);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+    #shield-card {
+      position: relative;
+      z-index: 2;
+      width: min(88vw, 400px);
+      background: #fff;
+      border: 5px solid #111;
+      border-radius: 18px;
+      box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.35);
+      padding: clamp(18px, 4vmin, 28px) clamp(16px, 4vmin, 30px);
+      text-align: center;
+    }
+    #shield-card-close {
+      position: absolute;
+      top: 8px; right: 8px;
+      width: 34px; height: 34px;
+      border: 3px solid #111;
+      border-radius: 50%;
+      background: #f5f5f5;
+      color: #111;
+      font-size: 16px;
+      font-weight: 900;
+      cursor: pointer;
+      line-height: 1;
+    }
+    #shield-card-icon {
+      font-size: clamp(44px, 9vmin, 64px);
+      line-height: 1;
+      display: block;
+    }
+    #shield-card-kicker {
+      display: block;
+      margin-top: 8px;
+      font-size: clamp(13px, 2.8vmin, 17px);
+      font-weight: 900;
+      letter-spacing: 4px;
+      color: #4a9bd8;
+    }
+    #shield-card-title {
+      margin-top: 6px;
+      font-size: clamp(26px, 6vmin, 40px);
+      font-weight: 900;
+      letter-spacing: 3px;
+      line-height: 1.1;
+      color: #111;
+      text-transform: uppercase;
+    }
+    #shield-card-desc {
+      margin-top: 10px;
+      font-size: clamp(14px, 3vmin, 18px);
+      font-weight: 700;
+      color: #444;
+      line-height: 1.4;
+    }
+    #shield-card-note {
+      margin-top: 10px;
+      font-size: clamp(12px, 2.6vmin, 15px);
+      font-weight: 800;
+      letter-spacing: 1px;
+      color: #28a858;
+    }
+    #shield-card-btns {
+      display: flex;
+      justify-content: center;
+      gap: clamp(10px, 2.5vmin, 16px);
+      margin-top: clamp(14px, 3vmin, 20px);
+      flex-wrap: wrap;
+    }
+    #shield-card-gotit {
+      border: 3px solid #111;
+      border-radius: 999px;
+      padding: clamp(9px, 2vmin, 12px) clamp(20px, 4vmin, 30px);
+      font-size: clamp(15px, 3.4vmin, 20px);
+      font-weight: 900;
+      letter-spacing: 2px;
+      cursor: pointer;
+      box-shadow: 4px 4px 0 #111;
+      transition: box-shadow 0.1s, transform 0.1s;
+      background: #28a858;
+      color: #fff;
+    }
+    #shield-card-gotit:hover {
+      box-shadow: 6px 6px 0 #111;
+      transform: translateY(-2px);
+    }
+    #shield-card-gotit:active {
+      box-shadow: 2px 2px 0 #111;
+      transform: translateY(1px);
+    }
+
+    /* Menu buttons row (missions + shop) — bottom center. Labels sit BELOW the
+       icons, so the whole row is raised enough to keep them on screen. */
     .menu-btns {
       position: absolute;
       left: 50%;
-      bottom: clamp(20px, 4vh, 40px);
+      bottom: clamp(47px, calc(11vh - 5px), 83px);
       transform: translateX(-50%);
       display: flex;
       align-items: center;
@@ -839,6 +1015,58 @@
       align-items: center;
       gap: clamp(4px, 1vmin, 8px);
     }
+    /* Missions tease before the feature is earned (3 runs): dimmed but still
+       clickable — opening it reveals a locked card instead. */
+    .menu-item.missions-gated {
+      opacity: 0.45;
+      filter: grayscale(0.6);
+    }
+    /* One-time "missions unlocked!" callout left of the missions button.
+       Pulses until the player opens the missions overlay once. */
+    #missions-menu-item { position: relative; }
+    .missions-callout {
+      position: absolute;
+      right: calc(100% + 14px);
+      top: 38%;
+      transform: translateY(-50%);
+      display: inline-flex;
+      align-items: center;
+      background: #fff;
+      color: #111;
+      border: 3px solid #111;
+      border-radius: 18px;
+      padding: 8px 13px;
+      font-family: 'Arial Black', sans-serif;
+      font-size: clamp(11px, 2.4vmin, 15px);
+      font-weight: 900;
+      white-space: nowrap;
+      box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.25);
+      pointer-events: none;
+      z-index: 6;
+      animation: missionsCalloutPulse 1.1s ease-in-out infinite;
+    }
+    .missions-callout::after {
+      content: '';
+      position: absolute;
+      right: -11px;
+      top: 50%;
+      transform: translateY(-50%) rotate(45deg);
+      width: 16px;
+      height: 16px;
+      background: #fff;
+      border-top: 3px solid #111;
+      border-right: 3px solid #111;
+      border-radius: 3px;
+    }
+    .missions-callout[hidden] { display: none; }
+    @keyframes missionsCalloutPulse {
+      0% { transform: translateY(-50%) scale(1); }
+      100% { transform: translateY(-50%) scale(1.08); }
+    }
+    /* While the one-time missions-unlocked callout is pending, the play button
+       is hidden (same pattern as the locked-world preview) so the player has
+       to check missions before the next run. */
+    #start-screen.missions-callout-pending #play-btn { display: none; }
     .menu-label {
       font-size: clamp(14px, 3.2vmin, 22px);
       font-weight: 900;
@@ -853,6 +1081,7 @@
     }
     #missions-btn,
     #shop-btn {
+      position: relative;
       width: clamp(64px, 12vmin, 100px);
       height: clamp(64px, 12vmin, 100px);
       padding: 0;
@@ -903,6 +1132,26 @@
       height: 100%;
       object-fit: contain;
     }
+    .notify-bubble {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      min-width: 24px;
+      height: 22px;
+      padding: 0 5px;
+      border-radius: 11px;
+      background: #ff4d4d;
+      border: 2px solid #111;
+      color: #fff;
+      font-family: 'Arial Black', sans-serif;
+      font-size: 11px;
+      font-weight: 900;
+      line-height: 18px;
+      text-align: center;
+      box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25);
+      z-index: 5;
+    }
+    .notify-bubble[hidden] { display: none; }
 
     /* Mission toast: white card sliding in from the right (green tick + wording) */
     .mission-card {
@@ -990,7 +1239,21 @@
       gap: 6px;
       margin-bottom: clamp(6px, 1.5vh, 14px);
     }
-    #go-best-score .crown { font-size: 0.9em; }
+    #go-best-crown {
+      width: clamp(16px, 3.2vmin, 22px);
+      height: auto;
+      display: block;
+    }
+    #go-best-label {
+      letter-spacing: 1px;
+      margin-right: 1px;
+    }
+    #go-new-best-crown {
+      width: clamp(20px, 4vmin, 28px);
+      height: auto;
+      vertical-align: -2px;
+      margin-right: 4px;
+    }
     #go-new-best {
       font-size: clamp(18px, 4vmin, 28px);
       font-weight: 900;
@@ -1030,11 +1293,12 @@
       margin-bottom: clamp(12px, 3vh, 24px);
     }
     #go-total-row .coin-icon {
-      width: 0.9em;
-      height: 0.9em;
+      width: 1.2em;
+      height: 1.2em;
       -webkit-text-stroke: 0;
     }
-    /* Game over: world reached + mission rewards summary */
+    /* Game over: world reached (mission rewards moved to the missions tab —
+       claim-based since Iteration 8, so no coin awards auto-bank here). */
     #go-world {
       font-size: clamp(13px, 2.6vmin, 18px);
       font-weight: 900;
@@ -1044,42 +1308,6 @@
       margin-bottom: clamp(6px, 1.2vh, 12px);
       letter-spacing: 1px;
     }
-    #go-missions {
-      width: min(84vw, 360px);
-      max-height: 26vh;
-      overflow-y: auto;
-      display: none;
-      flex-direction: column;
-      gap: 3px;
-      margin-bottom: clamp(8px, 1.6vh, 14px);
-      scrollbar-width: thin;
-      padding: 2px;
-    }
-    #go-missions-label {
-      font-size: clamp(11px, 2.2vmin, 14px);
-      font-weight: 900;
-      color: #ffd54d;
-      -webkit-text-stroke: var(--stroke-width) #111;
-      paint-order: stroke fill;
-      letter-spacing: 2px;
-      margin-bottom: 2px;
-      text-align: center;
-    }
-    .go-mission-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      padding: 4px 10px;
-      background: rgba(255, 255, 255, 0.92);
-      border: 2px solid #111;
-      border-radius: 8px;
-      font-size: clamp(11px, 2.2vmin, 14px);
-      font-weight: 900;
-      color: #111;
-    }
-    .go-mission-row .m-name { flex: 1; min-width: 0; }
-    .go-mission-row .m-coin { color: #b8860b; white-space: nowrap; }
     /* Continue button — bottom of game over */
     .go-bottom {
       margin-top: auto;
@@ -1133,7 +1361,9 @@
       position: fixed;
       top: 0; left: 0;
       width: 100%; height: 100%;
-      background: none;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
       display: none;
       align-items: center;
       justify-content: center;
@@ -1179,6 +1409,13 @@
       overflow-y: auto;
       padding: clamp(8px, 2vmin, 16px);
     }
+    .shop-scroll::-webkit-scrollbar { width: 8px; }
+    .shop-scroll::-webkit-scrollbar-thumb {
+      background: #ccc;
+      border: 2px solid #111;
+      border-radius: 4px;
+    }
+    .shop-scroll::-webkit-scrollbar-track { background: transparent; }
     .shop-item {
       display: flex;
       align-items: center;
@@ -1225,6 +1462,10 @@
       border-radius: 8px;
       cursor: pointer;
       white-space: nowrap;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(5px, 0.9vmin, 8px);
     }
     .shop-item-btn:disabled {
       background: #bbb;
@@ -1233,6 +1474,16 @@
     }
     .shop-item-btn.equipped {
       background: #28a858;
+      color: #fff;
+      text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.35);
+    }
+    /* Price coin inside the buy button: fixed size so it stays readable at the
+       button's small font (it used to inherit 0.9em and shrink to ~10px). */
+    .shop-item-btn .coin-icon {
+      width: clamp(16px, 2.8vmin, 20px);
+      height: clamp(16px, 2.8vmin, 20px);
+      -webkit-text-stroke: 0;
+      flex-shrink: 0;
     }
     .shop-footer {
       padding: clamp(8px, 1.5vmin, 12px) clamp(12px, 2.5vmin, 20px);
@@ -1255,7 +1506,9 @@
       position: fixed;
       top: 0; left: 0;
       width: 100%; height: 100%;
-      background: none;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
       display: none;
       align-items: center;
       justify-content: center;
@@ -1304,6 +1557,7 @@
       background: #ececec;
     }
     .missions-tab {
+      position: relative;
       flex: 1;
       padding: clamp(6px, 1.2vmin, 9px) 0;
       font-family: 'Arial Black', sans-serif;
@@ -1320,6 +1574,72 @@
       background: #8838c8;
       color: #fff;
     }
+    .missions-tab:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    /* Locked missions card (feature gated behind MISSIONS_UNLOCK_RUNS runs):
+       plain column — "missions" title top-left, then centered logo, run-progress
+       bar, and the dynamic unlock hint. */
+    .missions-locked {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: clamp(10px, 2vmin, 14px);
+      min-height: 180px;
+      padding: clamp(18px, 4vmin, 28px);
+    }
+    .missions-locked-icon,
+    .missions-locked-bar,
+    .missions-locked-hint {
+      align-self: center;
+    }
+    .missions-locked-icon svg {
+      display: block;
+      width: clamp(48px, 9vmin, 72px);
+      height: clamp(48px, 9vmin, 72px);
+    }
+    .missions-locked-bar {
+      width: clamp(140px, 40vmin, 220px);
+      height: clamp(10px, 2vmin, 14px);
+      background: #ececec;
+      border: 3px solid #111;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .missions-locked-bar-fill {
+      height: 100%;
+      background: #ff4d4d;
+      border-radius: 6px 0 0 6px;
+      transition: width 0.3s ease;
+    }
+    .missions-locked-hint {
+      font-family: 'Arial Black', sans-serif;
+      font-size: clamp(11px, 2.2vmin, 14px);
+      font-weight: 900;
+      letter-spacing: 1px;
+      color: #999;
+      text-align: center;
+    }
+    /* Exclamation badge: red bubble pinned to the tab's top-right corner,
+       shown only while that section has pending (unclaimed) reward claims. */
+    .m-tab-badge {
+      position: absolute;
+      top: -7px;
+      right: -7px;
+      min-width: 18px;
+      height: 18px;
+      line-height: 14px;
+      border-radius: 50%;
+      font-size: 12px;
+      font-weight: 900;
+      text-align: center;
+      background: #ff4d4d;
+      color: #fff;
+      border: 2px solid #111;
+      box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25);
+    }
+    .m-tab-badge[hidden] { display: none; }
     .missions-countdown {
       display: none;
       align-items: center;
@@ -1363,6 +1683,356 @@
       margin: clamp(8px, 1.5vmin, 12px) 2px clamp(4px, 1vmin, 8px);
     }
     .m-group-title:first-child { margin-top: 0; }
+
+    /* Top-right buttons (settings + stats) — stacked, fixed to the top-right of the start screen */
+    #top-right-btns {
+      position: absolute;
+      top: clamp(12px, 2.5vmin, 22px);
+      right: clamp(12px, 2.5vmin, 22px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(8px, 1.5vmin, 12px);
+      z-index: 70;
+      pointer-events: auto;
+    }
+    #settings-btn,
+    #stats-btn {
+      width: clamp(46px, 9vmin, 62px);
+      height: clamp(46px, 9vmin, 62px);
+      padding: 0;
+      background: #fff;
+      border: clamp(4px, 1vmin, 6px) solid #111;
+      border-radius: 50%;
+      cursor: pointer;
+      pointer-events: auto;
+      box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.25);
+      transition: box-shadow 0.1s, transform 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #settings-btn:hover,
+    #stats-btn:hover {
+      box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.25);
+      transform: translateY(-2px);
+    }
+    #settings-btn:active,
+    #stats-btn:active {
+      box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25);
+      transform: translateY(1px);
+    }
+    #settings-btn svg,
+    #stats-btn svg {
+      width: 60%;
+      height: 60%;
+      display: block;
+    }
+    .top-btn-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(3px, 0.8vmin, 6px);
+    }
+    /* Coin card — wallet balance, stacked under the settings/stats buttons.
+       Top-left already holds the best-score block, so the currency card lives
+       top-right per the platformer convention (research-backed placement). */
+    #coin-card {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: clamp(4px, 1vmin, 8px) clamp(10px, 2.2vmin, 18px);
+      background: #fff;
+      border: 3px solid #111;
+      border-radius: 999px;
+      box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.25);
+      font-family: 'Arial Black', sans-serif;
+      font-size: clamp(14px, 2.8vmin, 19px);
+      font-weight: 900;
+      color: #b8860b;
+      line-height: 1.2;
+      user-select: none;
+      pointer-events: auto;
+      white-space: nowrap;
+    }
+    .coin-card-icon {
+      width: clamp(16px, 3.2vmin, 22px);
+      height: clamp(16px, 3.2vmin, 22px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .coin-card-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    #coin-card-amount {
+      color: #b8860b;
+    }
+
+    /* Settings overlay */
+    #settings-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      pointer-events: auto;
+      z-index: 10000;
+    }
+    .settings-container {
+      background: #f5f5f5;
+      border: 5px solid #111;
+      border-radius: 14px;
+      width: 90%;
+      max-width: 440px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 6px 6px 0 rgba(0,0,0,0.35);
+    }
+    .settings-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: clamp(10px, 2vmin, 16px) clamp(12px, 2.5vmin, 20px);
+      border-bottom: 4px solid #111;
+    }
+    .settings-header h2 {
+      font-family: 'Arial Black', 'Impact', sans-serif;
+      font-size: clamp(20px, 4vmin, 28px);
+      color: #111;
+      margin: 0;
+    }
+    .settings-close {
+      font-size: clamp(22px, 4vmin, 28px);
+      font-weight: 900;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #111;
+      line-height: 1;
+      padding: 4px 8px;
+    }
+    .settings-body {
+      padding: clamp(12px, 2.5vmin, 20px);
+      display: flex;
+      flex-direction: column;
+      gap: clamp(16px, 3vmin, 24px);
+    }
+    .setting-row {
+      display: flex;
+      flex-direction: column;
+      gap: clamp(8px, 1.5vmin, 12px);
+    }
+    .setting-row-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: clamp(10px, 2vmin, 14px);
+    }
+    .setting-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .setting-name {
+      font-family: 'Arial Black', sans-serif;
+      font-size: clamp(14px, 3vmin, 18px);
+      font-weight: 900;
+      color: #111;
+      letter-spacing: 1px;
+    }
+    .setting-desc {
+      font-size: clamp(11px, 2.2vmin, 13px);
+      color: #777;
+      margin-top: 2px;
+    }
+    .setting-value {
+      font-family: 'Arial Black', sans-serif;
+      font-size: clamp(14px, 3vmin, 18px);
+      font-weight: 900;
+      color: #28a858;
+      min-width: clamp(30px, 7vmin, 42px);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+    }
+    .setting-reset {
+      font-family: 'Arial Black', sans-serif;
+      font-size: clamp(10px, 2vmin, 12px);
+      font-weight: 900;
+      letter-spacing: 1px;
+      color: #fff;
+      background: #8838c8;
+      border: 2px solid #111;
+      border-radius: 999px;
+      padding: 4px 10px;
+      cursor: pointer;
+      flex-shrink: 0;
+      box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.2);
+      transition: box-shadow 0.1s, transform 0.1s;
+    }
+    .setting-reset:hover {
+      box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.2);
+      transform: translateY(-1px);
+    }
+    .setting-reset:active {
+      box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.2);
+      transform: translateY(0);
+    }
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 8px;
+      border: 2px solid #111;
+      border-radius: 4px;
+      background: #ddd;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 22px;
+      height: 22px;
+      background: #28a858;
+      border: 3px solid #111;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 22px;
+      height: 22px;
+      background: #28a858;
+      border: 3px solid #111;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    /* Stats overlay */
+    #stats-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      pointer-events: auto;
+      z-index: 10000;
+    }
+    .stats-container {
+      background: #f5f5f5;
+      border: 5px solid #111;
+      border-radius: 14px;
+      width: 90%;
+      max-width: 440px;
+      max-height: 82vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 6px 6px 0 rgba(0,0,0,0.35);
+    }
+    .stats-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: clamp(10px, 2vmin, 16px) clamp(12px, 2.5vmin, 20px);
+      border-bottom: 4px solid #111;
+    }
+    .stats-header h2 {
+      font-family: 'Arial Black', 'Impact', sans-serif;
+      font-size: clamp(20px, 4vmin, 28px);
+      color: #111;
+      margin: 0;
+    }
+    .stats-close {
+      font-size: clamp(22px, 4vmin, 28px);
+      font-weight: 900;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #111;
+      line-height: 1;
+      padding: 4px 8px;
+    }
+    .stats-body {
+      padding: clamp(12px, 2.5vmin, 20px);
+      overflow-y: auto;
+      display: flex;
+      flex-wrap: wrap;
+      gap: clamp(10px, 2vmin, 14px);
+    }
+    .stats-body::-webkit-scrollbar { width: 8px; }
+    .stats-body::-webkit-scrollbar-thumb {
+      background: #ccc;
+      border: 2px solid #111;
+      border-radius: 4px;
+    }
+    .stats-body::-webkit-scrollbar-track { background: transparent; }
+    .stat-card {
+      flex: 1 1 calc(50% - clamp(10px, 2vmin, 14px));
+      min-width: 130px;
+      background: #fff;
+      border: 3px solid #111;
+      border-radius: 10px;
+      padding: clamp(10px, 2vmin, 14px);
+      box-shadow: 3px 3px 0 rgba(0,0,0,0.2);
+    }
+    .stat-card-wide {
+      flex: 1 1 100%;
+    }
+    .stat-label {
+      font-family: 'Arial Black', sans-serif;
+      font-size: clamp(10px, 2vmin, 12px);
+      font-weight: 900;
+      letter-spacing: 1px;
+      color: #777;
+      text-transform: uppercase;
+    }
+    .stat-value {
+      font-family: 'Arial Black', sans-serif;
+      font-size: clamp(22px, 4.5vmin, 32px);
+      font-weight: 900;
+      color: #111;
+      margin-top: 4px;
+      font-variant-numeric: tabular-nums;
+    }
+    .stat-sub {
+      font-size: clamp(11px, 2.2vmin, 13px);
+      color: #8838c8;
+      font-weight: 900;
+      margin-top: 2px;
+    }
+    .stat-worlds {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .stat-world-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: clamp(13px, 2.6vmin, 15px);
+    }
+    .stat-world-name {
+      font-weight: 900;
+      color: #111;
+    }
+    .stat-world-best {
+      font-family: 'Arial Black', sans-serif;
+      font-weight: 900;
+      color: #28a858;
+      font-variant-numeric: tabular-nums;
+    }
 
     /* Splash screen */
     #splash-screen {
@@ -1416,6 +2086,20 @@
               </div>
             </div>
           </div>
+          <div id="shield-card-dialog" class="hidden">
+            <div id="shield-card-bg"></div>
+            <div id="shield-card">
+              <button id="shield-card-close" title="Got it">&#x2715;</button>
+              <span id="shield-card-icon">🛡️</span>
+              <span id="shield-card-kicker">NEW POWERUP UNLOCKED</span>
+              <h2 id="shield-card-title">SHIELD</h2>
+              <p id="shield-card-desc">Hit a 10-perfect streak and a shield rises around your ball — it absorbs one miss and your run keeps going.</p>
+              <p id="shield-card-note">You can use this in any world.</p>
+              <div id="shield-card-btns">
+                <button id="shield-card-gotit">GOT IT</button>
+              </div>
+            </div>
+          </div>
           <div id="best-score" class="hidden">
             <span id="best-score-label">BEST SCORE</span>
             <div id="best-score-line">
@@ -1445,8 +2129,7 @@
             </div>
           </div>
           <div id="menu-btns" class="menu-btns">
-            <div class="menu-item">
-              <span class="menu-label">missions</span>
+            <div class="menu-item" id="missions-menu-item">
               <button id="missions-btn" title="Missions">
                 <span class="menu-icon">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1455,11 +2138,51 @@
                     <circle cx="12" cy="12" r="3.5" fill="#ff4d4d" stroke="#111" stroke-width="1.6"/>
                   </svg>
                 </span>
+                <span class="notify-bubble" id="missions-notify" hidden></span>
               </button>
+              <span class="menu-label">missions</span>
+              <div class="missions-callout" id="missions-callout" hidden>
+                <span class="missions-callout-text">missions unlocked!</span>
+              </div>
             </div>
             <div class="menu-item">
+              <button id="shop-btn">
+                <span class="shop-coin"><img src="cart.png" alt="shop"></span>
+                <span class="notify-bubble" id="shop-notify" hidden></span>
+              </button>
               <span class="menu-label">shop</span>
-              <button id="shop-btn"><span class="shop-coin"><img src="cart.png" alt="shop"></span></button>
+            </div>
+          </div>
+          <div id="top-right-btns">
+            <div class="top-btn-wrap">
+              <button id="settings-btn" title="Settings">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <g fill="#111">
+                    <circle cx="12" cy="12" r="6.1"/>
+                    <rect x="10.75" y="2.2" width="2.5" height="3.7" rx="1.1" transform="rotate(0 12 12)"/>
+                    <rect x="10.75" y="2.2" width="2.5" height="3.7" rx="1.1" transform="rotate(45 12 12)"/>
+                    <rect x="10.75" y="2.2" width="2.5" height="3.7" rx="1.1" transform="rotate(90 12 12)"/>
+                    <rect x="10.75" y="2.2" width="2.5" height="3.7" rx="1.1" transform="rotate(135 12 12)"/>
+                    <rect x="10.75" y="2.2" width="2.5" height="3.7" rx="1.1" transform="rotate(180 12 12)"/>
+                    <rect x="10.75" y="2.2" width="2.5" height="3.7" rx="1.1" transform="rotate(225 12 12)"/>
+                    <rect x="10.75" y="2.2" width="2.5" height="3.7" rx="1.1" transform="rotate(270 12 12)"/>
+                    <rect x="10.75" y="2.2" width="2.5" height="3.7" rx="1.1" transform="rotate(315 12 12)"/>
+                  </g>
+                </svg>
+              </button>
+            </div>
+            <div class="top-btn-wrap">
+              <button id="stats-btn" title="Stats">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="4" y="12" width="3.5" height="8" rx="1" fill="#111"/>
+                  <rect x="10.25" y="7" width="3.5" height="13" rx="1" fill="#111"/>
+                  <rect x="16.5" y="3" width="3.5" height="17" rx="1" fill="#111"/>
+                </svg>
+              </button>
+            </div>
+            <div id="coin-card" class="coin-card" title="Coins">
+              <span class="coin-card-icon"><img src="Coin.png" alt="coin"></span>
+              <span id="coin-card-amount">0</span>
             </div>
           </div>
         </div>
@@ -1498,8 +2221,8 @@
           <h1>GAME OVER</h1>
           <div id="go-score-label">SCORE</div>
           <div id="go-score">0</div>
-          <div id="go-best-score"><span class="crown">&#x1F451;</span> <span id="go-best-val">0</span></div>
-          <div id="go-new-best" style="display:none">&#x1F451; NEW BEST!</div>
+          <div id="go-best-score"><img id="go-best-crown" src="crown.svg" alt=""><span id="go-best-label">Best</span><span id="go-best-val">0</span></div>
+          <div id="go-new-best" style="display:none"><img id="go-new-best-crown" src="crown.svg" alt="">NEW BEST!</div>
           <div id="go-coins-row">
             <span class="coin-icon"><img src="Coin.png" alt="coin"></span>
             <span id="go-round-coins">+0</span>
@@ -1509,10 +2232,6 @@
             <span id="go-total-coins">0</span>
           </div>
           <div id="go-world"></div>
-          <div id="go-missions">
-            <div id="go-missions-label">MISSIONS COMPLETED</div>
-            <div id="go-missions-list"></div>
-          </div>
           <div class="go-bottom">
             <button id="go-continue-btn">PLAY AGAIN</button>
           </div>
@@ -1540,14 +2259,90 @@
         <h2>MISSIONS</h2>
         <button class="missions-close" id="missions-close">&#x2715;</button>
       </div>
-      <div class="missions-tabs">
-        <button class="missions-tab active" data-tab="general">DAILY</button>
-        <button class="missions-tab" data-tab="world">WORLD</button>
-        <button class="missions-tab" data-tab="lifetime">LIFETIME</button>
+      <div class="missions-tabs" id="missions-tabs-bar">
+        <button class="missions-tab active" data-tab="general">DAILY<span class="m-tab-badge" hidden></span></button>
+        <button class="missions-tab" data-tab="world">WORLD<span class="m-tab-badge" hidden></span></button>
+        <button class="missions-tab" data-tab="lifetime">LIFETIME<span class="m-tab-badge" hidden></span></button>
       </div>
       <div class="missions-countdown" id="missions-countdown"></div>
       <div class="missions-scroll" id="missions-scroll">
         <div id="missions-list"></div>
+      </div>
+    </div>
+  </div>
+  <div id="settings-overlay">
+    <div class="settings-container">
+      <div class="settings-header">
+        <h2>SETTINGS</h2>
+        <button class="settings-close" id="settings-close">&#x2715;</button>
+      </div>
+      <div class="settings-body">
+        <div class="setting-row">
+          <div class="setting-row-head">
+            <div class="setting-info">
+              <div class="setting-name">SOUND</div>
+              <div class="setting-desc">Sound effects volume</div>
+            </div>
+            <span class="setting-value" id="sound-value">100</span>
+          </div>
+          <input type="range" id="sound-slider" min="0" max="100" value="100">
+        </div>
+        <div class="setting-row">
+          <div class="setting-row-head">
+            <div class="setting-info">
+              <div class="setting-name">MUSIC</div>
+              <div class="setting-desc">Background music (coming soon)</div>
+            </div>
+            <span class="setting-value" id="music-value">100</span>
+          </div>
+          <input type="range" id="music-slider" min="0" max="100" value="100">
+        </div>
+        <div class="setting-row">
+          <div class="setting-row-head">
+            <div class="setting-info">
+              <div class="setting-name">SENSITIVITY</div>
+              <div class="setting-desc">Drag sensitivity</div>
+            </div>
+            <span class="setting-value" id="sensitivity-value">50</span>
+            <button class="setting-reset" id="sensitivity-reset" title="Reset to 50">RESET</button>
+          </div>
+          <input type="range" id="sensitivity-slider" min="0" max="100" value="50">
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="stats-overlay">
+    <div class="stats-container">
+      <div class="stats-header">
+        <h2>ALL-TIME STATS</h2>
+        <button class="stats-close" id="stats-close">&#x2715;</button>
+      </div>
+      <div class="stats-body">
+        <div class="stat-card">
+          <div class="stat-label">RUNS PLAYED</div>
+          <div class="stat-value" id="stat-runs">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">TOTAL LIFETIME SCORE</div>
+          <div class="stat-value" id="stat-total-score">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">TOTAL COINS EARNED</div>
+          <div class="stat-value" id="stat-coins">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">TOTAL PERFECT LANDINGS</div>
+          <div class="stat-value" id="stat-perfects">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">BEST STREAK</div>
+          <div class="stat-value" id="stat-streak">0</div>
+          <div class="stat-sub" id="stat-streak-world"></div>
+        </div>
+        <div class="stat-card stat-card-wide">
+          <div class="stat-label">BEST SCORE PER WORLD</div>
+          <div class="stat-worlds" id="stat-worlds"></div>
+        </div>
       </div>
     </div>
   </div>

@@ -36,15 +36,21 @@ export interface GameConfig {
   BOUNCE_HEIGHT: number;
   X_LERP: number;
   HIT_THRESHOLD: number;
-  // Gems
-  GEM_CHANCE: number;
-  GEM_RADIUS: number;
-  GEM_COLLECT_THRESHOLD: number;
+  // Coins (collectible pickups)
+  COIN_CHANCE: number;
+  COIN_RADIUS: number;
+  COIN_COLLECT_THRESHOLD: number;
   // Scoring
   PERFECT_THRESHOLD: number;
   PERFECT_DOT_RADIUS: number;
   // Streak reward (simplified, v1): single tier at STREAK_FIRE perfects
   STREAK_FIRE: number;
+  // Total score at which the start-screen world nav arrows are revealed
+  WORLD_NAV_REVEAL_SCORE: number;
+  // Runs played before the missions button unlocks (0 = from the start).
+  MISSIONS_UNLOCK_RUNS: number;
+  // Lifetime score at which the streak shield unlocks (World 2 milestone).
+  SHIELD_UNLOCK_SCORE: number;
   // Visual effects
   DOTS_SCALE: number;
   DOTS_STRENGTH: number;
@@ -61,7 +67,7 @@ export interface GameConfig {
   // Colors
   COLOR_BG: number;
   COLOR_BALL: number;
-  COLOR_GEM: number;
+  COLOR_COIN: number;
   COLOR_OUTLINE: number;
   COLOR_CYCLE_STEPS: number;
   COLOR_PALETTES: ColorPalette[];
@@ -110,14 +116,20 @@ export const GAME_CONFIG: GameConfig = {
   X_LERP: 0.16,
   HIT_THRESHOLD: 1.1,
 
-  GEM_CHANCE: 0.28,
-  GEM_RADIUS: 0.22,
-  GEM_COLLECT_THRESHOLD: 0.8,
+  COIN_CHANCE: 0.28,
+  COIN_RADIUS: 0.22,
+  COIN_COLLECT_THRESHOLD: 0.8,
 
   PERFECT_THRESHOLD: 0.5,
   PERFECT_DOT_RADIUS: 0.18,
 
   STREAK_FIRE: 10,
+
+  WORLD_NAV_REVEAL_SCORE: 250,
+
+  MISSIONS_UNLOCK_RUNS: 3,
+
+  SHIELD_UNLOCK_SCORE: 1000,
 
   DOTS_SCALE: 0.3,
   DOTS_STRENGTH: 0.25,
@@ -134,7 +146,7 @@ export const GAME_CONFIG: GameConfig = {
 
   COLOR_BG: 0x2a2a2a,
   COLOR_BALL: 0xd0d8f0,
-  COLOR_GEM: 0xf0c020,
+  COLOR_COIN: 0xf0c020,
   COLOR_OUTLINE: 0x111111,
   COLOR_CYCLE_STEPS: 12,
   COLOR_PALETTES: [

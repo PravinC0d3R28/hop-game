@@ -27,9 +27,9 @@ describe('GameConfig constants (verified verbatim from the original)', () => {
     expect(GAME_CONFIG.HIT_THRESHOLD).toBe(1.1);
   });
 
-  it('matches gem + perfect + effect configs', () => {
-    expect(GAME_CONFIG.GEM_CHANCE).toBe(0.28);
-    expect(GAME_CONFIG.GEM_COLLECT_THRESHOLD).toBe(0.8);
+  it('matches coin + perfect + effect configs', () => {
+    expect(GAME_CONFIG.COIN_CHANCE).toBe(0.28);
+    expect(GAME_CONFIG.COIN_COLLECT_THRESHOLD).toBe(0.8);
     expect(GAME_CONFIG.PERFECT_THRESHOLD).toBe(0.5);
     expect(GAME_CONFIG.SPEED_LINES_START_SCORE).toBe(15);
     expect(GAME_CONFIG.SPEED_LINES_MAX_COUNT).toBe(30);
@@ -37,7 +37,7 @@ describe('GameConfig constants (verified verbatim from the original)', () => {
 
   it('has verified colors', () => {
     expect(GAME_CONFIG.COLOR_BALL).toBe(0xd0d8f0);
-    expect(GAME_CONFIG.COLOR_GEM).toBe(0xf0c020);
+    expect(GAME_CONFIG.COLOR_COIN).toBe(0xf0c020);
     expect(GAME_CONFIG.COLOR_OUTLINE).toBe(0x111111);
     expect(GAME_CONFIG.COLOR_BG).toBe(0x2a2a2a);
   });

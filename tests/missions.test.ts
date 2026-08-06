@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { GameStateManager } from '../src/core/GameStateManager';
+import { DEFAULT_PLAYER_DATA, GameStateManager } from '../src/core/GameStateManager';
+import { GAME_CONFIG } from '../src/config/GameConfig';
 import {
   GENERAL_POOL,
   MISSIONS,
@@ -14,6 +15,12 @@ import {
 /** Fixed date key so the daily draw is deterministic in tests. */
 const KEY = '2026-08-03';
 
+/** Play the required number of runs so the missions feature unlocks. */
+function unlockMissions(gm: GameStateManager): void {
+  for (let i = 0; i < GAME_CONFIG.MISSIONS_UNLOCK_RUNS; i++) gm.trackRunPlayed();
+}
+
+
 /** Advance a run so the given mission's target is met (any metric). */
 function meetDailyMission(
   gm: GameStateManager,
@@ -26,8 +33,8 @@ function meetDailyMission(
       gm.trackPerfectLanding();
     }
   }
-  if (mission.metric === 'gems') {
-    for (let i = 0; i < mission.target; i++) gm.trackGemCollected();
+  if (mission.metric === 'coins') {
+    for (let i = 0; i < mission.target; i++) gm.trackCoinCollected();
   }
 }
 
@@ -44,8 +51,8 @@ function addRunProgress(
       gm.trackPerfectLanding();
     }
   }
-  if (mission.metric === 'gems') {
-    for (let i = 0; i < amount; i++) gm.trackGemCollected();
+  if (mission.metric === 'coins') {
+    for (let i = 0; i < amount; i++) gm.trackCoinCollected();
   }
 }
 
@@ -142,7 +149,7 @@ describe('active missions by selected world', () => {
     const ids = active.map((m) => m.id);
     expect(ids).toContain('w1_perfects');
     expect(ids).not.toContain('w2_score');
-    expect(ids).not.toContain('w3_gems');
+    expect(ids).not.toContain('w3_coins');
     for (const m of getDailyMissions(KEY)) expect(ids).toContain(m.id);
     expect(ids).toContain('l_full_unlock');
   });
@@ -153,7 +160,7 @@ describe('active missions by selected world', () => {
     expect(ids).not.toContain('w1_perfects');
     expect(ids).toContain('w2_perfects');
     expect(ids).toContain('w2_score');
-    expect(ids).not.toContain('w3_gems');
+    expect(ids).not.toContain('w3_coins');
   });
 
   it('void selection activates void missions only', () => {
@@ -161,7 +168,7 @@ describe('active missions by selected world', () => {
     const ids = active.map((m) => m.id);
     expect(ids).not.toContain('w1_perfects');
     expect(ids).not.toContain('w2_perfects');
-    expect(ids).toContain('w3_gems');
+    expect(ids).toContain('w3_coins');
   });
 
   it('general and lifetime missions are always active in any world', () => {
@@ -192,6 +199,7 @@ describe('mission evaluation (run-scoped, daily set)', () => {
     expect(target.tier).toBe('easy');
 
     const gm = new GameStateManager();
+    unlockMissions(gm);
     gm.startGame();
     gm.addScore(target.target - 1);
     expect(gm.evaluateMissions(KEY)).toEqual([]);
@@ -206,23 +214,53 @@ describe('mission evaluation (run-scoped, daily set)', () => {
     expect(gm.evaluateMissions(KEY)).toEqual([]);
   });
 
-  it('pending coins bank to the wallet once', () => {
+  it('completed missions become claimable and award coins exactly once on claim', () => {
     const target = getDailyMissions(KEY)[0];
 
     const gm = new GameStateManager();
+    unlockMissions(gm);
     gm.startGame();
     meetDailyMission(gm, target);
     const done = gm.evaluateMissions(KEY);
     expect(done.map((d) => d.id)).toContain(target.id);
-    const expected = done.reduce((sum, d) => sum + d.reward, 0);
-    expect(gm.getPendingMissionCoins()).toBe(expected);
-    expect(gm.bankPendingMissionCoins()).toBe(expected);
-    expect(gm.getPendingMissionCoins()).toBe(0);
-    expect(gm.getPlayerData().totalCoins).toBe(expected);
+
+    // Completed but NOT banked automatically.
+    expect(gm.getPlayerData().totalCoins).toBe(0);
+    expect(gm.getClaimableMissionIds()).toContain(target.id);
+    expect(gm.isMissionClaimed(target.id)).toBe(false);
+    const before = gm.getClaimableMissionCount();
+    expect(before).toBeGreaterThan(0);
+
+    const reward = gm.claimMissionReward(target.id);
+    expect(reward).toMatchObject({ id: target.id, reward: target.reward });
+    expect(gm.getPlayerData().totalCoins).toBe(target.reward);
+    expect(gm.getPlayerData().totalCoinsEarned).toBe(target.reward);
+    expect(gm.isMissionClaimed(target.id)).toBe(true);
+    expect(gm.getClaimableMissionIds()).not.toContain(target.id);
+    expect(gm.getClaimableMissionCount()).toBe(before - 1);
+
+    // Idempotent: claiming twice never double-pays.
+    expect(gm.claimMissionReward(target.id)).toBeNull();
+    expect(gm.getPlayerData().totalCoins).toBe(target.reward);
+  });
+
+  it('claiming a mission is idempotent and unknown/incomplete ids are refused', () => {
+    const gm = new GameStateManager();
+    unlockMissions(gm);
+    gm.startGame();
+    expect(gm.claimMissionReward('nope')).toBeNull();
+
+    const target = getDailyMissions(KEY)[0];
+    meetDailyMission(gm, target);
+    gm.evaluateMissions(KEY);
+    gm.claimMissionReward(target.id);
+    expect(gm.claimMissionReward(target.id)).toBeNull();
+    expect(gm.getPlayerData().totalCoins).toBe(target.reward);
   });
 
   it('locked world missions never bank progress', () => {
     const gm = new GameStateManager();
+    unlockMissions(gm);
     gm.startGame();
     for (let i = 0; i < 10; i++) {
       gm.addScore(5);
@@ -237,26 +275,18 @@ describe('mission evaluation (run-scoped, daily set)', () => {
     const ids = done.map((d) => d.id);
     expect(ids).toContain('w1_perfects');
     expect(ids).not.toContain('w2_perfects');
-    expect(ids).not.toContain('w3_gems');
+    expect(ids).not.toContain('w3_coins');
     expect(gm.getPlayerData().missionProgress['w2_perfects']).toBeUndefined();
-    expect(gm.getPlayerData().missionProgress['w3_gems']).toBeUndefined();
+    expect(gm.getPlayerData().missionProgress['w3_coins']).toBeUndefined();
   });
 
   it('world missions bank only for the selected world once it is unlocked', () => {
     const gm = new GameStateManager();
     gm.loadPlayerData({
-      totalCoins: 0,
+      ...DEFAULT_PLAYER_DATA,
+      runsPlayed: GAME_CONFIG.MISSIONS_UNLOCK_RUNS,
       bestScore: 150,
-      purchasedSkins: ['default'],
-      selectedSkin: 'default',
-      theme: 'light',
       totalScore: 1000,
-      bestPerWorld: [0, 0, 0],
-      totalGems: 0,
-      totalPerfects: 0,
-      bestStreak: 0,
-      completedMissions: [],
-      missionProgress: {},
       selectedWorld: 'dusk'
     });
     gm.startGame();
@@ -272,13 +302,14 @@ describe('mission evaluation (run-scoped, daily set)', () => {
     const ids = done.map((d) => d.id);
     expect(ids).not.toContain('w1_perfects');
     expect(ids).toContain('w2_perfects');
-    expect(ids).not.toContain('w3_gems');
+    expect(ids).not.toContain('w3_coins');
   });
 
   it('streak missions complete from the run max streak', () => {
     const target = getDailyMissions(KEY)[0];
 
     const gm = new GameStateManager();
+    unlockMissions(gm);
     gm.addScore(10);
     meetDailyMission(gm, target);
     const done = gm.evaluateMissions(KEY);
@@ -301,24 +332,46 @@ describe('mission evaluation (run-scoped, daily set)', () => {
     const done = gm.evaluateMissions(KEY);
     expect(done.map((d) => d.id)).not.toContain(outsider.id);
   });
+
+  it('is fully locked until MISSIONS_UNLOCK_RUNS runs have been played', () => {
+    const target = getDailyMissions(KEY)[0];
+    const gm = new GameStateManager();
+    gm.startGame();
+    meetDailyMission(gm, target);
+    expect(gm.getPlayerData().runsPlayed).toBe(0);
+    expect(gm.evaluateMissions(KEY)).toEqual([]);
+    expect(gm.getPlayerData().completedMissions).not.toContain(target.id);
+    expect(gm.getClaimableMissionIds()).toEqual([]);
+    expect(gm.claimMissionReward(target.id)).toBeNull();
+    expect(gm.getPlayerData().totalCoins).toBe(0);
+
+    for (let i = 0; i < GAME_CONFIG.MISSIONS_UNLOCK_RUNS - 1; i++) gm.trackRunPlayed();
+    gm.startGame();
+    meetDailyMission(gm, target);
+    expect(gm.isMissionsUnlocked()).toBe(false);
+    expect(gm.evaluateMissions(KEY)).toEqual([]);
+
+    unlockMissions(gm);
+    gm.startGame();
+    meetDailyMission(gm, target);
+    expect(gm.isMissionsUnlocked()).toBe(true);
+    expect(gm.evaluateMissions(KEY).map((d) => d.id)).toContain(target.id);
+    expect(gm.getClaimableMissionIds()).toContain(target.id);
+    expect(gm.claimMissionReward(target.id)?.id).toBe(target.id);
+    expect(gm.getPlayerData().totalCoins).toBe(target.reward);
+  });
 });
 
 describe('lifetime missions (persistent counters)', () => {
   it('a veteran save completes retroactive lifetime missions', () => {
     const gm = new GameStateManager();
     gm.loadPlayerData({
-      totalCoins: 0,
-      bestScore: 0,
-      purchasedSkins: ['default'],
-      selectedSkin: 'default',
-      theme: 'light',
+      ...DEFAULT_PLAYER_DATA,
+      runsPlayed: GAME_CONFIG.MISSIONS_UNLOCK_RUNS,
       totalScore: 5200,
-      bestPerWorld: [0, 0, 0],
-      totalGems: 120,
+      totalCoinsCollected: 120,
       totalPerfects: 500,
       bestStreak: 20,
-      completedMissions: [],
-      missionProgress: {},
       selectedWorld: 'sunrise'
     });
     gm.startGame();
@@ -334,10 +387,11 @@ describe('lifetime missions (persistent counters)', () => {
     expect(gm.getPlayerData().completedMissions).toHaveLength(6);
   });
 
-  it('tracks gem counters for lifetime missions', () => {
+  it('tracks coin counters for lifetime missions', () => {
     const gm = new GameStateManager();
-    for (let i = 0; i < 100; i++) gm.trackGemCollected();
-    expect(gm.getState().runGems).toBe(100);
+    unlockMissions(gm);
+    for (let i = 0; i < 100; i++) gm.trackCoinCollected();
+    expect(gm.getState().runCoins).toBe(100);
     gm.startGame();
     const done = gm.evaluateMissions(KEY);
     expect(done).toContainEqual({ id: 'l_collector', title: 'Collector', reward: 30, kind: 'lifetime' });
@@ -347,6 +401,7 @@ describe('lifetime missions (persistent counters)', () => {
     const target = getDailyMissions(KEY)[0];
 
     const gm = new GameStateManager();
+    unlockMissions(gm);
     gm.startGame();
     meetDailyMission(gm, target);
     gm.evaluateMissions(KEY);
@@ -364,18 +419,9 @@ describe('lifetime missions (persistent counters)', () => {
   it('lifetime missions stay one-time across saves', () => {
     const gm = new GameStateManager();
     gm.loadPlayerData({
-      totalCoins: 0,
-      bestScore: 0,
-      purchasedSkins: ['default'],
-      selectedSkin: 'default',
-      theme: 'light',
+      ...DEFAULT_PLAYER_DATA,
+      runsPlayed: GAME_CONFIG.MISSIONS_UNLOCK_RUNS,
       totalScore: 5200,
-      bestPerWorld: [0, 0, 0],
-      totalGems: 0,
-      totalPerfects: 0,
-      bestStreak: 0,
-      completedMissions: [],
-      missionProgress: {},
       selectedWorld: 'sunrise'
     });
     gm.startGame();
@@ -395,6 +441,7 @@ describe('lifetime missions (persistent counters)', () => {
     const target = getDailyMissions(KEY)[0];
 
     const gm = new GameStateManager();
+    unlockMissions(gm);
     gm.startGame();
     meetDailyMission(gm, target);
     gm.evaluateMissions(KEY);
@@ -414,6 +461,7 @@ describe('session-based missions (progress persists across runs)', () => {
     const half = Math.floor(mission.target / 2);
 
     const gm = new GameStateManager();
+    unlockMissions(gm);
     gm.startGame();
     addRunProgress(gm, mission, half);
     expect(gm.evaluateMissions(KEY)).toEqual([]);
@@ -432,6 +480,7 @@ describe('session-based missions (progress persists across runs)', () => {
 
   it('repeated mid-run evaluation banks each run value only once', () => {
     const gm = new GameStateManager();
+    unlockMissions(gm);
     gm.startGame();
     gm.addScore(20);
     gm.evaluateMissions(KEY);
@@ -448,6 +497,7 @@ describe('session-based missions (progress persists across runs)', () => {
 
   it('world mission progress accumulates across runs', () => {
     const gm = new GameStateManager();
+    unlockMissions(gm);
     gm.startGame();
     for (let i = 0; i < 6; i++) {
       gm.getMutableState().perfectStreak++;
@@ -472,18 +522,10 @@ describe('session-based missions (progress persists across runs)', () => {
   it('streak missions keep the best run value (max, not a sum)', () => {
     const gm = new GameStateManager();
     gm.loadPlayerData({
-      totalCoins: 0,
+      ...DEFAULT_PLAYER_DATA,
+      runsPlayed: GAME_CONFIG.MISSIONS_UNLOCK_RUNS,
       bestScore: 300,
-      purchasedSkins: ['default'],
-      selectedSkin: 'default',
-      theme: 'light',
       totalScore: 5000,
-      bestPerWorld: [0, 0, 0],
-      totalGems: 0,
-      totalPerfects: 0,
-      bestStreak: 0,
-      completedMissions: [],
-      missionProgress: {},
       selectedWorld: 'void'
     });
     gm.startGame();
@@ -519,6 +561,7 @@ describe('session-based missions (progress persists across runs)', () => {
 
   it('resets the run delta guard between runs', () => {
     const gm = new GameStateManager();
+    unlockMissions(gm);
     gm.startGame();
     gm.addScore(20);
     gm.evaluateMissions(KEY);
@@ -529,3 +572,4 @@ describe('session-based missions (progress persists across runs)', () => {
     expect(gm.getPlayerData().missionProgress['w1_score']).toBe(40);
   });
 });
+

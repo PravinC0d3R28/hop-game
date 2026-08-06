@@ -1,7 +1,7 @@
 # Art Reference Prompts (Worlds 2 & 3)
 
 These prompts are tuned to match the style of your World 1 reference
-(`C:\Users\Poonam\Downloads\Gemini_Generated_Image_c8zsq3c8zsq3c8zs.png` —
+(`C:\Users\Poonam\Downloads\coinini_Generated_Image_c8zsq3c8zsq3c8zs.png` —
 cloud kingdom: layered paper-craft depth, soft gradient sky, white/gold shapes,
 no black outlines). They are **feel-references** — the game stays 100%
 procedural; we copy mood and palette, never pixels.
@@ -41,8 +41,10 @@ blue) · neon accents `#38f0e8` (cyan) · `#ff4dd8` (magenta) · star dots
 
 ## Optional extras (same visual family)
 
-- **Gem reference:** glowing gemstone in cream-gold (W1), amber-peach (W2),
+- **Coin reference:** glowing coinstone in cream-gold (W1), amber-peach (W2),
   neon cyan-magenta (W3) — same paper-craft feel, no outlines.
 - **Coin/logo refresh:** the in-game coin as a glowing golden disc with soft
   inner light (keep existing shape, match the new palette family).
 - **Streak-fire element:** soft cartoon flames in warm white-gold for streak 10.
+
+

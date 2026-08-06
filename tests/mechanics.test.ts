@@ -71,7 +71,7 @@ describe('scoring (verified original logic)', () => {
     expect(gm.getState().perfectStreak).toBe(0);
   });
 
-  it('collecting a gem adds score and a coin', () => {
+  it('collecting a coin adds score and a coin', () => {
     const gm = new GameStateManager();
     const before = gm.getState().score;
     gm.addRoundCoin();
@@ -113,7 +113,7 @@ describe('reset / flow state', () => {
       shieldActive: false,
       shieldAwarded: false,
       runPerfects: 0,
-      runGems: 0,
+      runCoins: 0,
       maxStreak: 0
     });
   });

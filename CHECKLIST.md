@@ -17,13 +17,13 @@ standalone, fully-customizable TypeScript reimplementation named **HOP**.
 - [x] Located original game files (`BounceTiles/index.html`, `index-zMHsYNx1.js`)
 - [x] Decompiled minified bundle; isolated the ~24.5KB game code from Three.js+GSAP libs
 - [x] Extracted the exact `j` config object (all 40+ constants) verbatim
-- [x] Decoded all colors (ball, gem, palettes, skins, themes, decorations) to hex
+- [x] Decoded all colors (ball, coin, palettes, skins, themes, decorations) to hex
 - [x] Mapped every minified identifier (`fr`→SphereGeometry, `ve`→Mesh, etc.)
 - [x] Reverse-engineered: jump auto-chain, physics, platform recycling, scoring,
-      perfect/gem mechanics, camera, shader, background, particles, speed lines,
+      perfect/coin mechanics, camera, shader, background, particles, speed lines,
       audio, shop, persistence, themes, game-over flow, splash/start flow
 - [x] **Found + corrected 7 documentation errors** (see `docs/GAME_MECHANICS.md §14`):
-      `PLATFORM_X_RANGE_RAMP` (0.02 not 0.00002), ball/gem colors, palettes,
+      `PLATFORM_X_RANGE_RAMP` (0.02 not 0.00002), ball/coin colors, palettes,
       diamond indicator, no-sway, skin colors green/cyan
 - [x] Verified previous `deprecated/HOP` was inaccurate → **decision: rebuild fresh**
 
@@ -64,7 +64,7 @@ standalone, fully-customizable TypeScript reimplementation named **HOP**.
 
 ### 2c. Entities & managers
 - [x] `src/entities/BallEntity.ts` — ball group (mesh, outline, blob), jump tweens
-- [x] `src/entities/PlatformEntity.ts` — platform group (box, outline, diamond, ring, gems)
+- [x] `src/entities/PlatformEntity.ts` — platform group (box, outline, diamond, ring, coins)
 - [x] `src/managers/PlatformManager.ts` — 6-slot pool, recycling, difficulty
 - [x] `src/managers/PersistenceManager.ts` — localStorage save/load/sanitize
 
@@ -103,10 +103,10 @@ standalone, fully-customizable TypeScript reimplementation named **HOP**.
 - [x] Run original `BounceTiles/index.html` in browser (ytgame stub at `%LOCALAPPDATA%\Temp\opencode\original_run\`)
 - [x] Run new HOP via `vite preview` (port 4173) / original via python http (port 4174)
 - [x] Screenshot start screen (theme, layout) — compare → identical DOM (Logo, 👑 best, ☾, hint, shop)
-- [x] Screenshot gameplay (platforms, ball, gems) — compare → both auto-chain; original 23, HOP 56
+- [x] Screenshot gameplay (platforms, ball, coins) — compare → both auto-chain; original 23, HOP 56
 - [x] Screenshot shop overlay — compare → 9 items, same names/prices/footer, identical
 - [x] Screenshot game-over screen — compare → SCORE/NEW BEST/coins/total all match
-- [x] Functional test: drag-aim, jump chain, perfect flash, gem collect, fail, continue → all pass
+- [x] Functional test: drag-aim, jump chain, perfect flash, coin collect, fail, continue → all pass
 - [x] Screenshots saved to `docs/shots/` (00-original-*, 01-start, 02-gameplay, 03-gameover)
 
 ### 3c. Verified parity details
@@ -134,14 +134,14 @@ standalone, fully-customizable TypeScript reimplementation named **HOP**.
 ### Discrepancies found vs old docs (all corrected)
 1. `PLATFORM_X_RANGE_RAMP`: docs `0.00002` → actual `0.02`
 2. `COLOR_BALL`: docs `0xD119F0` → actual `0xD0D8F0` (same as "Classic" skin)
-3. `COLOR_GEM`: docs `0xF0E68C` → actual `0xF0C020`
+3. `COLOR_COIN`: docs `0xF0E68C` → actual `0xF0C020`
 4. Palettes: docs had warm set → actual 8 pastel `{base,light}` pairs
 5. Perfect indicator: docs "dot + ring" → actual **diamond** `ShapeGeometry` + ring
 6. Platform "sway": docs describe sway animation → actual `swayOffset` always 0
 7. Skin colors: green `0x45A848`→`0x44FF88`, cyan `0x44FFAF`→`0x44FFFF`
 
 ### Verified color tables (hex)
-- BG `0x2A2A2A` | Ball `0xD0D8F0` | Gem `0xF0C020` | Outline `0x111111`
+- BG `0x2A2A2A` | Ball `0xD0D8F0` | coin `0xF0C020` | Outline `0x111111`
 - Light theme: bg `0xE8DDD0`, shadow `0xB8A898`, icon ☾
 - Dark theme: bg `0x2A2A2A`, shadow `0x1A1A1A`, icon ☀
 - Decoration light: `0xB8C8D8, 0xC0D0E0, 0xB0C0D0, 0xC8D8E8`
@@ -149,7 +149,7 @@ standalone, fully-customizable TypeScript reimplementation named **HOP**.
 - Perfect/burst gold `0xFFD700`; confetti 7 colors listed in mechanics doc
 
 ### Class map (minified → Three.js)
-`hr`=BoxGeometry, `fr`=SphereGeometry, `Ac`=**CylinderGeometry** (gems = coins), `Ja`=RingGeometry,
+`hr`=BoxGeometry, `fr`=SphereGeometry, `Ac`=**CylinderGeometry** (coins = coins), `Ja`=RingGeometry,
 `Ks`=CircleGeometry, `Rc`=ShapeGeometry, `wf`=Shape, `Tn`=MeshBasicMaterial,
 `Pc`=MeshToonMaterial, `ve`=Mesh, `Mi`=Group, `E_`=AmbientLight, `y_`=DirectionalLight,
 `Tc`=Fog, `Im`=Scene, `Mn`=PerspectiveCamera, `MS`=WebGLRenderer, `Vt`=Color,
@@ -157,3 +157,5 @@ standalone, fully-customizable TypeScript reimplementation named **HOP**.
 
 ### Function map (minified → purpose)
 Listed in full in `docs/ARCHITECTURE.md §6`.
+
+

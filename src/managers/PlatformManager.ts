@@ -63,7 +63,7 @@ export class PlatformManager {
       const scale = this.state.getPlatformScale();
       const startY = i <= 2 ? 0 : -5;
       const platform = PlatformEntity.create(i, x, z, scale, startY, this.scene);
-      if (i > 2) PlatformEntity.addGem(platform, this.scene);
+      if (i > 2) PlatformEntity.addCoin(platform, this.scene);
       this.platforms.push(platform);
       if (i > 2) {
         PlatformEntity.riseAnimation(platform);
@@ -87,15 +87,15 @@ export class PlatformManager {
     }
   }
 
-  /** Gem idle animation: rotation + bob (original `Hy`). */
-  updateGems(delta: number, now: number): void {
+  /** Coin idle animation: rotation + bob (original `Hy`). */
+  updateCoins(delta: number, now: number): void {
     for (const platform of this.platforms) {
-      for (const gem of platform.gems) {
-        if (gem.collected) continue;
-        gem.group.rotation.y += delta * 2.5;
-        gem.group.position.y =
+      for (const coin of platform.coins) {
+        if (coin.collected) continue;
+        coin.group.rotation.y += delta * 2.5;
+        coin.group.position.y =
           GAME_CONFIG.PLATFORM_HEIGHT / 2 +
-          GAME_CONFIG.GEM_RADIUS +
+          GAME_CONFIG.COIN_RADIUS +
           0.15 +
           Math.sin(now * 0.004) * 0.08;
       }
@@ -132,19 +132,19 @@ export class PlatformManager {
     this.lastZ = this.lastIndex * GAME_CONFIG.PLATFORM_SPACING_Z;
     for (let i = 0; i < this.platforms.length; i++) {
       const platform = this.platforms[i];
-      PlatformEntity.clearGems(platform);
+      PlatformEntity.clearCoins(platform);
       platform.index = i;
       platform.z = i * GAME_CONFIG.PLATFORM_SPACING_Z;
       platform.platformX = this.randomPlatformX(i);
       platform.swayOffset = 0;
       PlatformEntity.resetPosition(platform, platform.platformX, platform.z);
-      (platform.mesh.material as MeshToonMaterial).color.setHex(PlatformEntity.platformColor(i));      if (i > 2) PlatformEntity.addGem(platform, this.scene);
+      (platform.mesh.material as MeshToonMaterial).color.setHex(PlatformEntity.platformColor(i));      if (i > 2) PlatformEntity.addCoin(platform, this.scene);
     }
   }
 
   dispose(): void {
     for (const platform of this.platforms) {
-      PlatformEntity.clearGems(platform);
+      PlatformEntity.clearCoins(platform);
       gsap.killTweensOf(platform.group.position);
       this.scene.remove(platform.group);
       platform.group.traverse((obj) => {

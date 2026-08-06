@@ -19,7 +19,7 @@ Companion docs (more detail on specific topics):
 A one-touch arcade game: the ball hops forward automatically along a track of
 platforms. You **drag horizontally to aim** (position the ball left/right);
 each jump is automatic. Land dead-center on a platform's diamond to get a
-**PERFECT** bonus; collect golden **gems** to earn coins; spend coins on
+**PERFECT** bonus; collect golden **coins** to earn coins; spend coins on
 **ball skins** in the shop.
 
 | Attribute | Value |
@@ -60,7 +60,7 @@ manual chunks for `three` + `gsap`, es2020 target.
 4. **Land on the platform** — score +1.
    - **Land on the diamond** (center, |offset| < 0.5) — **PERFECT**; score bonus
      equal to your streak (1, 2, 3, ...). The streak resets on a non-perfect landing.
-   - **Land on a gem** (|offset| < 0.8) — collect: +1 coin, +1 score.
+   - **land on a coin** (|offset| < 0.8) — collect: +1 coin, +1 score.
 5. **Miss** (|offset| > 1.1) — game over: shake, ball falls, score screen.
 6. **Continue** — back to start screen, new run.
 
@@ -95,14 +95,14 @@ HOP/
 │   │   ├── CameraController.ts    # Follow camera (dead-band + lerps) + game-over shake
 │   │   ├── ShadowSystem.ts        # Blob shadow under the ball (scales/fades with height)
 │   │   ├── InputSystem.ts         # Pointer drag→xTarget, tap-to-start/first-jump, UI guards
-│   │   ├── AudioSystem.ts         # Procedural WebAudio: jump/gem/perfect/gameover tones
+│   │   ├── AudioSystem.ts         # Procedural WebAudio: jump/coin/perfect/gameover tones
 │   │   ├── EffectsSystem.ts       # Jump dust, perfect ring/burst/flash, speed lines, confetti
 │   │   └── BackgroundSystem.ts    # 10 floating rock clusters (bob + recycle behind camera)
 │   ├── entities/
 │   │   ├── BallEntity.ts          # Ball mesh + outline + blob highlight; jump tweens
-│   │   └── PlatformEntity.ts      # Platform + diamond + ring + gem; palette colors; recycle
+│   │   └── PlatformEntity.ts      # Platform + diamond + ring + coin; palette colors; recycle
 │   ├── managers/
-│   │   ├── PlatformManager.ts     # Pool of 6 platforms, recycling, gem idle animation
+│   │   ├── PlatformManager.ts     # Pool of 6 platforms, recycling, coin idle animation
 │   │   └── PersistenceManager.ts  # localStorage load/save/sanitize/merge (SaveBackend iface)
 │   └── ui/
 │       └── UIManager.ts           # All DOM UI wiring: shop, game-over, score, theme, coins
@@ -144,8 +144,8 @@ Key flow methods live in `src/Game.ts`:
 | `gameOver()` (Game.ts:198) | `By` | Fail sequence: shake, fall, best-score, overlay |
 | `reset()` (Game.ts:158) | `Vy` | Full reset: state, ball, platforms, camera, effects |
 | `perfectHit()` (Game.ts:283) | `Py` | Perfect visuals + score elastic |
-| `collectGem()` (Game.ts:306) | `Dy` | Coin + score, gem shrink animation |
-| `gameLoop()` (Game.ts:329) | `ip` | Per-frame: aim lerp, shadow, camera, effects, gems, background |
+| `collectCoin()` (Game.ts:306) | `Dy` | Coin + score, coin shrink animation |
+| `gameLoop()` (Game.ts:329) | `ip` | Per-frame: aim lerp, shadow, camera, effects, coins, background |
 
 The main loop is driven by `RendererSystem.start()` (requestAnimationFrame,
 delta capped at 50ms) which calls back into `Game.gameLoop()`.
@@ -213,12 +213,12 @@ against the original game and are asserted by tests — change deliberately.
 | `HIT_THRESHOLD` | 1.1 | Land this far off-center → game over |
 | `PERFECT_THRESHOLD` | 0.5 | Land within this → PERFECT bonus |
 
-### Gems & scoring
+### Coins & scoring
 | Constant | Value | Effect |
 |----------|-------|--------|
-| `GEM_CHANCE` | 0.28 | Probability a platform spawns a gem |
-| `GEM_RADIUS` | 0.22 | Gem coin size |
-| `GEM_COLLECT_THRESHOLD` | 0.8 | Land within this → collect gem |
+| `COIN_CHANCE` | 0.28 | Probability a platform spawns a coin |
+| `COIN_RADIUS` | 0.22 | coin coin size |
+| `COIN_COLLECT_THRESHOLD` | 0.8 | Land within this → collect coin |
 | `PERFECT_DOT_RADIUS` | 0.18 | Diamond marker size |
 
 ### Halftone shader
@@ -248,7 +248,7 @@ against the original game and are asserted by tests — change deliberately.
 |----------|-------|--------|
 | `COLOR_BG` | `0x2a2a2a` | Default scene background (dark theme) |
 | `COLOR_BALL` | `0xd0d8f0` | Default ball color ("Classic") |
-| `COLOR_GEM` | `0xf0c020` | Gem color |
+| `COLOR_COIN` | `0xf0c020` | coin color |
 | `COLOR_OUTLINE` | `0x111111` | Outline color for all entities |
 | `COLOR_CYCLE_STEPS` | 12 | Platforms per palette before cycling |
 | `COLOR_PALETTES` | 8 entries | Pastel `{base, light}` pairs (see §11) |
@@ -292,14 +292,14 @@ Also in `GameStateManager` (pure, no three.js/DOM — that's why it's testable):
 |-------|--------------|-------|
 | Land on platform | +1 | — |
 | Land on diamond (perfect) | +streak bonus (streak starts at 1, +1 per consecutive perfect) | — |
-| Collect gem | +1 | +1 (`roundCoins` and `totalCoins`) |
+| collect coin | +1 | +1 (`roundCoins` and `totalCoins`) |
 | Miss (|offset| > 1.1) | game over | — |
 
 - A perfect hit at streak 1 gives +1; streak 2 gives +2, etc. Any non-perfect
   landing resets the streak to 0. (Note: base +1 always happens even on perfect,
   so a perfect is effectively +1 + streak.)
 - Score display bounces on change (`back.out(2)` in `Game.jump()`).
-- Gem collection persists `totalCoins` immediately to localStorage.
+- coin collection persists `totalCoins` immediately to localStorage.
 
 ---
 
@@ -316,7 +316,7 @@ Scene
 │   ├── Outline (BackSide sphere ×1.06, #111)
 │   └── "Blob" highlight (partial sphere, white 0.55 opacity)
 ├── Shadow (circle r=0.35, theme shadow color, flat)
-├── 6 Platforms (box + outline×1.02 + diamond + ring + optional gem)
+├── 6 Platforms (box + outline×1.02 + diamond + ring + optional coin)
 ├── 10 background rock clusters (2–4 spheres + outlines)
 ├── Particles (dust, perfect burst)
 └── Speed lines (thin boxes pointing −Z)
@@ -355,7 +355,7 @@ Per frame: `scale = clamp(1 − height×0.15, 0.3, 1)`,
 - 6 platforms (pool = `VISIBLE_STEPS`), z = `i × spacing`.
 - x = 0 for indices 0–1, else random in ±xRange.
 - Indices > 2 spawn at y=−5 and **rise** (`back.out(1.2)`, 0.5s) — the opening look.
-- Gems: 28% chance on indices > 2.
+- coins: 28% chance on indices > 2.
 
 ### Palette cycling (`PlatformEntity.platformColor`)
 - Random palette start offset per run (`randomizePaletteStart()`).
@@ -364,9 +364,9 @@ Per frame: `scale = clamp(1 − height×0.15, 0.3, 1)`,
 
 ### Recycling (`PlatformManager.recycle()`)
 Called on every landing. Any platform with `index < currentStep − 3` is reused:
-new index/z/x/scale, recolored, gem re-rolled, hidden at y=−5, rises back up.
+new index/z/x/scale, recolored, coin re-rolled, hidden at y=−5, rises back up.
 
-### Gem idle animation (`PlatformManager.updateGems()`)
+### coin idle animation (`PlatformManager.updateCoins()`)
 `rotation.y += dt×2.5`; y bobs `+sin(now×0.004)×0.08`.
 
 ---
@@ -418,7 +418,7 @@ Pointer events on canvas + start screen + UI overlay:
   `unlockAllSkins`) before writing.
 - Backend is behind the `SaveBackend` interface — swap in a cloud backend later
   without touching the rest.
-- Saved on: gem collect, game over, skin buy/equip, theme toggle.
+- Saved on: coin collect, game over, skin buy/equip, theme toggle.
 
 ---
 
@@ -430,7 +430,7 @@ suspended when tab hidden.
 | Event | Sound |
 |-------|-------|
 | jump | sine `440 + (score%8)×30` (0.12s) + same ×1.5 (0.08s) |
-| gem | 880 → 1100 → 1320 Hz ascending |
+| coin | 880 → 1100 → 1320 Hz ascending |
 | perfect | base `660 + min(streak,10)×60`, arpeggio ×1.25, ×1.5, ×2 (streak≥3) |
 | game over | sawtooth 200 Hz + square 150 Hz (detune −50) |
 
@@ -525,7 +525,7 @@ one, update the corresponding test too.
 | Replace art | `public/` png files (keep filenames or update refs) |
 | New game mode / rule change | `GameStateManager` formulas + `Game.jump()` landing logic |
 | New platform type (moving, breakable…) | `PlatformEntity.create()` / `PlatformManager.recycle()`, hook into `Game.jump()` |
-| Change scoring/economy | `GameStateManager` scoring + `Game.jump()`/`collectGem()` |
+| Change scoring/economy | `GameStateManager` scoring + `Game.jump()`/`collectCoin()` |
 | Cloud save later | Implement `SaveBackend` in `PersistenceManager.ts` |
 | Rebrand | `<title>` + logo/splash in `index.html` |
 
@@ -555,3 +555,5 @@ one, update the corresponding test too.
 - `dist/` is the built output of `npm run build`; don't edit it by hand.
 - The game has no ad / SDK integration (original used YouTube Playables) —
   Continue always resets locally.
+
+

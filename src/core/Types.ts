@@ -9,10 +9,32 @@ export interface PlayerData {
   theme: ThemeName;
   totalScore: number;
   bestPerWorld: number[];
-  totalGems: number;
+  totalCoinsCollected: number;
   totalPerfects: number;
   bestStreak: number;
+  /** Best perfect streak per world (index-aligned with WORLDS). */
+  bestStreakPerWorld: number[];
+  /** Lifetime number of runs played (incremented once per game over). */
+  runsPlayed: number;
+  /** Lifetime coins earned (mission rewards + coin pickups), independent of balance. */
+  totalCoinsEarned: number;
+  /** SFX volume 0–100. */
+  soundVolume: number;
+  /** Music volume 0–100 (music channel reserved for a future track). */
+  musicVolume: number;
+  /** Drag sensitivity 0–100 (50 = the original feel). */
+  sensitivity: number;
+  /** World ids the player has first clicked in the start-screen nav (labels stay "???" until then). */
+  revealedWorlds: WorldId[];
+  /** True once the one-time "Shield unlocked" card has been shown (fires on the
+   *  first arrival at world 2, gated by the shield's World-2 milestone). */
+  shieldCardSeen: boolean;
+  /** True once the player checked out the missions overlay after it unlocked
+   *  (the one-time callout that must be clicked before the next run starts). */
+  missionsUnlockSeen: boolean;
   completedMissions: string[];
+  /** Mission rewards already claimed (completed but unclaimed = claimable). */
+  claimedMissions: string[];
   /** Session-based mission progress (general/world), cumulative across runs. */
   missionProgress: Record<string, number>;
   /** The world the player is currently set to play (persisted selection). */
@@ -33,7 +55,7 @@ export interface GameState {
   shieldActive: boolean;
   shieldAwarded: boolean;
   runPerfects: number;
-  runGems: number;
+  runCoins: number;
   maxStreak: number;
 }
 

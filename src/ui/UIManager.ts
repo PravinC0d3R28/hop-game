@@ -39,12 +39,15 @@ export class UIManager {
   private shopBtn = this.el<HTMLButtonElement>('shop-btn');
   private worldTitle = this.el<HTMLElement>('world-title');
   private missionsBtn = this.el<HTMLButtonElement>('missions-btn');
+  private missionsMenuItem = this.el<HTMLElement>('missions-menu-item');
+  private missionsCallout = this.el<HTMLElement>('missions-callout');
   private missionsOverlay = this.el<HTMLElement>('missions-overlay');
   private missionsClose = this.el<HTMLElement>('missions-close');
   private missionsList = this.el<HTMLElement>('missions-list');
   private missionsScroll = this.el<HTMLElement>('missions-scroll');
   private missionsCountdown = this.el<HTMLElement>('missions-countdown');
   private missionsTabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.missions-tab'));
+  private missionsTabsBar = this.el<HTMLElement>('missions-tabs-bar');
   private worldNav = this.el<HTMLElement>('world-nav');
   private worldPrev = this.el<HTMLElement>('world-prev');
   private worldNext = this.el<HTMLElement>('world-next');
@@ -60,8 +63,6 @@ export class UIManager {
   private lockRemaining = this.el<HTMLElement>('lock-remaining');
   private menuBtns = this.el<HTMLElement>('menu-btns');
   private goWorld = this.el<HTMLElement>('go-world');
-  private goMissions = this.el<HTMLElement>('go-missions');
-  private goMissionsList = this.el<HTMLElement>('go-missions-list');
   private playBtn = this.el<HTMLElement>('play-btn');
   private bestScore = this.el<HTMLElement>('best-score');
   private bestScoreVal = this.el<HTMLElement>('best-score-value');
@@ -73,24 +74,66 @@ export class UIManager {
   private unlockCardMeta = this.el<HTMLElement>('unlock-card-meta');
   private unlockShowmeBtn = this.el<HTMLButtonElement>('unlock-showme-btn');
   private unlockClose = this.el<HTMLButtonElement>('unlock-close');
+  private shieldCardDialog = this.el<HTMLElement>('shield-card-dialog');
+  private shieldCardClose = this.el<HTMLButtonElement>('shield-card-close');
+  private shieldCardGotit = this.el<HTMLButtonElement>('shield-card-gotit');
   private streakGlow: HTMLElement | null = null;
   private missionQueue: boolean[] = [];
   private missionBusy = false;
   private activeMissionTab: MissionKind = 'general';
   private countdownTimer: number | null = null;
-  /** Done missions already celebrated with per-card confetti (one-time per session). */
-  private celebratedIds = new Set<string>();
-  private celebratedSeeded = false;
   private bestCalloutTimer: number | null = null;
   private lastUnlockedCount: number | null = null;
   private pendingUnlockWorld: WorldId | null = null;
+  /** Missions tabs whose bars already animated this overlay open (one-shot fill). */
+  private animatedMissionsTabs = new Set<MissionKind>();
+  /** Worlds that already showed the one-time "check this out!" callout. */
+  private unlockCalloutShown = new Set<WorldId>();
   private tapTimeline: gsap.core.Timeline | null = null;
   private canvasResizeObserver: ResizeObserver | null = null;
+  private settingsBtn = this.el<HTMLButtonElement>('settings-btn');
+  private statsBtn = this.el<HTMLButtonElement>('stats-btn');
+  private settingsOverlay = this.el<HTMLElement>('settings-overlay');
+  private settingsClose = this.el<HTMLElement>('settings-close');
+  private soundSlider = this.el<HTMLInputElement>('sound-slider');
+  private musicSlider = this.el<HTMLInputElement>('music-slider');
+  private sensitivitySlider = this.el<HTMLInputElement>('sensitivity-slider');
+  private sensitivityReset = this.el<HTMLButtonElement>('sensitivity-reset');
+  private soundValue = this.el<HTMLElement>('sound-value');
+  private musicValue = this.el<HTMLElement>('music-value');
+  private sensitivityValue = this.el<HTMLElement>('sensitivity-value');
+  private missionsNotify = this.el<HTMLElement>('missions-notify');
+  private shopNotify = this.el<HTMLElement>('shop-notify');
+  private coinCardAmount = this.el<HTMLElement>('coin-card-amount');
+  private statsOverlay = this.el<HTMLElement>('stats-overlay');
+  private statsClose = this.el<HTMLElement>('stats-close');
+  private statRuns = this.el<HTMLElement>('stat-runs');
+  private statTotalScore = this.el<HTMLElement>('stat-total-score');
+  private statCoins = this.el<HTMLElement>('stat-coins');
+  private statPerfects = this.el<HTMLElement>('stat-perfects');
+  private statStreak = this.el<HTMLElement>('stat-streak');
+  private statStreakWorld = this.el<HTMLElement>('stat-streak-world');
+  private statWorlds = this.el<HTMLElement>('stat-worlds');
 
+  /** Fired when the "sound" volume slider changes (0–100). Wired by Game to AudioSystem. */
+  onSoundVolumeChange: (volume: number) => void = () => {};
+  /** Fired when the "music" volume slider changes (0–100). Reserved for a future track. */
+  onMusicVolumeChange: (volume: number) => void = () => {};
+
+  /** Check circle for claimed rows. Drawn as a border-box circle (rect filled to
+   *  the edges + 2px ring) so it superimposes the collapsed claim capsule
+   *  exactly: same green fill, same ring, same footprint, no shadow. */
   private static CHECK_SVG =
     '<svg class="m-check-svg" viewBox="0 0 24 24" aria-hidden="true">' +
-    '<circle cx="12" cy="12" r="10.5" fill="#ffd700" stroke="#b8860b" stroke-width="1.4"/>' +
-    '<path d="M7 12.6l3.3 3.3 6.6-7.2" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<rect x="2" y="2" width="20" height="20" rx="10" fill="#28a858" stroke="#111" stroke-width="2"/>' +
+    '<path d="M7 12.6l3.3 3.3 6.6-7.2" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '</svg>';
+
+  /** Tick only — popped into the collapsed claim capsule (the capsule itself
+   *  is already the green circle, so no nested check-circle is needed). */
+  private static TICK_SVG =
+    '<svg class="m-tick-svg" viewBox="0 0 24 24" aria-hidden="true">' +
+    '<path d="M7 12.6l3.3 3.3 6.6-7.2" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>' +
     '</svg>';
 
   constructor(
@@ -112,6 +155,9 @@ export class UIManager {
     this.positionPlayButton();
     this.startTapAnimation();
     this.refreshBestScore();
+    // Default to the reveal-gated nav before the async save load resolves
+    // (a fresh player has 0 total score, so the arrows start hidden).
+    this.renderWorldNav();
     // Re-pin the overlay whenever the canvas resizes (window/orientation/layout
     // changes) so it stays centered on the ball on any device.
     this.canvasResizeObserver = new ResizeObserver(() => this.positionPlayButton());
@@ -150,6 +196,38 @@ export class UIManager {
     );
     this.missionsOverlay.addEventListener('click', (e) => {
       if (e.target === this.missionsOverlay) this.closeMissions();
+    });
+    this.missionsList.addEventListener('click', (e) => {
+      const claim = (e.target as HTMLElement).closest<HTMLElement>('[data-claim]');
+      if (!claim) return;
+      e.stopPropagation();
+      this.claimMission(claim.dataset.claim!, claim);
+    });
+    this.settingsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.openSettings();
+    });
+    this.settingsClose.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.closeSettings();
+    });
+    this.settingsOverlay.addEventListener('click', (e) => {
+      if (e.target === this.settingsOverlay) this.closeSettings();
+    });
+    this.soundSlider.addEventListener('input', () => this.applySoundVolume());
+    this.musicSlider.addEventListener('input', () => this.applyMusicVolume());
+    this.sensitivitySlider.addEventListener('input', () => this.applySensitivity());
+    this.sensitivityReset.addEventListener('click', () => this.resetSensitivity());
+    this.statsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.openStats();
+    });
+    this.statsClose.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.closeStats();
+    });
+    this.statsOverlay.addEventListener('click', (e) => {
+      if (e.target === this.statsOverlay) this.closeStats();
     });
     this.shopClose.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -198,11 +276,24 @@ export class UIManager {
         this.pendingUnlockWorld = null;
       }
     });
+    this.shieldCardClose.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.closeShieldCard();
+    });
+    this.shieldCardGotit.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.closeShieldCard();
+    });
+    this.shieldCardDialog.addEventListener('click', (e) => {
+      if (e.target === this.shieldCardDialog) this.closeShieldCard();
+    });
     window.addEventListener('resize', () => this.onResize());
   }
 
   onContinue: () => void = () => {};
   onSkinApplied: () => void = () => {};
+  /** Fired when a mission reward is claimed (Game plays the coin jingle). */
+  onMissionClaim: () => void = () => {};
   /** Fired after a successful world selection (Game re-seeds platform ramps). */
   onWorldSelect: (id: WorldId) => void = () => {};
 
@@ -221,11 +312,14 @@ export class UIManager {
 
   /** Mirror `ts()` — persist happens via Game callback. */
 
-  /** Mirror `as()`: coin counter + shop footer. */
+  /** Mirror `as()`: coin counter + shop footer + start-screen coin card + bubbles. */
   refreshCoins(): void {
     const total = this.state.getPlayerData().totalCoins;
     this.coinAmount.textContent = String(total);
     this.shopCoinDisplay.textContent = String(total);
+    this.coinCardAmount.textContent = String(total);
+    this.refreshShopNotify();
+    this.refreshMissionNotify();
   }
 
   /** Render the compact progression block on the start screen (Iteration 7). */
@@ -235,6 +329,25 @@ export class UIManager {
     this.renderWorldNav();
     this.refreshBestScore();
     this.checkWorldUnlocks();
+    // Missions tease: earnable after MISSIONS_UNLOCK_RUNS runs, until then the
+    // label reads "???" and the item stays dimmed (still clickable — opening
+    // it reveals a locked card so new players aren't overwhelmed).
+    const missionsUnlocked = this.state.isMissionsUnlocked();
+    this.missionsMenuItem.classList.toggle('missions-gated', !missionsUnlocked);
+    const missionsLabel = this.missionsMenuItem.querySelector<HTMLElement>('.menu-label');
+    if (missionsLabel) missionsLabel.textContent = missionsUnlocked ? 'missions' : '???';
+    this.refreshMissionsCallout();
+    this.maybeShowShieldCard();
+  }
+
+  /** One-time "missions unlocked!" callout left of the missions button. Shown
+   *  while missions are unlocked but haven't been checked out yet; the play
+   *  button is dimmed and the next run stays blocked until the missions
+   *  overlay is opened once. */
+  private refreshMissionsCallout(): void {
+    const pending = this.state.hasPendingMissionsUnlock();
+    this.missionsCallout.hidden = !pending;
+    this.startScreen.classList.toggle('missions-callout-pending', pending);
   }
 
   /** Navigate to an adjacent world via the start-screen arrows. */
@@ -246,6 +359,12 @@ export class UIManager {
 
   /** Select a world (arrow or chip click); a locked world loads as a non-playable preview. */
   private selectWorld(id: WorldId): void {
+    // First click on a world reveals its nav label ("???" → "World N").
+    const world = getWorldById(id);
+    if (world) {
+      const data = this.state.getMutablePlayerData();
+      if (!data.revealedWorlds.includes(id)) data.revealedWorlds.push(id);
+    }
     if (this.state.selectWorld(id)) {
       this.state.clearPreview();
       this.onWorldSelect(id);
@@ -253,7 +372,6 @@ export class UIManager {
       this.renderStartScreen();
       return;
     }
-    const world = getWorldById(id);
     if (world && !this.state.canSelectWorld(world)) {
       this.state.previewWorld(id);
       this.onWorldSelect(id);
@@ -276,15 +394,24 @@ export class UIManager {
     this.worldTitle.style.color = locked ? '#8a8a96' : this.WORLD_TITLE_COLORS[world.id];
   }
 
-  /** Edge nav: back arrow (left) · next arrow/lock (right), both centered on their edge. */
+  /** Edge nav: back arrow (left) · next arrow/lock (right), both centered on their edge.
+   *  The arrows stay hidden until the player's total score reaches
+   *  `WORLD_NAV_REVEAL_SCORE` — the curiosity tease is earned, not given. */
   private renderWorldNav(): void {
+    if (this.state.getTotalScore() < GAME_CONFIG.WORLD_NAV_REVEAL_SCORE) {
+      this.worldPrev.classList.add('hidden');
+      this.worldNext.classList.add('hidden');
+      this.worldFar.classList.add('hidden');
+      this.stopBubble();
+      return;
+    }
     const world = this.state.getActiveWorld();
     const prev = getPreviousWorld(world);
     const next = getNextWorld(world);
 
     this.worldPrev.classList.toggle('hidden', !prev);
     if (prev) {
-      this.setNavLabel(this.worldPrev, `World ${WORLDS.indexOf(prev) + 1}`);
+      this.setNavLabel(this.worldPrev, this.navLabelFor(prev));
       this.worldPrev.title = `Back to ${prev.name}`;
       // Back arrow dims while the CURRENT world is still locked (preview) and
       // turns green again once it's unlocked — mirrors the next-arrow behavior.
@@ -298,16 +425,17 @@ export class UIManager {
       // is the reveal. Dimmed arrow hints the world isn't ready yet.
       this.worldNext.classList.toggle('locked', !unlocked);
       this.worldNext.innerHTML = '<span class="nav-chevron">&#9654;</span>';
-      this.setNavLabel(this.worldNext, `World ${WORLDS.indexOf(next) + 1}`);
+      this.setNavLabel(this.worldNext, this.navLabelFor(next));
       this.worldNext.title = unlocked
         ? `Go to ${next.name}`
         : `${next.name} unlocks at ${next.unlockScore.toLocaleString()} total score`;
       // Bubble only when an UNLOCKED world faces its locked +1 (not during
-      // locked previews, not for +2 "coming soon" worlds).
+      // locked previews, not for +2 "coming soon" worlds). The locked world's
+      // id picks its themed taunt pool.
       if (unlocked || !this.state.canSelectWorld(world)) {
         this.stopBubble();
       } else {
-        this.scheduleBubble();
+        this.scheduleBubble(next.id);
       }
       this.worldFar.classList.add('hidden');
     } else {
@@ -320,6 +448,11 @@ export class UIManager {
     }
   }
 
+  /** World-nav label: "???" while the world is locked, "World N" once unlocked. */
+  private navLabelFor(world: WorldConfig): string {
+    return this.state.canSelectWorld(world) ? `World ${WORLDS.indexOf(world) + 1}` : '???';
+  }
+
   private setNavLabel(arrow: HTMLElement, text: string): void {
     let label = arrow.querySelector<HTMLElement>('.nav-label');
     if (!label) {
@@ -330,17 +463,31 @@ export class UIManager {
     label.textContent = text;
   }
 
-  /** Thought bubble teases the locked next world (curiosity, not rage-bait). */
-  private static readonly BUBBLE_TAUNTS = [
+  /** Thought bubble teases the locked next world (curiosity, not rage-bait).
+   *  Each locked world has its own themed taunts; the general set is shared so
+   *  some messages overlap between worlds. The pool is picked from the LOCKED
+   *  NEXT world (e.g. teasing dusk while on sunrise → dusk-themed + general). */
+  private static readonly BUBBLE_GENERAL = [
     'what lies beyond?',
     'don\u2019t you wonder what\u2019s out there?',
-    'the dark is calling\u2026',
     'another world is waiting\u2026',
     'see what the fog hides\u2026',
-    'somewhere the sun is setting\u2026',
-    'curious yet?',
-    'the neon hums your name\u2026'
+    'curious yet?'
   ];
+  private static readonly BUBBLE_THEMED: Record<string, string[]> = {
+    dusk: [
+      'somewhere the sun is setting\u2026',
+      'a golden hour is waiting\u2026',
+      'the horizon glows amber\u2026',
+      'chase the dusk before it fades\u2026'
+    ],
+    void: [
+      'the dark is calling\u2026',
+      'the neon hums your name\u2026',
+      'step into the void\u2026',
+      'the lights never sleep out there\u2026'
+    ]
+  };
   private bubbleTimer: number | null = null;
 
   private stopBubble(): void {
@@ -354,30 +501,61 @@ export class UIManager {
     }
   }
 
-  private scheduleBubble(): void {
+  private scheduleBubble(worldId?: string): void {
     this.stopBubble();
     this.bubbleTimer = window.setTimeout(() => {
       this.bubbleTimer = null;
-      this.showBubble();
-    }, 7000 + Math.random() * 6000);
+      this.showBubble(undefined, 5000, true, worldId);
+    }, 9000 + Math.random() * 6000);
   }
 
-  private showBubble(): void {
-    const taunt = UIManager.BUBBLE_TAUNTS[Math.floor(Math.random() * UIManager.BUBBLE_TAUNTS.length)];
-    this.worldBubble.textContent = taunt;
+  private showBubble(
+    text?: string,
+    duration = 5000,
+    reschedule = true,
+    worldId?: string
+  ): void {
+    // Drop any pending hide/schedule timer so a stale timeout can't fire early
+    // and cut this bubble's display short (overlapping cycles would show
+    // bubbles back-to-back instead of one at a time).
+    if (this.bubbleTimer !== null) {
+      window.clearTimeout(this.bubbleTimer);
+      this.bubbleTimer = null;
+    }
+    const themed = worldId ? UIManager.BUBBLE_THEMED[worldId] : undefined;
+    const pool = themed
+      ? [...UIManager.BUBBLE_GENERAL, ...themed]
+      : [...UIManager.BUBBLE_GENERAL, ...Object.values(UIManager.BUBBLE_THEMED).flat()];
+    const content =
+      text ?? pool[Math.floor(Math.random() * pool.length)];
+    this.worldBubble.textContent = content;
     gsap.killTweensOf(this.worldBubble);
-    gsap.set(this.worldBubble, { opacity: 0, scale: 0.5 });
+    // yPercent (not a CSS translateY) keeps the bubble centered on the arrow no
+    // matter how many lines the taunt wraps to — GSAP holds percentages as-is.
+    gsap.set(this.worldBubble, { opacity: 0, scale: 0.5, yPercent: -50 });
     this.worldBubble.style.display = 'block';
     gsap.to(this.worldBubble, { opacity: 1, scale: 1, duration: 0.35, ease: 'back.out(2.5)' });
     this.bubbleTimer = window.setTimeout(() => {
       this.bubbleTimer = null;
-      this.hideBubble();
-      this.scheduleBubble();
-    }, 3000);
+      // Reschedule only after the out animation finishes (via onDone), so the
+      // fade-out is never killed mid-flight by the next schedule.
+      this.hideBubble(() => {
+        if (reschedule) this.scheduleBubble();
+      });
+    }, duration);
   }
 
-  private hideBubble(): void {
-    if (this.worldBubble.style.display === 'none') return;
+  /** One-shot "check this out!" bubble next to the freshly unlocked world arrow. */
+  private showUnlockCallout(): void {
+    this.stopBubble();
+    this.showBubble('check this out!', 5000, false);
+  }
+
+  private hideBubble(onDone?: () => void): void {
+    if (this.worldBubble.style.display === 'none') {
+      onDone?.();
+      return;
+    }
     gsap.killTweensOf(this.worldBubble);
     gsap.to(this.worldBubble, {
       opacity: 0,
@@ -385,8 +563,14 @@ export class UIManager {
       duration: 0.25,
       onComplete: () => {
         this.worldBubble.style.display = 'none';
+        onDone?.();
       }
     });
+  }
+
+  /** Debug hook: force the "what lies beyond?" bubble to appear right now. */
+  triggerWorldCallout(): void {
+    this.showBubble();
   }
 
   // ---- play button: hand taps the ball, arrows burst on each tap ----
@@ -490,9 +674,22 @@ export class UIManager {
     const count = WORLDS.filter((w) => this.state.canSelectWorld(w)).length;
     if (this.lastUnlockedCount !== null && count > this.lastUnlockedCount) {
       const unlockedWorld = WORLDS[count - 1];
-      if (unlockedWorld) this.showUnlockDialog(unlockedWorld);
+      if (unlockedWorld) {
+        this.showUnlockDialog(unlockedWorld);
+        this.scheduleUnlockCallout(unlockedWorld.id);
+      }
     }
     this.lastUnlockedCount = count;
+  }
+
+  /** Show the one-time "check this out!" callout a moment after the unlock dialog
+   *  (the dialog is full-screen, so the bubble waits until it can be seen). */
+  private scheduleUnlockCallout(worldId: WorldId): void {
+    if (this.unlockCalloutShown.has(worldId)) return;
+    this.unlockCalloutShown.add(worldId);
+    window.setTimeout(() => {
+      if (this.startScreen.style.display === 'flex') this.showUnlockCallout();
+    }, 3500);
   }
 
   /** Reveal the newly unlocked world behind a lock screen with confetti. */
@@ -519,6 +716,39 @@ export class UIManager {
     this.unlockDialog.classList.add('hidden');
     gsap.killTweensOf(this.unlockDialogConfetti);
     this.unlockDialogConfetti.innerHTML = '';
+  }
+
+  /** One-time shield powerup card, shown the first time the player is on world 2
+   *  (dusk) once the shield's World-2 milestone is met. Runs from renderStartScreen
+   *  so it fires on arrival via the nav arrow, the unlock dialog's SHOW ME, or a
+   *  fresh load already sitting on dusk. Flag is marked seen the moment it shows. */
+  private maybeShowShieldCard(): void {
+    if (this.state.getActiveWorld().id !== 'dusk') return;
+    if (!this.state.isShieldUnlocked()) return;
+    const data = this.state.getMutablePlayerData();
+    if (data.shieldCardSeen) return;
+    data.shieldCardSeen = true;
+    this.onDataChanged();
+    this.openShieldCard();
+  }
+
+  private openShieldCard(): void {
+    this.shieldCardDialog.classList.remove('hidden');
+    const card = this.shieldCardDialog.querySelector<HTMLElement>('#shield-card');
+    if (card) {
+      gsap.killTweensOf(card);
+      gsap.fromTo(
+        card,
+        { scale: 0.7, opacity: 0, y: 20 },
+        { scale: 1, opacity: 1, y: 0, duration: 0.5, ease: 'back.out(2)' }
+      );
+    }
+  }
+
+  private closeShieldCard(): void {
+    this.shieldCardDialog.classList.add('hidden');
+    const card = this.shieldCardDialog.querySelector<HTMLElement>('#shield-card');
+    if (card) gsap.killTweensOf(card);
   }
 
   /** Confetti raining behind the card inside the unlock dialog. */
@@ -588,16 +818,160 @@ export class UIManager {
     this.renderStartScreen();
   }
 
-  /** Open the missions tab: render the active tab, animate bars, confetti on done. */
+  /** Open the missions tab: render the active tab, animate bars, confetti on claim. */
   openMissions(): void {
+    this.animatedMissionsTabs.clear();
+    // First visit after missions unlock: clear the one-time callout gate that
+    // blocked the next run (persisted so a reload doesn't re-block).
+    if (this.state.hasPendingMissionsUnlock()) {
+      this.state.getMutablePlayerData().missionsUnlockSeen = true;
+      this.onDataChanged();
+      this.refreshMissionsCallout();
+    }
     this.renderMissionsOverlay();
     this.missionsOverlay.style.display = 'flex';
-    if (this.missionsCountdown.style.display === 'flex') this.startCountdown();
   }
 
   closeMissions(): void {
     this.missionsOverlay.style.display = 'none';
     this.stopCountdown();
+  }
+
+  /** Open settings: sync sliders to the persisted values, then show. */
+  openSettings(): void {
+    const data = this.state.getPlayerData();
+    this.soundSlider.value = String(data.soundVolume);
+    this.musicSlider.value = String(data.musicVolume);
+    this.sensitivitySlider.value = String(data.sensitivity);
+    this.soundValue.textContent = String(data.soundVolume);
+    this.musicValue.textContent = String(data.musicVolume);
+    this.sensitivityValue.textContent = String(data.sensitivity);
+    this.settingsOverlay.style.display = 'flex';
+  }
+
+  closeSettings(): void {
+    this.settingsOverlay.style.display = 'none';
+  }
+
+  /** Persist the sound volume, notify Game, and refresh the value label. */
+  private applySoundVolume(): void {
+    const volume = Number(this.soundSlider.value);
+    this.soundValue.textContent = String(volume);
+    const data = this.state.getMutablePlayerData();
+    data.soundVolume = volume;
+    this.onSoundVolumeChange(volume);
+    void this.persistSettings();
+  }
+
+  /** Persist the music volume (music channel is reserved for a future track). */
+  private applyMusicVolume(): void {
+    const volume = Number(this.musicSlider.value);
+    this.musicValue.textContent = String(volume);
+    const data = this.state.getMutablePlayerData();
+    data.musicVolume = volume;
+    this.onMusicVolumeChange(volume);
+    void this.persistSettings();
+  }
+
+  /** Persist the drag sensitivity (0–100; consumed by InputSystem at drag time). */
+  private applySensitivity(): void {
+    const sensitivity = Number(this.sensitivitySlider.value);
+    this.sensitivityValue.textContent = String(sensitivity);
+    const data = this.state.getMutablePlayerData();
+    data.sensitivity = sensitivity;
+    void this.persistSettings();
+  }
+
+  /** One-tap return to the default sensitivity (50 = the original feel). */
+  private resetSensitivity(): void {
+    this.sensitivitySlider.value = '50';
+    this.applySensitivity();
+  }
+
+  /**
+   * Independent notify bubbles.
+   * - Missions: total count of unclaimed rewards on the start-screen button
+   *   (capped at "5+"); each missions tab instead gets a plain red "!" while it
+   *   has pending claims. Both clear once the rewards are claimed (not just
+   *   until the tab is opened) and reappear when a new mission completes.
+   * - Shop: count of unowned skins the current coin balance can afford.
+   */
+  private refreshMissionNotify(): void {
+    const claimable = this.state.getClaimableMissionCount();
+    this.missionsNotify.textContent = claimable > 5 ? '5+' : String(claimable);
+    this.missionsNotify.hidden = claimable === 0;
+    this.missionsTabs.forEach((tab) => {
+      const kind = tab.dataset.tab as MissionKind | undefined;
+      const badge = tab.querySelector<HTMLElement>('.m-tab-badge');
+      if (!badge || !kind) return;
+      const count = this.state.getClaimableCountForKind(kind);
+      badge.textContent = '!';
+      badge.hidden = count === 0;
+    });
+  }
+
+  private refreshShopNotify(): void {
+    const data = this.state.getPlayerData();
+    const count = GAME_CONFIG.SHOP_SKINS.filter(
+      (s) => !data.purchasedSkins.includes(s.id) && data.totalCoins >= s.price
+    ).length;
+    this.shopNotify.textContent = count > 5 ? '5+' : String(count);
+    this.shopNotify.hidden = count === 0;
+  }
+
+  /** Save volume settings through the persistence callback (wired by Game). */
+  onPersistSettings: () => Promise<void> = async () => {};
+
+  private persistSettings(): Promise<void> {
+    return this.onPersistSettings();
+  }
+
+  /** Open stats: re-render all-time numbers from player data. */
+  openStats(): void {
+    this.renderStats();
+    this.statsOverlay.style.display = 'flex';
+  }
+
+  closeStats(): void {
+    this.statsOverlay.style.display = 'none';
+  }
+
+  /** Fill the all-time stats panel from persisted player data. */
+  renderStats(): void {
+    const data = this.state.getPlayerData();
+    this.statRuns.textContent = data.runsPlayed.toLocaleString();
+    this.statTotalScore.textContent = data.totalScore.toLocaleString();
+    this.statCoins.textContent = data.totalCoinsEarned.toLocaleString();
+    this.statPerfects.textContent = data.totalPerfects.toLocaleString();
+    this.statStreak.textContent = data.bestStreak.toLocaleString();
+
+    let streakWorld = '—';
+    let bestIdx = -1;
+    for (let i = 0; i < WORLDS.length; i++) {
+      const s = data.bestStreakPerWorld[i] ?? 0;
+      if (s >= data.bestStreak && s > 0) {
+        bestIdx = i;
+      }
+    }
+    // Prefer the world that actually holds the global best (ties → first/last match).
+    const globalIdx = data.bestStreakPerWorld.findIndex((s) => s === data.bestStreak);
+    const idx = globalIdx >= 0 ? globalIdx : bestIdx;
+    if (idx >= 0) streakWorld = WORLDS[idx].name;
+    this.statStreakWorld.textContent = streakWorld === '—' ? '' : `Best in ${streakWorld}`;
+
+    this.statWorlds.innerHTML = '';
+    for (let i = 0; i < WORLDS.length; i++) {
+      const row = document.createElement('div');
+      row.className = 'stat-world-row';
+      const name = document.createElement('span');
+      name.className = 'stat-world-name';
+      name.textContent = WORLDS[i].name;
+      const best = document.createElement('span');
+      best.className = 'stat-world-best';
+      best.textContent = (data.bestPerWorld[i] ?? 0).toLocaleString();
+      row.append(name, best);
+      this.statWorlds.appendChild(row);
+    }
   }
 
   /** Live countdown to the next daily-mission reset (runs while the overlay is open). */
@@ -619,23 +993,75 @@ export class UIManager {
     if (clock) clock.textContent = formatCountdown(getTimeUntilNextReset());
   }
 
+  /** Missions are still gated (MISSIONS_UNLOCK_RUNS not met): a plain locked
+   *  card instead of the mission list — missions logo, a run-progress bar
+   *  toward the unlock, and a dynamic hint. No title (the overlay header
+   *  already says "MISSIONS"). Tabs are hidden entirely. */
+  private renderMissionsLocked(): void {
+    this.stopCountdown();
+    this.missionsCountdown.style.display = 'none';
+    this.missionsTabs.forEach((t) => (t.disabled = true));
+    this.missionsTabsBar.style.display = 'none';
+    this.missionsList.innerHTML = '';
+
+    const card = document.createElement('div');
+    card.className = 'missions-locked';
+
+    const icon = document.createElement('div');
+    icon.className = 'missions-locked-icon';
+    icon.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="10.5" fill="none" stroke="#111" stroke-width="1.6"/>
+        <circle cx="12" cy="12" r="7" fill="none" stroke="#111" stroke-width="1.6"/>
+        <circle cx="12" cy="12" r="3.5" fill="#ff4d4d" stroke="#111" stroke-width="1.6"/>
+      </svg>`;
+
+    const bar = document.createElement('div');
+    bar.className = 'missions-locked-bar';
+    const fill = document.createElement('div');
+    fill.className = 'missions-locked-bar-fill';
+    const runs = this.state.getPlayerData().runsPlayed;
+    const pct = Math.min(100, (runs / GAME_CONFIG.MISSIONS_UNLOCK_RUNS) * 100);
+    fill.style.width = `${pct}%`;
+    bar.appendChild(fill);
+
+    const remaining = Math.max(0, GAME_CONFIG.MISSIONS_UNLOCK_RUNS - runs);
+    const hint = document.createElement('div');
+    hint.className = 'missions-locked-hint';
+    hint.textContent = remaining === 1 ? 'play 1 more game to unlock' : `play ${remaining} more games to unlock`;
+
+    card.append(icon, bar, hint);
+    this.missionsList.appendChild(card);
+  }
+
   private renderMissionsOverlay(): void {
+    if (!this.state.isMissionsUnlocked()) {
+      this.renderMissionsLocked();
+      return;
+    }
+    this.missionsTabs.forEach((t) => (t.disabled = false));
+    this.missionsTabsBar.style.display = 'flex';
     const data = this.state.getPlayerData();
     const run = this.state.getState();
     let rows = getMissionProgressList(data, {
       score: run.score,
       runPerfects: run.runPerfects,
-      runGems: run.runGems,
+      runCoins: run.runCoins,
       maxStreak: run.maxStreak,
       selectedWorld: this.state.getActiveWorld().id
     }).filter((r) => r.kind === this.activeMissionTab);
 
     // "Come back tomorrow" countdown only makes sense once today's set is cleared.
+    // Start it whenever it becomes visible (covers first open AND tab switches),
+    // stop it otherwise — otherwise a freshly-revealed clock keeps the `--:--:--`
+    // placeholder because only `openMissions` used to start it.
     const allDailyDone =
       this.activeMissionTab === 'general' &&
       rows.length > 0 &&
       rows.every((r) => r.done);
     this.missionsCountdown.style.display = allDailyDone ? 'flex' : 'none';
+    if (allDailyDone) this.startCountdown();
+    else this.stopCountdown();
 
     if (this.activeMissionTab === 'world') {
       const worldOrder: Record<string, number> = { sunrise: 0, dusk: 1, void: 2 };
@@ -648,14 +1074,6 @@ export class UIManager {
     }
 
     this.missionsList.innerHTML = '';
-
-    this.seedCelebrated();
-    const celebrate: string[] = [];
-    for (const m of rows) {
-      if (!m.done || this.celebratedIds.has(m.id)) continue;
-      this.celebratedIds.add(m.id);
-      celebrate.push(m.id);
-    }
 
     let lastWorld: string | null = null;
     for (const m of rows) {
@@ -715,39 +1133,115 @@ export class UIManager {
       if (m.locked) {
         // no lock icon — user asked to keep it clean
       } else if (m.done) {
-        const check = document.createElement('span');
-        check.className = 'm-check';
-        check.innerHTML = UIManager.CHECK_SVG;
-        row.appendChild(check);
+        if (this.state.isMissionClaimed(m.id)) {
+          const check = document.createElement('span');
+          check.className = 'm-check';
+          check.innerHTML = UIManager.CHECK_SVG;
+          row.appendChild(check);
+        } else {
+          const claim = document.createElement('button');
+          claim.className = 'm-claim-btn';
+          claim.dataset.claim = m.id;
+          claim.innerHTML =
+            `<span class="coin-icon"><img src="${this.asset('Coin.png')}" alt="coin"></span> ` +
+            `<span class="claim-amount">+${m.reward}</span>`;
+          row.appendChild(claim);
+        }
       }
 
       this.missionsList.appendChild(row);
     }
 
-    this.animateMissionBars(() => {
-      for (const id of celebrate) {
-        const row = this.missionsList.querySelector<HTMLElement>(`.mission-row[data-id="${id}"]`);
-        if (row) this.burstConfetti(row, 14);
+    this.animateMissionBars();
+  }
+
+  /** Claim a completed mission's reward: award coins, morph the claim capsule
+   *  into a green circle (length-only collapse) and pop out the tick, re-render,
+   *  then burst confetti on the freshly-rendered row (the pre-render row
+   *  reference is wiped by the re-render and would be detached). */
+  private claimMission(id: string, btn?: HTMLElement): void {
+    const reward = this.state.claimMissionReward(id);
+    if (!reward) {
+      this.refreshMissionNotify();
+      return;
+    }
+    this.onMissionClaim();
+    this.onDataChanged();
+    this.refreshCoins();
+    this.refreshMissionNotify();
+
+    const finish = () => {
+      this.renderMissionsOverlay();
+      const row = this.missionsList.querySelector<HTMLElement>(`.mission-row[data-id="${id}"]`);
+      if (row) this.burstConfetti(row, 14);
+    };
+
+    if (btn) this.animateClaimButton(btn, finish);
+    else finish();
+  }
+
+  /** Capsule → circle morph. The pill shrinks into a green circle whose diameter
+   *  equals the rendered check-circle size (`--check-size`), so the re-rendered
+   *  check superimposes the collapsed capsule exactly — same px, always, even
+   *  after tab switches or full reloads. The coin + amount fade out during the
+   *  morph; the tick pops out inside the collapsed circle. */
+  private animateClaimButton(btn: HTMLElement, onDone: () => void): void {
+    btn.classList.add('claiming');
+    const size = UIManager.resolveCheckSize();
+    const amount = btn.querySelector('.claim-amount') as HTMLElement | null;
+    const coin = btn.querySelector('.coin-icon') as HTMLElement | null;
+
+    if (amount) gsap.to(amount, { opacity: 0, duration: 0.15 });
+    if (coin) gsap.to(coin, { opacity: 0, duration: 0.15 });
+    gsap.to(btn, {
+      width: size,
+      height: size,
+      paddingLeft: 0,
+      paddingRight: 0,
+      gap: 0,
+      duration: 0.3,
+      ease: 'power2.inOut',
+      onComplete: () => {
+        btn.innerHTML = UIManager.TICK_SVG;
+        const svg = btn.querySelector('.m-tick-svg') as HTMLElement | null;
+        if (svg) {
+          svg.style.width = `${size}px`;
+          svg.style.height = `${size}px`;
+        }
+        gsap.fromTo(
+          btn.querySelector('.m-tick-svg'),
+          { scale: 0 },
+          { scale: 1, duration: 0.35, ease: 'back.out(1.7)' }
+        );
+        setTimeout(onDone, 350);
       }
     });
   }
 
-  /** Done missions known since session start are already celebrated (no re-fire). */
-  private seedCelebrated(): void {
-    if (this.celebratedSeeded) return;
-    this.celebratedSeeded = true;
-    for (const id of this.state.getPlayerData().completedMissions) this.celebratedIds.add(id);
+  /** Resolve `--check-size` to pixels via a probe element, so it works even when
+   *  the missions overlay holds no rendered check yet (e.g. the very first claim). */
+  private static resolveCheckSize(): number {
+    const probe = document.createElement('span');
+    probe.className = 'm-check-svg';
+    probe.style.cssText = 'position:absolute;visibility:hidden;left:-9999px;';
+    document.body.appendChild(probe);
+    const size = probe.getBoundingClientRect().width;
+    probe.remove();
+    return size || 28;
   }
 
-  /** Staggered bar fill on tab open: 0% → real progress (GSAP).
-   *  Completed rows stay full and static — no re-animation. */
-  private animateMissionBars(onDone: () => void): void {
+  /** Staggered bar fill, once per tab open (GSAP): 0% → real progress the first
+   *  time a tab renders this overlay session. Completed rows stay full and
+   *  static — no re-animation. Re-renders (claims, tab switches) snap directly
+   *  to the target instead of refilling, so bars never replay. */
+  private animateMissionBars(): void {
     const fills = Array.from(this.missionsList.querySelectorAll<HTMLElement>('.m-bar-fill'));
+    const alreadyAnimated = this.animatedMissionsTabs.has(this.activeMissionTab);
     let lastDelay = 0;
     fills.forEach((fill, i) => {
       const target = fill.dataset.width ?? '0';
       const row = fill.closest('.mission-row');
-      if (row && row.classList.contains('done')) {
+      if (alreadyAnimated || (row && row.classList.contains('done'))) {
         fill.style.width = `${target}%`;
         return;
       }
@@ -758,7 +1252,7 @@ export class UIManager {
         { width: `${target}%`, duration: 0.6, delay: lastDelay, ease: 'power2.out' }
       );
     });
-    window.setTimeout(onDone, lastDelay * 1000 + 700);
+    if (!alreadyAnimated) this.animatedMissionsTabs.add(this.activeMissionTab);
   }
 
   /** Confetti falls inside the completed mission card itself (one-time). */
@@ -880,34 +1374,15 @@ export class UIManager {
     const roundCoins = this.state.getState().roundCoins;
 
     this.goScore.textContent = String(score);
-    this.goBestVal.textContent = String(data.bestScore);
+    // The "best" is per-world — this run is compared against the best ever made
+    // in THIS world. The world name already appears below the coins row, so the
+    // line just reads "Best <n>" (the all-time best still lives in the ledger).
+    const bestIdx = WORLDS.indexOf(this.state.getActiveWorld());
+    this.goBestVal.textContent = String(data.bestPerWorld[bestIdx] ?? 0);
     this.goNewBest.style.display = isNewBest ? 'block' : 'none';
     this.goRoundCoins.textContent = `+${roundCoins}`;
 
     this.goWorld.textContent = this.state.getActiveWorld().name.toUpperCase();
-
-    const rewards = this.state.getRunMissionRewards();
-    const missionCoins = rewards.reduce((sum, r) => sum + r.reward, 0);
-    this.goMissionsList.innerHTML = '';
-    if (rewards.length > 0) {
-      for (const r of rewards) {
-        const item = document.createElement('div');
-        item.className = 'go-mission-row';
-        const name = document.createElement('span');
-        name.className = 'm-name';
-        name.textContent = r.title;
-        const coin = document.createElement('span');
-        coin.className = 'm-coin';
-        coin.textContent = `+${r.reward} coins`;
-        item.append(name, coin);
-        this.goMissionsList.appendChild(item);
-      }
-      const label = this.el<HTMLElement>('go-missions-label');
-      label.textContent = `MISSIONS COMPLETED \u00B7 +${missionCoins} COINS`;
-      this.goMissions.style.display = 'flex';
-    } else {
-      this.goMissions.style.display = 'none';
-    }
 
     const startCoins = data.totalCoins - roundCoins;
     this.goTotalCoins.textContent = String(startCoins);
@@ -1029,6 +1504,7 @@ export class UIManager {
 
   /** Mission completed — white card slides in from the right, FIFO, no text. */
   showMissionToast(): void {
+    this.refreshMissionNotify();
     this.missionQueue.push(true);
     this.pumpMissionCards();
   }

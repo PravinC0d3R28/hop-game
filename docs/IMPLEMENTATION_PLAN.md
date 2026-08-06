@@ -97,7 +97,7 @@ No iteration is "a feature branch" — every layer sits on top of a working game
   (`lastWorldId` tracking, re-armed to `sunrise` on `resetGame`). *(Superseded in
   Iteration 11: the world-based selection model removed mid-run crossings,
   `evaluateWorldChange` and `getWorldForScore` are deleted.)*
-- `Game.ts` emits `WORLD_CHANGED` (EventBus) from both score paths (landing + gem).
+- `Game.ts` emits `WORLD_CHANGED` (EventBus) from both score paths (landing + coin).
 - `UIManager.showWorldBanner()` — dynamic DOM banner (name + tagline) + white flash,
   gsap entrance/exit, self-cleaning; `dispose()` kills tweens.
 - Tests: `difficulty.test.ts` +4 (79→80 total); typecheck + build green.
@@ -142,7 +142,7 @@ No iteration is "a feature branch" — every layer sits on top of a working game
 **Goal:** 3 missions per world, tracked, awarded.
 
 - `MissionConfig` in `Worlds.ts` per §11.3; tracker in `GameStateManager` (perfects,
-  gems, score thresholds, streak — all already counted).
+  coins, score thresholds, streak — all already counted).
 - Toast on completion (EventBus); rewards banked into coins on game over; completed
   missions persisted (once).
 - Mission set = current world's missions (+ next world's for the run after gate).
@@ -187,7 +187,7 @@ No iteration is "a feature branch" — every layer sits on top of a working game
   coin counter), text-free, FIFO 2.4s cadence.
 - Game over continue button: rounded rectangle `PLAY AGAIN` (research: main CTA
   for session games), replacing the oversized circle that covered the toast.
-- Fix: run-scoped stats (`runPerfects`/`runGems`/`maxStreak`) now reset between
+- Fix: run-scoped stats (`runPerfects`/`runCoins`/`maxStreak`) now reset between
   runs so per-run missions can't double-count.
 - Tests: `tests/progression.test.ts` (12) + `tests/missions.test.ts` (22) →
   130 total; typecheck + build green.
@@ -202,7 +202,7 @@ No iteration is "a feature branch" — every layer sits on top of a working game
   accumulates across runs (1, 2, 5 … 100 runs) in a new persisted
   `PlayerData.missionProgress` map and completes **permanently, once**.
 - `evaluateMissions` banks only the delta since the last evaluation this run
-  (`runMissionBanked` guard), so mid-run calls on every jump/gem are idempotent;
+  (`runMissionBanked` guard), so mid-run calls on every jump/coin are idempotent;
   the guard resets between runs via `clearRunMissions`.
 - `getMissionProgressList` reads persisted progress (fills the mission page
   correctly at the menu), `done` = `completedMissions` for all kinds; world
@@ -220,7 +220,7 @@ No iteration is "a feature branch" — every layer sits on top of a working game
 
 **Goal:** Dawn→Dusk identity lands on worlds.
 
-- `MaterialFactory`: pre-generate per-world platform/gem palettes at boot (W1 warm
+- `MaterialFactory`: pre-generate per-world platform/coin palettes at boot (W1 warm
   paper-craft: sky gradient, white/gold platforms; W2 sunset/peach/purple; W3
   near-black + neon). Swap material references on gate (no mid-loop texture gen).
 - `BackgroundSystem`/sky per world; dispose old textures on swap (NFR-2).
@@ -233,9 +233,9 @@ No iteration is "a feature branch" — every layer sits on top of a working game
 **Goal:** final look — no black outlines, additive glow, polish.
 
 - Remove `COLOR_OUTLINE` outlines (halves draw calls), replace with soft shading.
-- Fake glow: additive-blended sprites/rings on ball, gems, streak edges.
+- Fake glow: additive-blended sprites/rings on ball, coins, streak edges.
 - Tune camera shake / flashes already present; W3 stars; W1 clouds (sphere clusters
-  per §6.0 art directive, Gemini cloud-kingdom feel).
+  per §6.0 art directive, coinini cloud-kingdom feel).
 - **DoD:** §6.0 directive satisfied at 80% procedural; perf budget met; you approve the look.
 
 ## Iteration 10 — Hardening + ship
@@ -301,3 +301,5 @@ runs never change worlds mid-flight.
 | Numbers feel wrong in real play | your playtest feedback | config-only retune (Iter 10 telemetry: none needed, feel-based) |
 | Art pass regresses perf | fps/draw-call check fails | outline removal is a win; glow uses cheap additive sprites |
 | Save migration bug | corrupted legacy saves in tests | sanitize-first + merge=max, tested in Iter 2 |
+
+

@@ -13,7 +13,7 @@ import { EffectsSystem } from './systems/EffectsSystem';
 import { AudioSystem } from './systems/AudioSystem';
 import { InputSystem } from './systems/InputSystem';
 import { BallEntity } from './entities/BallEntity';
-import { PlatformEntity, type GemObject, type PlatformData } from './entities/PlatformEntity';
+import { PlatformEntity, type CoinObject, type PlatformData } from './entities/PlatformEntity';
 import { PlatformManager } from './managers/PlatformManager';
 import { PersistenceManager } from './managers/PersistenceManager';
 import { UIManager } from './ui/UIManager';
@@ -58,6 +58,7 @@ export class Game {
     this.platforms.initializePlatforms();
     this.effects = new EffectsSystem(this.renderer.scene, this.ui.confettiContainerEl());
     this.audio = new AudioSystem();
+    this.audio.setSoundVolume(this.state.getPlayerData().soundVolume);
 
     this.buildInput();
     this.wirePersistence();
@@ -84,8 +85,16 @@ export class Game {
     this.ui.onSkinApplied = () => {
       this.applySkin(this.state.getPlayerData().selectedSkin);
     };
+    this.ui.onMissionClaim = () => {
+      this.audio.playCoin();
+    };
     this.ui.onDataChanged = () => {
       void this.persistence.save(this.state.getMutablePlayerData());
+    };
+    this.ui.onPersistSettings = () => this.persistence.save(this.state.getMutablePlayerData());
+    this.ui.onSoundVolumeChange = (volume) => this.audio.setSoundVolume(volume);
+    this.ui.onMusicVolumeChange = () => {
+      // Music channel reserved for a future track — slider persists, plays nothing.
     };
     this.ui.onContinue = () => {
       this.reset();
@@ -133,6 +142,13 @@ export class Game {
     const merged = this.persistence.merge(base, data);
     this.state.loadPlayerData(merged);
 
+    // Apply the persisted audio settings AFTER the async save loads — the
+    // constructor only sees the defaults (soundVolume/musicVolume = 100), so
+    // without this a reload would snap both channels back to full volume
+    // until the sliders are touched again.
+    this.audio.setSoundVolume(this.state.getPlayerData().soundVolume);
+    this.audio.setMusicVolume(this.state.getPlayerData().musicVolume);
+
     this.applySkin(this.state.getPlayerData().selectedSkin);
     this.ui.applyThemeToDOM();
     this.ui.refreshCoins();
@@ -157,6 +173,9 @@ export class Game {
   /** Original `Gy()`: first tap on menu starts the run. */
   private startGame(): void {
     if (!this.state.canSelectWorld(this.state.getActiveWorld())) return;
+    // The missions-unlocked callout is a one-time gate: the player must click
+    // the missions button before the next run is allowed.
+    if (this.state.hasPendingMissionsUnlock()) return;
     this.audio.resume();
     this.state.getMutableState().isStarted = true;
     this.state.getMutableState().isWaitingForTap = true;
@@ -195,7 +214,7 @@ export class Game {
     st.shieldActive = false;
     st.shieldAwarded = false;
     st.runPerfects = 0;
-    st.runGems = 0;
+    st.runCoins = 0;
     st.maxStreak = 0;
     this.state.clearRunMissions();
 
@@ -238,12 +257,18 @@ export class Game {
     gsap.to(this.ball.group.position, { y: this.ball.group.position.y - 5, duration: 0.6, ease: 'power2.in' });
     gsap.to(this.ball.group.scale, { x: 0.5, y: 0.5, z: 0.5, duration: 0.6 });
 
-    const isNewBest = this.state.updateBestScore(st.score);
-    this.state.updateBestPerWorld(st.score);
+    // Global ledger keeps the all-time best for stats; the NEW BEST! badge and
+    // the game-over "best" line are per-world, so each run is compared against
+    // the best ever made in the world being played.
+    this.state.updateBestScore(st.score);
+    const isNewBest = this.state.updateBestPerWorld(st.score);
     this.state.bankTotalScore();
-    this.checkMissions();
-    const banked = this.state.bankPendingMissionCoins();
-    if (banked > 0) this.ui.refreshCoins();
+    // Missions only count once the feature is unlocked, and the run that
+    // crosses the threshold (the 3rd game over) must not bank its own
+    // progress — otherwise achievements pop "during" the unlocking run.
+    const wasUnlocked = this.state.isMissionsUnlocked();
+    this.state.trackRunPlayed();
+    if (wasUnlocked) this.checkMissions();
     void this.persistence.save(this.state.getMutablePlayerData());
 
     setTimeout(() => {
@@ -275,60 +300,69 @@ export class Game {
       () => {
         st.currentStep = t;
         st.isJumping = false;
-        this.effects.spawnJumpDust(this.ball.group.position.x, y, this.ball.group.position.z);
+        try {
+          this.effects.spawnJumpDust(this.ball.group.position.x, y, this.ball.group.position.z);
 
-        if (target) {
-          BallEntity.squashPlatform(target.group, target.baseScale || 1);
-        }
+          if (target) {
+            BallEntity.squashPlatform(target.group, target.baseScale || 1);
+          }
 
-        if (target) {
-          const f = target.platformX + (target.swayOffset || 0);
-          const d = Math.abs(st.ballX - f);
-          if (d > GAME_CONFIG.HIT_THRESHOLD) {
-            if (this.state.consumeShield()) {
-              this.ball.setShield(false);
-              this.audio.playShieldBreak();
-              this.effects.playShieldBreak(this.ball.group.position.x, this.ball.group.position.z);
-              this.effects.playGlassFloor(this.ball.group.position.x, this.ball.group.position.z);
+          if (target) {
+            const f = target.platformX + (target.swayOffset || 0);
+            const d = Math.abs(st.ballX - f);
+            if (d > GAME_CONFIG.HIT_THRESHOLD) {
+              if (this.state.consumeShield()) {
+                this.ball.setShield(false);
+                this.audio.playShieldBreak();
+                this.effects.playShieldBreak(this.ball.group.position.x, this.ball.group.position.z);
+                this.effects.playGlassFloor(this.ball.group.position.x, this.ball.group.position.z);
+              } else {
+                this.gameOver();
+                return;
+              }
+            }
+            for (const coin of target.coins) {
+              if (!coin.collected && d < GAME_CONFIG.COIN_COLLECT_THRESHOLD) {
+                this.collectCoin(target, coin);
+              }
+            }
+          }
+
+          if (!st.isFailed) {
+            st.score++;
+            const h = target ? target.swayOffset || 0 : 0;
+            const f = target ? target.platformX + h : 0;
+            if (Math.abs(st.ballX - f) < GAME_CONFIG.PERFECT_THRESHOLD) {
+              st.perfectStreak++;
+              st.score += st.perfectStreak;
+              this.audio.playPerfect(st.perfectStreak);
+              this.perfectHit(target);
+              this.state.trackPerfectLanding();
+              this.totalStreakReward();
             } else {
-              this.gameOver();
-              return;
+              st.perfectStreak = 0;
+              this.audio.playJump(st.score);
             }
+            this.checkMissions();
+            this.ui.setScore(st.score);
+            gsap.fromTo(this.ui.scoreElement, { scale: 1.15 }, { scale: 1, duration: 0.2, ease: 'back.out(2)' });
+            this.updateStreakGlow();
+            this.platforms.recycle();
           }
-          for (const gem of target.gems) {
-            if (!gem.collected && d < GAME_CONFIG.GEM_COLLECT_THRESHOLD) {
-              this.collectGem(target, gem);
-            }
-          }
-        }
-
-        if (!st.isFailed) {
-          st.score++;
-          const h = target ? target.swayOffset || 0 : 0;
-          const f = target ? target.platformX + h : 0;
-          if (Math.abs(st.ballX - f) < GAME_CONFIG.PERFECT_THRESHOLD) {
-            st.perfectStreak++;
-            st.score += st.perfectStreak;
-            this.audio.playPerfect(st.perfectStreak);
-            this.perfectHit(target);
-            this.state.trackPerfectLanding();
-            this.totalStreakReward();
-          } else {
-            st.perfectStreak = 0;
-            this.audio.playJump(st.score);
-          }
-          this.checkMissions();
-          this.ui.setScore(st.score);
-          gsap.fromTo(this.ui.scoreElement, { scale: 1.15 }, { scale: 1, duration: 0.2, ease: 'back.out(2)' });
-          this.updateStreakGlow();
-          this.platforms.recycle();
-          this.jump();
+        } finally {
+          // The auto-jump chain MUST survive: a stray exception escaping
+          // GSAP's ticker would otherwise silently kill this callback before
+          // `jump()` runs — and with isJumping already false the ball would
+          // just sit on the platform forever (the reported freeze). Guarding
+          // the chain in `finally` keeps it alive while still surfacing the
+          // real error to the console.
+          if (!st.isFailed) this.jump();
         }
       }
     );
   }
 
-  /** Original `Py(r)` + `Dy(r,t)`: perfect visual + gem collection. */
+  /** Original `Py(r)` + `Dy(r,t)`: perfect visual + coin collection. */
   private perfectHit(target: PlatformData | undefined): void {
     if (target && target.perfectDot) {
       const mat = target.perfectDot.material as { opacity?: number };
@@ -351,17 +385,19 @@ export class Game {
     );
   }
 
-  /** Original `Dy(r,t)`: collect a gem. */
-  private collectGem(platform: PlatformData, gem: GemObject): void {
-    gem.collected = true;
-    this.audio.playGem();
-    PlatformEntity.collectGem(platform, gem);
+  /** Original `Dy(r,t)`: collect a coin. */
+  private collectCoin(platform: PlatformData, coin: CoinObject): void {
+    coin.collected = true;
+    this.audio.playCoin();
+    PlatformEntity.collectCoin(platform, coin);
 
     const st = this.state.getMutableState();
     st.roundCoins++;
-    this.state.trackGemCollected();
-    this.state.getMutablePlayerData().totalCoins++;
-    void this.persistence.save(this.state.getMutablePlayerData());
+    this.state.trackCoinCollected();
+    const data = this.state.getMutablePlayerData();
+    data.totalCoins++;
+    data.totalCoinsEarned++;
+    void this.persistence.save(data);
     this.ui.refreshCoins();
 
     st.score++;
@@ -376,7 +412,7 @@ export class Game {
   private totalStreakReward(): void {
     const milestone = this.state.checkStreakMilestone();
     if (milestone !== 'fire') return;
-    const shieldGranted = this.state.grantShield();
+    const shieldGranted = this.state.isShieldUnlocked() ? this.state.grantShield() : false;
     if (shieldGranted) this.ball.setShield(true);
     this.audio.playMilestone();
     this.effects.playFireBurst(this.ball.group.position.x, this.ball.group.position.y, this.ball.group.position.z);
@@ -390,6 +426,7 @@ export class Game {
 
   /** Evaluate missions; toast any that just completed and persist the one-time marks. */
   private checkMissions(): void {
+    if (!this.state.isMissionsUnlocked()) return;
     const completed = this.state.evaluateMissions();
     if (completed.length === 0) return;
     this.audio.playMissionComplete();
@@ -426,7 +463,7 @@ export class Game {
       st.isStarted,
       st.isFailed
     );
-    this.platforms.updateGems(delta, Date.now());
+    this.platforms.updateCoins(delta, Date.now());
     this.platforms.updateSway(Date.now());
     this.background.update(this.renderer.camera.position.z);
     MaterialFactory.updateLightDirection(this.renderer.directional);

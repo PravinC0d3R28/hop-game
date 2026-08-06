@@ -31,9 +31,9 @@ PLATFORM_X_RANGE_MAX: 3,
 PLATFORM_SIZE_MIN: 0.9,
 PLATFORM_SIZE_RAMP: 0.00012,
 
-// Gems
-GEM_CHANCE: 0.28,
-GEM_COLLECT_THRESHOLD: 0.8,
+// coins
+COIN_CHANCE: 0.28,
+COIN_COLLECT_THRESHOLD: 0.8,
 
 // Speed lines
 SPEED_LINES_START_SCORE: 15,
@@ -112,7 +112,7 @@ speed-line geometry/lifetime.
 ## 8. Audio
 
 `AudioSystem.ts` exposes `playTone(freq, dur, type, gain, detune)` and preset
-methods (jump/perfect/gem/gameOver). Compose new sounds freely; no assets needed.
+methods (jump/perfect/coin/gameOver). Compose new sounds freely; no assets needed.
 
 ---
 
@@ -174,7 +174,9 @@ Font: Fredoka via Google Fonts (see `index.html` `<link>`).
 - [ ] Tune `GAME_CONFIG` for pacing
 - [ ] Re-theme via `Themes.ts`
 - [ ] Add skins / palettes
-- [ ] Add platform/gem types
+- [ ] Add platform/coin types
 - [ ] Add game modes
 - [ ] Update `README.md`
 - [ ] `npm run build` and verify `dist/`
+
+

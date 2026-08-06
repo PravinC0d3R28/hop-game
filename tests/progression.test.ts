@@ -10,24 +10,14 @@ import {
 } from '../src/core/Progression';
 import { getDailyMissions } from '../src/config/Missions';
 import type { PlayerData } from '../src/core/Types';
+import { DEFAULT_PLAYER_DATA } from '../src/core/GameStateManager';
 
 const FRESH_PLAYER: PlayerData = {
-  totalCoins: 0,
-  bestScore: 0,
-  purchasedSkins: ['default'],
-  selectedSkin: 'default',
-  theme: 'light',
-  totalScore: 0,
-  bestPerWorld: [0, 0, 0],
-  totalGems: 0,
-  totalPerfects: 0,
-  bestStreak: 0,
-  completedMissions: [],
-  missionProgress: {},
+  ...DEFAULT_PLAYER_DATA,
   selectedWorld: 'sunrise'
 };
 
-const FRESH_RUN = { score: 0, runPerfects: 0, runGems: 0, maxStreak: 0, selectedWorld: 'sunrise' as const };
+const FRESH_RUN = { score: 0, runPerfects: 0, runCoins: 0, maxStreak: 0, selectedWorld: 'sunrise' as const };
 
 /** Fixed date key so the daily draw is deterministic in tests. */
 const KEY = '2026-08-03';
@@ -58,22 +48,22 @@ describe('metric value derivation', () => {
   const player: PlayerData = {
     ...FRESH_PLAYER,
     totalScore: 1234,
-    totalGems: 7,
+    totalCoinsCollected: 7,
     totalPerfects: 42,
     bestStreak: 9
   };
-  const run = { score: 30, runPerfects: 5, runGems: 2, maxStreak: 4, selectedWorld: 'sunrise' as const };
+  const run = { score: 30, runPerfects: 5, runCoins: 2, maxStreak: 4, selectedWorld: 'sunrise' as const };
 
   it('maps run metrics to the run snapshot', () => {
     expect(getMetricValue('score', player, run)).toBe(30);
-    expect(getMetricValue('gems', player, run)).toBe(2);
+    expect(getMetricValue('coins', player, run)).toBe(2);
     expect(getMetricValue('perfects', player, run)).toBe(5);
     expect(getMetricValue('streak', player, run)).toBe(4);
   });
 
   it('maps lifetime metrics to the player ledger', () => {
     expect(getMetricValue('totalScore', player, run)).toBe(1234);
-    expect(getMetricValue('totalGems', player, run)).toBe(7);
+    expect(getMetricValue('totalCoinsCollected', player, run)).toBe(7);
     expect(getMetricValue('totalPerfects', player, run)).toBe(42);
     expect(getMetricValue('bestStreak', player, run)).toBe(9);
   });
@@ -112,11 +102,11 @@ describe('mission progress list', () => {
     expect(general).toHaveLength(5);
     expect(general.map((r) => r.id).sort()).toEqual(getDailyMissions(KEY).map((m) => m.id).sort());
     expect(general.every((r) => r.percent === 0 && !r.done && !r.locked)).toBe(true);
-    const w1 = rows.find((r) => r.id === 'w1_gems')!;
+    const w1 = rows.find((r) => r.id === 'w1_coins')!;
     expect(w1.locked).toBe(false);
-    const w2 = rows.find((r) => r.id === 'w2_gems')!;
+    const w2 = rows.find((r) => r.id === 'w2_coins')!;
     expect(w2.locked).toBe(true);
-    const w3 = rows.find((r) => r.id === 'w3_gems')!;
+    const w3 = rows.find((r) => r.id === 'w3_coins')!;
     expect(w3.locked).toBe(true);
     expect(rows.filter((r) => r.kind === 'world')).toHaveLength(9);
     expect(rows.filter((r) => r.kind === 'lifetime')).toHaveLength(6);
@@ -130,7 +120,7 @@ describe('mission progress list', () => {
     );
     const w1 = rows.find((r) => r.id === 'w1_perfects')!;
     const w2 = rows.find((r) => r.id === 'w2_score')!;
-    const w3 = rows.find((r) => r.id === 'w3_gems')!;
+    const w3 = rows.find((r) => r.id === 'w3_coins')!;
     expect(w1.locked).toBe(true);
     expect(w2.locked).toBe(false);
     expect(w3.locked).toBe(true);
@@ -143,7 +133,7 @@ describe('mission progress list', () => {
       KEY
     );
     const doneSunrise = rows.find((r) => r.id === 'w1_perfects')!;
-    const pendingSunrise = rows.find((r) => r.id === 'w1_gems')!;
+    const pendingSunrise = rows.find((r) => r.id === 'w1_coins')!;
     expect(doneSunrise.done).toBe(true);
     expect(doneSunrise.locked).toBe(false);
     expect(pendingSunrise.locked).toBe(true);
@@ -151,7 +141,7 @@ describe('mission progress list', () => {
 
   it('veteran save: lifetime missions show real progress and done state', () => {
     const rows = getMissionProgressList(
-      { ...FRESH_PLAYER, totalScore: 1500, totalGems: 60, completedMissions: ['l_thousand'] },
+      { ...FRESH_PLAYER, totalScore: 1500, totalCoinsCollected: 60, completedMissions: ['l_thousand'] },
       FRESH_RUN,
       KEY
     );
@@ -174,7 +164,7 @@ describe('mission progress list', () => {
     const progress = Math.max(1, Math.floor(first.target / 2));
     const rows = getMissionProgressList(
       { ...FRESH_PLAYER, missionProgress: { [first.id]: progress } },
-      { score: 100, runPerfects: 10, runGems: 5, maxStreak: 10, selectedWorld: 'sunrise' },
+      { score: 100, runPerfects: 10, runCoins: 5, maxStreak: 10, selectedWorld: 'sunrise' },
       KEY
     );
     const row = rows.find((r) => r.id === first.id)!;
@@ -205,7 +195,7 @@ describe('mission progress list', () => {
     const daily = getDailyMissions(KEY);
     const rows = getMissionProgressList(
       { ...FRESH_PLAYER, missionProgress: { [daily[0].id]: daily[0].target * 2 } },
-      { score: 9000, runPerfects: 500, runGems: 200, maxStreak: 100, selectedWorld: 'sunrise' },
+      { score: 9000, runPerfects: 500, runCoins: 200, maxStreak: 100, selectedWorld: 'sunrise' },
       KEY
     );
     expect(rows.every((r) => r.percent <= 100)).toBe(true);
@@ -231,3 +221,4 @@ describe('daily mission reset countdown', () => {
     expect(formatCountdown(-500)).toBe('00:00:00');
   });
 });
+

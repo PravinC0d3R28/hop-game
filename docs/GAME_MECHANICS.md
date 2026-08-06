@@ -68,7 +68,7 @@ if |ballX - hitX| > 1.1 → GAME OVER
 | Event | Score |
 |-------|-------|
 | Landing | +1 |
-| Gem collect | +1 (plus +1 coin) |
+| coin collect | +1 (plus +1 coin) |
 | Perfect hit (|ballX−hitX| < 0.5) | +streak (1,2,3…) |
 
 After perfect, `dt.perfectStreak++`, score `+= streak`; else streak resets to 0.
@@ -99,20 +99,20 @@ scale       = 1 - min(1 - 0.9, score * 0.00012)
 - Mesh: Box(2.2, .8, 2.2) halftone-toon palette color + outline(1.02)
 - **Perfect indicator**: diamond `ShapeGeometry` (0.15 half-size) white 0.5 + ring
   `RingGeometry(.18, .24, 24)` white 0.3 double-side, both rotated flat, y = h/2 + .01
-- Gem (28% chance): coin `CylinderGeometry(.22, .22, .06, 16)` rotated Z=+π/2 (lying
+- coin (28% chance): coin `CylinderGeometry(.22, .22, .06, 16)` rotated Z=+π/2 (lying
   flat) + outline(1.08), y = h/2 + .22 + .15
 
 ### Recycling (when `index < currentStep - 3`)
 Reuse pool entry: `Lr++`, new index = Lr, recompute z/x/scale/color, hide to y=-5,
-tween up, respawn gem (or clear). Pool size = 6 (`VISIBLE_STEPS`).
+tween up, respawn coin (or clear). Pool size = 6 (`VISIBLE_STEPS`).
 
 ---
 
-## 5. Gem Collection
+## 5. coin collection
 
-- Trigger on landing when `|ballX - hitX| < 0.8` (GEM_COLLECT_THRESHOLD)
+- Trigger on landing when `|ballX - hitX| < 0.8` (COIN_COLLECT_THRESHOLD)
 - Effects: tween scale→0 (0.2s), remove from platform
-- Rewards: `roundCoins++`, `totalCoins++`, `score++`, gem sound, coin UI refresh
+- Rewards: `roundCoins++`, `totalCoins++`, `score++`, coin sound, coin UI refresh
 - Idle animation: `rotation.y += dt*2.5`, `y = h/2 + .22 + .15 + sin(now*.004)*.08`
 
 ---
@@ -182,7 +182,7 @@ random x offset ±60, fall `power1.in` 1.2-2.7s, rotation ±360.
 | Event | Notes |
 |-------|-------|
 | jump | sine 440+r%8·30 (0.12s, .2) + ×1.5 (0.08s, .1) |
-| gem | sine 880 (.1,.25) → 1100 (50ms) → 1320 (100ms, .15) |
+| coin | sine 880 (.1,.25) → 1100 (50ms) → 1320 (100ms, .15) |
 | perfect | base 660+min(streak,10)·60; +×1.25 (60ms) +×1.5 (120ms); streak≥3 +×2 (180ms) |
 | gameover | sawtooth 200 (.3,.25) + square 150 (.4,.15, detune -50) |
 
@@ -230,7 +230,7 @@ continue button → reset (debounced 500ms) → start screen + request ad (omitt
 |------------------|--------|
 | `PLATFORM_X_RANGE_RAMP = 0.00002` | **0.02** |
 | `COLOR_BALL = 0xD119F0` | **0xD0D8F0** |
-| `COLOR_GEM = 0xF0E68C` | **0xF0C020** |
+| `COLOR_COIN = 0xF0E68C` | **0xF0C020** |
 | palette set | 8 pastel palettes (table in ARCHITECTURE §2.2) |
 | "Perfect indicator = dot + ring" | **diamond + ring** |
 | "platform sway animation" | **no sway (swayOffset always 0)** |
@@ -244,7 +244,7 @@ continue button → reset (debounced 500ms) → start screen + request ad (omitt
 
 Each landing gives **+1** base score. A perfect landing (within `PERFECT_THRESHOLD`
 0.5 of the platform center) **also** adds its streak length (`score += perfectStreak`,
-which is 1, 2, 3, … on consecutive perfects). A gem adds **+1** on top. `GEM_CHANCE`
+which is 1, 2, 3, … on consecutive perfects). a coin adds **+1** on top. `COIN_CHANCE`
 = 28% of platforms.
 
 Expected score per landing for a player with perfect rate `p`:
@@ -266,7 +266,7 @@ Cadence: `JUMP_DURATION_BASE` 0.5s → 0.35s, so a focused player sustains
 
 ### 15.2 Player session archetypes (target sizing)
 
-| archetype | run length | landings | score | perfects | gems | streak |
+| archetype | run length | landings | score | perfects | coins | streak |
 |-----------|-----------|----------|-------|----------|------|--------|
 | easily bored | 20–40s | ~35–70 | 55–150 | 14–35 | 10–20 | 3–5 |
 | casual (mid) | 1–2 min | ~100–240 | 155–420 | 40–120 | 28–67 | 5–9 |
@@ -300,7 +300,7 @@ Per-world bests (`bestPerWorld[3]`) track the best run in each world.
 World missions are **selection-scoped**: only the selected world's missions are
 active; the other worlds' rows show locked in the WORLD tab.
 
-| world | entry offset | unlock | perfects target | gems target | score target | reward pool |
+| world | entry offset | unlock | perfects target | coins target | score target | reward pool |
 |-------|-------------|--------|-----------------|-------------|--------------|-------------|
 | sunrise | 0 | always | 10 | 8 | 75 | 37 |
 | dusk | 100 | 1,000 total | 20 | 15 | 220 | 75 |
@@ -318,7 +318,7 @@ cycles with no repeats — easy/medium rotate through all 10 every 5 days, hard
 every 10 days. All general missions are session-based (progress persists across
 runs, completes once); the pool draws reset at local midnight (`todayKey()`).
 
-| tier | session cost | score | gems | perfects | streak | reward |
+| tier | session cost | score | coins | perfects | streak | reward |
 |------|--------------|-------|------|----------|--------|--------|
 | easy | ~1 short session | 25–50 | 5–8 | 10–15 | 8 | 10–15 |
 | medium | ~1 mid session | 100–150 | 12–15 | 20–30 | 10 | 20–30 |
@@ -330,7 +330,7 @@ the next reset (local midnight, `getTimeUntilNextReset` / `formatCountdown`).
 
 ### 15.5 Semantics rules (implementation contract)
 
-- **Lifetime**: derived from persisted counters (`totalScore`, `totalGems`,
+- **Lifetime**: derived from persisted counters (`totalScore`, `totalCoinsCollected`,
   `totalPerfects`, `bestStreak`); complete the moment the counter passes target.
 - **General / world**: run counters are banked into persisted `missionProgress`
   capped at the target; only the delta since the last evaluation this run is
@@ -343,3 +343,5 @@ the next reset (local midnight, `getTimeUntilNextReset` / `formatCountdown`).
   fills. Row tooltips distinguish "Play in <world> to progress its missions"
   (unlocked but not selected) from "Unlocks at <N> total score" (threshold not
   met).
+
+

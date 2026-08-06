@@ -21,6 +21,32 @@ describe('sanitizePlayerData (mirrors original QM)', () => {
     expect(out.theme).toBe('light');
   });
 
+  it('clamps volume to 0–100 and sensitivity to the 50-based scale', () => {
+    expect(sanitizePlayerData({ soundVolume: 35 } as never).soundVolume).toBe(35);
+    expect(sanitizePlayerData({ musicVolume: 150 } as never).musicVolume).toBe(100);
+    expect(sanitizePlayerData({ sensitivity: -10 } as never).sensitivity).toBe(0);
+    expect(sanitizePlayerData({ sensitivity: 75 } as never).sensitivity).toBe(75);
+    expect(sanitizePlayerData({ sensitivity: 'abc' } as never).sensitivity).toBe(50);
+    expect(sanitizePlayerData({ sensitivity: undefined } as never).sensitivity).toBe(50);
+    expect(sanitizePlayerData({ soundVolume: undefined } as never).soundVolume).toBe(100);
+  });
+
+  it('migrates the old default sensitivity (100) to 50 so feel is preserved', () => {
+    expect(sanitizePlayerData({ sensitivity: 100 } as never).sensitivity).toBe(50);
+    expect(sanitizePlayerData({ sensitivity: 50 } as never).sensitivity).toBe(50);
+  });
+
+  it('keeps only known world ids in revealedWorlds', () => {
+    expect(sanitizePlayerData({ revealedWorlds: ['dusk', 'void', 'nope'] } as never).revealedWorlds).toEqual([
+      'dusk',
+      'void'
+    ]);
+    expect(sanitizePlayerData({ revealedWorlds: ['sunrise', 'sunrise'] } as never).revealedWorlds).toEqual([
+      'sunrise'
+    ]);
+    expect(sanitizePlayerData({} as never).revealedWorlds).toEqual([]);
+  });
+
   it('always keeps default skin first', () => {
     const out = sanitizePlayerData({ purchasedSkins: ['red', 'blue'] } as never);
     expect(out.purchasedSkins[0]).toBe('default');

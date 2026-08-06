@@ -35,6 +35,7 @@ function bootstrap(): void {
       setScore(n: number): void;
       refreshCoins(): void;
       renderShop(): void;
+      triggerWorldCallout(): void;
     };
     persistence: { save(d: unknown): Promise<void> };
   };
@@ -72,6 +73,9 @@ function bootstrap(): void {
     },
     setTotalScore: (n: number) => {
       accessor.state.setTotalScore(n);
+    },
+    triggerWorldCallout: () => {
+      accessor.ui.triggerWorldCallout();
     }
   };
 }

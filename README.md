@@ -23,7 +23,7 @@ npm run typecheck  # tsc --noEmit
 
 Open the game, tap to start, drag horizontally to aim, keep bouncing onto the
 next platform. Land on the center diamond for **PERFECT** bonus points, collect
-golden **gems** for coins, and spend coins on **ball skins** in the shop.
+golden **coins** on platforms, and spend coins on **ball skins** in the shop.
 
 ---
 
@@ -53,7 +53,7 @@ HOP/
 │   │   └── BackgroundSystem.ts  # 10 rock clusters (bob + recycle)
 │   ├── entities/
 │   │   ├── BallEntity.ts        # Ball mesh/outline/blob + jump tweens
-│   │   └── PlatformEntity.ts    # Platform + diamond + ring + gem coins
+│   │   └── PlatformEntity.ts    # Platform + diamond + ring + coins
 │   ├── managers/
 │   │   ├── PlatformManager.ts   # 6-slot pool, recycling, difficulty
 │   │   └── PersistenceManager.ts# localStorage save/load/sanitize
@@ -88,7 +88,7 @@ HOP/
 Everything is data-driven. See `docs/CUSTOMIZATION_GUIDE.md` for details.
 
 - **Difficulty & feel** — edit the constants in `src/config/GameConfig.ts`
-  (jump duration, platform spacing, x-range, bounce height, gem chance, ...).
+  (jump duration, platform spacing, x-range, bounce height, coin chance, ...).
 - **Skins & colors** — edit `SHOP_SKINS` in `GameConfig.ts` and `THEMES` in `Themes.ts`.
 - **The halftone-toon shader** — `MaterialFactory.ts` (dot size, strength, shadow band).
 - **Audio** — `AudioSystem.ts` presets (freqs, envelopes, waveforms).
@@ -108,3 +108,4 @@ window.gameDebug.toggleInvincible()     // never miss (DEBUG.invincible)
 
 MIT. The original game is © its respective owner; this is an independent,
 fan-made reimplementation for learning/portfolio purposes.
+

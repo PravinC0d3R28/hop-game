@@ -40,7 +40,7 @@ export const GAME_EVENTS = {
   BEST_SCORE_CHANGED: 'best-score-changed',
   THEME_CHANGED: 'theme-changed',
   SKIN_CHANGED: 'skin-changed',
-  GEM_COLLECTED: 'gem-collected',
+  COIN_COLLECTED: 'coin-collected',
   PERFECT_HIT: 'perfect-hit',
   STREAK_MILESTONE: 'streak-milestone',
   GAME_OVER: 'game-over',
@@ -50,6 +50,6 @@ export const GAME_EVENTS = {
   DATA_SAVED: 'data-saved',
   AUDIO_JUMP: 'audio-jump',
   AUDIO_PERFECT: 'audio-perfect',
-  AUDIO_GEM: 'audio-gem',
+  AUDIO_COIN: 'audio-coin',
   AUDIO_GAMEOVER: 'audio-gameover'
 } as const;

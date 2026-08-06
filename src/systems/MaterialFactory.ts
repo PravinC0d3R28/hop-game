@@ -1,12 +1,16 @@
 import {
   MeshToonMaterial,
+  MeshBasicMaterial,
   CanvasTexture,
   Color,
   Vector3,
   NearestFilter,
   RepeatWrapping,
   ShaderMaterial,
-  type IUniform
+  SRGBColorSpace,
+  TextureLoader,
+  type IUniform,
+  type Texture
 } from 'three';
 import { GAME_CONFIG } from '../config/GameConfig';
 
@@ -76,6 +80,10 @@ export class MaterialFactory {
   private static halftoneTex: CanvasTexture;
   private static gradientMap: CanvasTexture;
   private static uniforms: HalftoneUniforms;
+  /** Shared 2D coin art (Coin.png), loaded once and applied to every 3D coin. */
+  private static coinTexture: Texture | null = null;
+  /** Materials created before the texture finished loading get patched when it does. */
+  private static coinTextureWaiters: ((tex: Texture) => void)[] = [];
 
   static init(): void {
     this.halftoneTex = createHalftoneTexture();
@@ -88,6 +96,37 @@ export class MaterialFactory {
       uDotsShadowMax: { value: GAME_CONFIG.DOTS_SHADOW_MAX },
       uLightDir: { value: new Vector3(3, 10, 8).normalize() }
     };
+    this.loadCoinTexture();
+  }
+
+  private static loadCoinTexture(): void {
+    if (this.coinTexture) return;
+    // Skip in non-DOM environments (unit tests stub only createElement).
+    if (typeof document === 'undefined' || typeof document.createElementNS !== 'function') return;
+    const base = import.meta.env.BASE_URL || './';
+    new TextureLoader().load(`${base}Coin.png`, (tex) => {
+      tex.colorSpace = SRGBColorSpace;
+      tex.anisotropy = 4;
+      this.coinTexture = tex;
+      const waiters = this.coinTextureWaiters;
+      this.coinTextureWaiters = [];
+      for (const apply of waiters) apply(tex);
+    });
+  }
+
+  /** Unlit coin material textured with the 2D coin art (falls back to the coin
+   *  color until Coin.png loads, then every material is patched in). */
+  static createCoinMaterial(): MeshBasicMaterial {
+    const mat = new MeshBasicMaterial({ color: GAME_CONFIG.COLOR_COIN });
+    if (this.coinTexture) {
+      mat.map = this.coinTexture;
+    } else {
+      this.coinTextureWaiters.push((tex) => {
+        mat.map = tex;
+        mat.needsUpdate = true;
+      });
+    }
+    return mat;
   }
 
   /** Mirror HM(r): refresh uniform values (optionally from a light position). */
@@ -175,5 +214,8 @@ export class MaterialFactory {
   static dispose(): void {
     this.halftoneTex?.dispose();
     this.gradientMap?.dispose();
+    this.coinTexture?.dispose();
+    this.coinTexture = null;
+    this.coinTextureWaiters = [];
   }
 }

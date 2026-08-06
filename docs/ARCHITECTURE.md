@@ -14,7 +14,7 @@ source. Where earlier documentation differed, this document wins.
 | Title (in-game) | **HOP** (HTML `<title>` is "HOP") |
 | Engine | Three.js (r152 build) + GSAP 3.14.2 |
 | Rendering | WebGLRenderer, antialiased, pixelRatio capped at 2 |
-| Platform SDK | YouTube Playables (`ytgame.game|ads|engagement|system|health`) |
+| Platform SDK | YouTube Playables (`ytgame.game|ads|engacoinent|system|health`) |
 | Audio | Procedural Web Audio API (no audio files) |
 | Target | 60fps on mobile, `< 50MB` memory |
 
@@ -45,9 +45,9 @@ j = {
   BOUNCE_HEIGHT: 2,
   X_LERP: 0.16,
   HIT_THRESHOLD: 1.1,
-  GEM_CHANCE: 0.28,
-  GEM_RADIUS: 0.22,
-  GEM_COLLECT_THRESHOLD: 0.8,
+  COIN_CHANCE: 0.28,
+  COIN_RADIUS: 0.22,
+  COIN_COLLECT_THRESHOLD: 0.8,
   PLATFORM_SIZE_MIN: 0.9,
   PLATFORM_SIZE_RAMP: 0.00012,
   PLATFORM_SPACING_Z_RAMP: 0.0025,
@@ -57,7 +57,7 @@ j = {
   CAMERA_LOOK_AHEAD: 3,
   COLOR_BG: 0x2A2A2A,
   COLOR_BALL: 0xD0D8F0,               // <-- NOT 0xD119F0 (docs were wrong)
-  COLOR_GEM: 0xF0C020,                // <-- NOT 0xF0E68C (docs were wrong)
+  COLOR_COIN: 0xF0C020,                // <-- NOT 0xF0E68C (docs were wrong)
   COLOR_OUTLINE: 0x111111,
   COLOR_CYCLE_STEPS: 12,
   COLOR_PALETTES: [ ...8 entries below ],
@@ -138,7 +138,7 @@ Note: the button icon shows the *opposite* state you switch TO (☾ on light = c
 |----------|----------------|-------|
 | `hr` | BoxGeometry | platforms `(2.2,.8,2.2)`, speed lines `(.04,.04,1)` |
 | `fr` | SphereGeometry | ball `(.35,24,16)`, rocks, dust `(1,8,6)`, ball blob `(.35*.92,16,8,.3,1.2,.2,1)` |
-| `Ac` | CylinderGeometry | gem coins `(.22,.22,.06,16)` rotated Z=+π/2 |
+| `Ac` | CylinderGeometry | coins `(.22,.22,.06,16)` rotated Z=+π/2 |
 | `Ja` | RingGeometry | perfect dot `(.18,.24,24)`, perfect ring `(.2,.3,32)` |
 | `Ks` | CircleGeometry | ground shadow `(.35,16)`, burst particles `(.06,6)` |
 | `Rc` | ShapeGeometry | diamond perfect indicator |
@@ -174,7 +174,7 @@ Scene (Pe)
 │   ├── Outline (my)     Sphere scaled 1.06, MeshBasic outline color
 │   └── Blob highlight   partial sphere white .55 @ (.06,.08,-.04)
 ├── Ground Shadow (ns)   Circle(.35,16) theme shadow color, rot -PI/2
-├── Platforms x6 (cr)    each Group: box mesh + outline(1.02) + diamond + ring + gems
+├── Platforms x6 (cr)    each Group: box mesh + outline(1.02) + diamond + ring + coins
 ├── Background x10 (Ni)  rock clusters (2-4 spheres each + outlines)
 ├── Particles (sr)       jump dust, perfect burst
 └── Speed lines (ar)     boxes pointing -Z, 15..30
@@ -217,11 +217,11 @@ Procedural textures:
 | `WM` | randomize palette start offset |
 | `XM(r)` | palette for index r |
 | `$c(r)` | platform material color for index r |
-| `YM` / `qM` | ball / gem halftone materials |
+| `YM` / `qM` | ball / coin halftone materials |
 | `Bd`/`zh`/`ac` | AudioContext lazy init / get / resume |
 | `Ln` | tone player (freq, dur, type, gain, detune) |
 | `ZM(r)` | jump sound (440+r%8*30, *1.5) |
-| `JM` | gem sound (880→1100→1320) |
+| `JM` | coin sound (880→1100→1320) |
 | `KM(r)` | perfect/combo sound (660+min(r,10)*60 arpeggio) |
 | `$M` | game over sound (saw 200, square 150 -50) |
 | `QM` | sanitize loaded player data |
@@ -240,8 +240,8 @@ Procedural textures:
 | `qd` | platform scale (shrinks) |
 | `au` | platform spacing |
 | `by(r)` | create platform pool entry |
-| `ou(r)` | add gem to platform (28%) |
-| `Zd(r)` | remove/dispose platform gems |
+| `ou(r)` | add coin to platform (28%) |
+| `Zd(r)` | remove/dispose platform coins |
 | `Ay` | recycle platforms behind camera |
 | `wy` | camera follow (lerps) |
 | `$d` | pointer down (start / first-jump / begin drag) |
@@ -250,7 +250,7 @@ Procedural textures:
 | `Cy` | jump duration (ramps down) |
 | `Qd` | **jump + auto-chain** (recurses) |
 | `Py` | perfect effects (flash, ring, burst, screen flash) |
-| `Dy` | gem collect (scale down + score/coin) |
+| `Dy` | coin collect (scale down + score/coin) |
 | `Uy` | jump dust particles |
 | `Ny` | update/expire particles |
 | `ep` | speed-line intensity `clamp((score-15)/70, 0..1)` |
@@ -263,7 +263,7 @@ Procedural textures:
 | `Gy` | start game (hide menus, show score) |
 | `Vy` | full reset (re-init pools) |
 | `uc` | rebuild shop UI |
-| `Hy` | rotate/bob gems |
+| `Hy` | rotate/bob coins |
 | `ip` | **main loop** |
 | `rp` | resize handler |
 
@@ -281,3 +281,5 @@ The HOP reimplementation is a **pure standalone** build, so relative to the orig
 
 See `GAME_MECHANICS.md` for exact behavioral specs and `CUSTOMIZATION_GUIDE.md`
 for the extension surface.
+
+

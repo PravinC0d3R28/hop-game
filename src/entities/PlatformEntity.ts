@@ -17,7 +17,7 @@ import { GAME_CONFIG } from '../config/GameConfig';
 import { MaterialFactory } from '../systems/MaterialFactory';
 import { gsap } from 'gsap';
 
-export interface GemObject {
+export interface CoinObject {
   group: Group;
   collected: boolean;
 }
@@ -29,7 +29,7 @@ export interface PlatformData {
   perfectDot: Mesh;
   perfectRing: Mesh;
   index: number;
-  gems: GemObject[];
+  coins: CoinObject[];
   z: number;
   platformX: number;
   swayOffset: number;
@@ -42,9 +42,9 @@ const platformGeo = new BoxGeometry(
   GAME_CONFIG.PLATFORM_HEIGHT,
   GAME_CONFIG.PLATFORM_DEPTH
 );
-const gemGeo = new CylinderGeometry(
-  GAME_CONFIG.GEM_RADIUS,
-  GAME_CONFIG.GEM_RADIUS,
+const coinGeo = new CylinderGeometry(
+  GAME_CONFIG.COIN_RADIUS,
+  GAME_CONFIG.COIN_RADIUS,
   0.06,
   16
 );
@@ -115,7 +115,7 @@ export class PlatformEntity {
       perfectDot,
       perfectRing,
       index,
-      gems: [],
+      coins: [],
       z,
       platformX,
       swayOffset: 0,
@@ -124,53 +124,53 @@ export class PlatformEntity {
     };
   }
 
-  /** Random gem add (28% chance). Clears existing gems first (original `ou`+`Zd`). */
-  static addGem(platform: PlatformData, scene: Scene): void {
-    this.clearGems(platform);
-    if (Math.random() >= GAME_CONFIG.GEM_CHANCE) return;
+  /** Random coin add (28% chance). Clears existing coins first (original `ou`+`Zd`). */
+  static addCoin(platform: PlatformData, scene: Scene): void {
+    this.clearCoins(platform);
+    if (Math.random() >= GAME_CONFIG.COIN_CHANCE) return;
 
-    const gemMat = MaterialFactory.createMaterial(GAME_CONFIG.COLOR_GEM);
-    const gemMesh = new Mesh(gemGeo, gemMat);
-    gemMesh.rotation.z = Math.PI / 2;
+    const coinMat = MaterialFactory.createCoinMaterial();
+    const coinMesh = new Mesh(coinGeo, coinMat);
+    coinMesh.rotation.z = Math.PI / 2;
 
     const outlineMat = new MeshBasicMaterial({ color: GAME_CONFIG.COLOR_OUTLINE, side: BackSide });
-    const outlineMesh = new Mesh(gemGeo, outlineMat);
+    const outlineMesh = new Mesh(coinGeo, outlineMat);
     outlineMesh.scale.multiplyScalar(1.08);
     outlineMesh.rotation.z = Math.PI / 2;
 
-    const gemGroup = new Group();
-    gemGroup.add(gemMesh);
-    gemGroup.add(outlineMesh);
-    gemGroup.position.set(
+    const coinGroup = new Group();
+    coinGroup.add(coinMesh);
+    coinGroup.add(outlineMesh);
+    coinGroup.position.set(
       0,
-      GAME_CONFIG.PLATFORM_HEIGHT / 2 + GAME_CONFIG.GEM_RADIUS + 0.15,
+      GAME_CONFIG.PLATFORM_HEIGHT / 2 + GAME_CONFIG.COIN_RADIUS + 0.15,
       0
     );
-    platform.group.add(gemGroup);
-    platform.gems.push({ group: gemGroup, collected: false });
+    platform.group.add(coinGroup);
+    platform.coins.push({ group: coinGroup, collected: false });
   }
 
-  static clearGems(platform: PlatformData): void {
-    for (const gem of platform.gems) {
-      platform.group.remove(gem.group);
-      // Dispose per-gem materials only; geometries are shared singletons.
-      gem.group.traverse((obj) => {
+  static clearCoins(platform: PlatformData): void {
+    for (const coin of platform.coins) {
+      platform.group.remove(coin.group);
+      // Dispose per-coin materials only; geometries are shared singletons.
+      coin.group.traverse((obj) => {
         const m = obj as Mesh;
         if (m.material) (m.material as MeshBasicMaterial).dispose();
       });
     }
-    platform.gems = [];
+    platform.coins = [];
   }
 
-  static collectGem(platform: PlatformData, gem: GemObject): void {
-    gem.collected = true;
-    gsap.to(gem.group.scale, {
+  static collectCoin(platform: PlatformData, coin: CoinObject): void {
+    coin.collected = true;
+    gsap.to(coin.group.scale, {
       x: 0,
       y: 0,
       z: 0,
       duration: 0.2,
       onComplete: () => {
-        platform.group.remove(gem.group);
+        platform.group.remove(coin.group);
       }
     });
   }
@@ -186,7 +186,7 @@ export class PlatformEntity {
     platform.group.position.set(platformX, -5, z);
     platform.hasRisen = false;
     (platform.mesh.material as MeshToonMaterial).color.setHex(this.platformColor(newIndex));
-    this.addGem(platform, scene);
+    this.addCoin(platform, scene);
     gsap.to(platform.group.position, {
       y: 0,
       duration: GAME_CONFIG.PLATFORM_RISE_DURATION,

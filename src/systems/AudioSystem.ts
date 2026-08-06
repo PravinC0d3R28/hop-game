@@ -6,10 +6,22 @@ import { GAME_CONFIG } from '../config/GameConfig';
 export class AudioSystem {
   private ctx: AudioContext | null = null;
 
+  /** SFX volume 0–1 (driven by the settings "sound" slider). */
+  private soundVolume = 1;
+
   /** When the last mission chime rang — used to swallow rapid repeats from a completion batch. */
   private lastMissionChimeAt = Number.NEGATIVE_INFINITY;
   /** Minimum gap between mission chimes; a batch of completions rings at most every 1.8s. */
   private static readonly MISSION_CHIME_MIN_GAP_MS = 1800;
+
+  /** Set the SFX volume from a 0–100 setting. */
+  setSoundVolume(volume: number): void {
+    this.soundVolume = Math.min(1, Math.max(0, volume / 100));
+  }
+
+  /** Music volume is reserved for a future track; no music exists today. */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  setMusicVolume(_volume: number): void {}
 
   private ensureContext(): AudioContext | null {
     if (!this.ctx) {
@@ -39,17 +51,25 @@ export class AudioSystem {
   ): void {
     const ctx = this.ensureContext();
     if (!ctx || ctx.state === 'suspended') return;
+    const g = this.applyVolume(gain);
+    if (g <= 0) return;
     const osc = ctx.createOscillator();
-    const g = ctx.createGain();
+    const gainNode = ctx.createGain();
     osc.type = type;
     osc.frequency.value = freq;
     osc.detune.value = detune;
-    g.gain.setValueAtTime(gain, ctx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-    osc.connect(g);
-    g.connect(ctx.destination);
+    gainNode.gain.setValueAtTime(g, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
     osc.start();
     osc.stop(ctx.currentTime + duration);
+  }
+
+  /** Scale a raw gain value by the current SFX volume (returns 0 when muted). */
+  private applyVolume(gain: number): number {
+    if (this.soundVolume <= 0) return 0;
+    return gain * this.soundVolume;
   }
 
   /** Mirror `ZM`: jump sound — base tone + 1.5x. */
@@ -59,8 +79,8 @@ export class AudioSystem {
     this.playTone(base * 1.5, 0.08, 'sine', 0.1);
   }
 
-  /** Mirror `JM`: gem sound — three ascending tones. */
-  playGem(): void {
+  /** Mirror `JM`: coin sound — three ascending tones. */
+  playCoin(): void {
     this.playTone(880, 0.1, 'sine', 0.25);
     setTimeout(() => this.playTone(1100, 0.1, 'sine', 0.2), 50);
     setTimeout(() => this.playTone(1320, 0.15, 'sine', 0.15), 100);
@@ -92,8 +112,8 @@ export class AudioSystem {
     const ctx = this.ensureContext();
     if (!ctx || ctx.state === 'suspended') return;
     const now = ctx.currentTime;
-    this.swoosh(0.5, 500, 3500, ctx, now, 0.5);
-    setTimeout(() => this.swoosh(0.35, 900, 5000, ctx, ctx.currentTime, 0.28), 90);
+    this.swoosh(0.5, 500, 3500, ctx, now, this.applyVolume(0.5));
+    setTimeout(() => this.swoosh(0.35, 900, 5000, ctx, ctx.currentTime, this.applyVolume(0.28)), 90);
   }
 
   private swoosh(duration: number, fromFreq: number, toFreq: number, ctx: AudioContext, when: number, gain: number): void {
@@ -124,6 +144,8 @@ export class AudioSystem {
     const ctx = this.ensureContext();
     if (!ctx || ctx.state === 'suspended') return;
     const now = ctx.currentTime;
+    const vol = this.applyVolume(1);
+    if (vol <= 0) return;
     for (let i = 0; i < 9; i++) {
       const osc = ctx.createOscillator();
       const g = ctx.createGain();
@@ -132,7 +154,7 @@ export class AudioSystem {
       osc.frequency.value = freq;
       osc.detune.value = (Math.random() - 0.5) * 120;
       const dur = 0.035 + Math.random() * 0.16;
-      const amp = 0.1 + Math.random() * 0.12;
+      const amp = (0.1 + Math.random() * 0.12) * vol;
       g.gain.setValueAtTime(amp, now + Math.random() * 0.05);
       g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
       osc.connect(g);
@@ -150,7 +172,7 @@ export class AudioSystem {
     hp.type = 'highpass';
     hp.frequency.value = 7500;
     const g = ctx.createGain();
-    g.gain.value = 0.45;
+    g.gain.value = 0.45 * vol;
     src.connect(hp);
     hp.connect(g);
     g.connect(ctx.destination);

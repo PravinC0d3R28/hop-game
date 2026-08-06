@@ -16,11 +16,21 @@ export const DEFAULT_PLAYER_DATA: PlayerData = {
   theme: 'light',
   totalScore: 0,
   bestPerWorld: [0, 0, 0],
-  totalGems: 0,
+  totalCoinsCollected: 0,
   totalPerfects: 0,
   bestStreak: 0,
+  bestStreakPerWorld: [0, 0, 0],
+  runsPlayed: 0,
+  totalCoinsEarned: 0,
+  soundVolume: 100,
+  musicVolume: 100,
+  sensitivity: 50,
   completedMissions: [],
+  claimedMissions: [],
   missionProgress: {},
+  revealedWorlds: [],
+  missionsUnlockSeen: false,
+  shieldCardSeen: false,
   selectedWorld: 'sunrise'
 };
 
@@ -38,7 +48,7 @@ export const DEFAULT_STATE: GameState = {
   shieldActive: false,
   shieldAwarded: false,
   runPerfects: 0,
-  runGems: 0,
+  runCoins: 0,
   maxStreak: 0
 };
 
@@ -54,6 +64,7 @@ export class GameStateManager {
     ...DEFAULT_PLAYER_DATA,
     purchasedSkins: [...DEFAULT_PLAYER_DATA.purchasedSkins],
     completedMissions: [],
+    claimedMissions: [],
     missionProgress: {}
   };
   private worldOverride: WorldId | null = null;
@@ -61,8 +72,6 @@ export class GameStateManager {
   private previewWorldId: WorldId | null = null;
   private unlockAllWorlds = false;
   private totalScore = 0;
-  private pendingMissionCoins = 0;
-  private runMissionRewards: MissionReward[] = [];
   /** Per-mission run values already banked this run (delta guard). */
   private runMissionBanked: Record<string, number> = {};
 
@@ -113,6 +122,11 @@ export class GameStateManager {
   /** Cumulative lifetime score for unlock checks (wired from persistence). */
   setTotalScore(total: number): void {
     this.totalScore = total;
+  }
+
+  /** Cumulative lifetime score for unlock checks (wired from persistence). */
+  getTotalScore(): number {
+    return this.totalScore;
   }
 
   /**
@@ -217,9 +231,8 @@ export class GameStateManager {
     this.clearRunMissions();
   }
 
-  /** Clear the per-run mission state between runs (rewards + delta guard). */
+  /** Clear the per-run mission state between runs (delta guard). */
   clearRunMissions(): void {
-    this.runMissionRewards = [];
     this.runMissionBanked = {};
   }
 
@@ -257,7 +270,16 @@ export class GameStateManager {
     return this.state.shieldActive;
   }
 
-  /** One shield per run (FR-4.4): returns true only on first reach of streak 5. */
+  /** True once the streak shield is a feature the player has earned: the
+   *  lifetime score reached the World-2 milestone (or DEBUG unlockAllWorlds).
+   *  Before that, a 10-streak still fires the FIRE banner but grants no shield. */
+  isShieldUnlocked(): boolean {
+    return this.unlockAllWorlds || this.totalScore >= GAME_CONFIG.SHIELD_UNLOCK_SCORE;
+  }
+
+  /** One shield per run (FR-4.4): returns true only on the first grant of a run.
+   *  Unlock gating (World-2 milestone) lives at the call site so this stays a
+   *  pure state-machine mechanic. */
   grantShield(): boolean {
     if (this.state.shieldAwarded) return false;
     this.state.shieldAwarded = true;
@@ -279,6 +301,7 @@ export class GameStateManager {
   addRoundCoin(): void {
     this.state.roundCoins++;
     this.playerData.totalCoins++;
+    this.playerData.totalCoinsEarned++;
   }
 
   // ---- mission tracking (Iteration 6) ----
@@ -290,17 +313,22 @@ export class GameStateManager {
     this.playerData.totalPerfects++;
     if (st.perfectStreak > st.maxStreak) st.maxStreak = st.perfectStreak;
     if (st.maxStreak > this.playerData.bestStreak) this.playerData.bestStreak = st.maxStreak;
+    const index = this.getActiveWorldIndex();
+    if (st.maxStreak > (this.playerData.bestStreakPerWorld[index] ?? 0)) {
+      this.playerData.bestStreakPerWorld[index] = st.maxStreak;
+    }
   }
 
-  /** Called on a gem collect: run + lifetime gem counters. */
-  trackGemCollected(): void {
-    this.state.runGems++;
-    this.playerData.totalGems++;
+  /** Called on a coin collect: run + lifetime coin counters. */
+  trackCoinCollected(): void {
+    this.state.runCoins++;
+    this.playerData.totalCoinsCollected++;
   }
 
   /**
    * Completes any active, not-yet-done missions whose target is met.
-   * Rewards accrue to `pendingMissionCoins` (banked at game over).
+   * Rewards are NOT banked here — they become claimable in the missions tab
+   * (completed but unclaimed) and are awarded on `claimMissionReward`.
    * Returns the newly completed missions for toasts.
    *
    * Session-based semantics (all kinds, one-time in the game's lifetime):
@@ -309,7 +337,7 @@ export class GameStateManager {
    *   `missionProgress` (capped at the target); progress survives across runs
    *   and the mission completes permanently the moment the cap is reached.
    * Only the delta since the last evaluation this run is banked, so calling
-   * this mid-run (every jump / gem) is idempotent.
+   * this mid-run (every jump / coin) is idempotent.
    *
    * World missions activate for the selected world only — switching worlds
    * freezes their progress until you return. Streak missions are maxima, not
@@ -317,11 +345,15 @@ export class GameStateManager {
    * summing streaks across runs.
    */
   evaluateMissions(dateKey: string = todayKey()): MissionReward[] {
+    // Missions are fully gated behind MISSIONS_UNLOCK_RUNS completed runs:
+    // before that no progress banks, nothing completes and nothing is
+    // claimable — the feature only turns on after the 3rd game over.
+    if (!this.isMissionsUnlocked()) return [];
     const completed: MissionReward[] = [];
     const run = {
       score: this.state.score,
       runPerfects: this.state.runPerfects,
-      runGems: this.state.runGems,
+      runCoins: this.state.runCoins,
       maxStreak: this.state.maxStreak,
       selectedWorld: this.getActiveWorld().id
     };
@@ -364,33 +396,66 @@ export class GameStateManager {
     mission: { id: string; title: string; reward: number; kind: MissionKind },
     completed: MissionReward[]
   ): void {
-    this.pendingMissionCoins += mission.reward;
     const reward: MissionReward = {
       id: mission.id,
       title: mission.title,
       reward: mission.reward,
       kind: mission.kind
     };
-    this.runMissionRewards.push(reward);
     completed.push(reward);
   }
 
-  getPendingMissionCoins(): number {
-    return this.pendingMissionCoins;
+  /** Missions completed but whose reward hasn't been claimed yet. */
+  getClaimableMissionCount(): number {
+    return this.getClaimableMissionIds().length;
   }
 
-  /** Missions completed during the current run (for the game-over summary). */
-  getRunMissionRewards(): readonly MissionReward[] {
-    return this.runMissionRewards.slice();
+  /** Ids of completed-but-unclaimed missions (the "!" on the missions button). */
+  getClaimableMissionIds(): string[] {
+    if (!this.isMissionsUnlocked()) return [];
+    return this.playerData.completedMissions.filter((id) => !this.playerData.claimedMissions.includes(id));
   }
 
-  /** Bank accumulated mission coins into the wallet. Returns the amount banked. */
-  bankPendingMissionCoins(): number {
-    if (this.pendingMissionCoins <= 0) return 0;
-    this.playerData.totalCoins += this.pendingMissionCoins;
-    const amount = this.pendingMissionCoins;
-    this.pendingMissionCoins = 0;
-    return amount;
+  /** Claimable count scoped to one missions tab (daily/world/lifetime). */
+  getClaimableCountForKind(kind: MissionKind): number {
+    return this.getClaimableMissionIds().filter((id) => getMissionById(id)?.kind === kind).length;
+  }
+
+  /** Whether the missions feature is available yet (gated behind N runs). */
+  isMissionsUnlocked(): boolean {
+    return this.playerData.runsPlayed >= GAME_CONFIG.MISSIONS_UNLOCK_RUNS;
+  }
+
+  /** Missions unlocked but the one-time "missions unlocked!" callout hasn't been
+   *  checked out yet — until it is, the next run stays blocked. */
+  hasPendingMissionsUnlock(): boolean {
+    return this.isMissionsUnlocked() && !this.playerData.missionsUnlockSeen;
+  }
+
+  /** Whether a completed mission's reward has been claimed already. */
+  isMissionClaimed(id: string): boolean {
+    return this.playerData.claimedMissions.includes(id);
+  }
+
+  /**
+   * Award a completed mission's reward to the wallet and mark it claimed.
+   * Idempotent: returns null for unknown, incomplete or already-claimed ids.
+   */
+  claimMissionReward(id: string): MissionReward | null {
+    if (!this.isMissionsUnlocked()) return null;
+    if (this.isMissionClaimed(id)) return null;
+    if (!this.playerData.completedMissions.includes(id)) return null;
+    const mission = getMissionById(id);
+    if (!mission) return null;
+    this.playerData.claimedMissions.push(id);
+    this.playerData.totalCoins += mission.reward;
+    this.playerData.totalCoinsEarned += mission.reward;
+    return {
+      id: mission.id,
+      title: mission.title,
+      reward: mission.reward,
+      kind: mission.kind
+    };
   }
 
   // ---- economy / shop ----
@@ -449,6 +514,11 @@ export class GameStateManager {
     this.setTotalScore(this.playerData.totalScore);
     return this.playerData.totalScore;
   }
+
+  /** Record a completed run (all-time runs played). Call once per game over. */
+  trackRunPlayed(): void {
+    this.playerData.runsPlayed++;
+  }
 }
 
 /**
@@ -477,13 +547,50 @@ export function sanitizePlayerData(raw: Partial<PlayerData> | null | undefined):
     theme,
     totalScore: typeof raw?.totalScore === 'number' && raw.totalScore >= 0 ? raw.totalScore : 0,
     bestPerWorld: sanitizeBestPerWorld(raw?.bestPerWorld),
-    totalGems: typeof raw?.totalGems === 'number' && raw.totalGems >= 0 ? raw.totalGems : 0,
+    totalCoinsCollected: sanitizeLegacyTotalCoins(raw),
     totalPerfects: typeof raw?.totalPerfects === 'number' && raw.totalPerfects >= 0 ? raw.totalPerfects : 0,
     bestStreak: typeof raw?.bestStreak === 'number' && raw.bestStreak >= 0 ? raw.bestStreak : 0,
+    bestStreakPerWorld: sanitizeBestPerWorld(raw?.bestStreakPerWorld),
+    runsPlayed: typeof raw?.runsPlayed === 'number' && raw.runsPlayed >= 0 ? raw.runsPlayed : 0,
+    totalCoinsEarned: typeof raw?.totalCoinsEarned === 'number' && raw.totalCoinsEarned >= 0 ? raw.totalCoinsEarned : 0,
+    soundVolume: sanitizeVolume(raw?.soundVolume),
+    musicVolume: sanitizeVolume(raw?.musicVolume),
+    sensitivity: sanitizeSensitivity(raw?.sensitivity),
     completedMissions: sanitizeCompletedMissions(raw?.completedMissions),
+    claimedMissions: sanitizeCompletedMissions(raw?.claimedMissions),
     missionProgress: sanitizeMissionProgress(raw?.missionProgress),
+    revealedWorlds: sanitizeRevealedWorlds(raw?.revealedWorlds),
+    missionsUnlockSeen: raw?.missionsUnlockSeen === true,
+    shieldCardSeen: raw?.shieldCardSeen === true,
     selectedWorld: sanitizeWorldId(raw?.selectedWorld)
   };
+}
+
+/**
+ * Clamp a 0–100 sensitivity setting. 50 = the original pre-feature feel.
+ * Legacy saves stored 100 for "original feel" on the old 0–100 scale — those
+ * are migrated to 50 so the corrected mapping keeps their actual feel intact.
+ * Anything invalid falls back to the current default (50).
+ */
+function sanitizeSensitivity(raw: unknown): number {
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return DEFAULT_PLAYER_DATA.sensitivity;
+  const v = Math.min(100, Math.max(0, Math.round(raw)));
+  return v === 100 ? 50 : v;
+}
+
+/**
+ * Revealed world ids (first clicked in the start-screen nav) as a unique
+ * array of known world ids. Legacy saves (no field) default to [].
+ */
+function sanitizeRevealedWorlds(raw: unknown): WorldId[] {
+  if (!Array.isArray(raw)) return [];
+  const out: WorldId[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'string') continue;
+    const id = item as WorldId;
+    if (WORLDS.some((w) => w.id === id) && !out.includes(id)) out.push(id);
+  }
+  return out;
 }
 
 /**
@@ -539,6 +646,24 @@ function sanitizeBestPerWorld(raw: unknown, size: number = WORLDS.length): numbe
   return out;
 }
 
+/** Clamp a 0–100 volume setting; anything invalid falls back to 100. */
+function sanitizeVolume(raw: unknown): number {
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return 100;
+  return Math.min(100, Math.max(0, Math.round(raw)));
+}
+
+/**
+ * Lifetime coins collected, with a legacy fallback: pre-rename saves stored the
+ * counter as `totalGems` — accept both keys so veteran profiles keep their count.
+ */
+function sanitizeLegacyTotalCoins(raw: Partial<PlayerData> | null | undefined): number {
+  const legacy = (raw as unknown as { totalGems?: unknown } | null | undefined)?.totalGems;
+  const current = raw?.totalCoinsCollected;
+  if (typeof current === 'number' && current >= 0) return current;
+  if (typeof legacy === 'number' && legacy >= 0) return legacy;
+  return 0;
+}
+
 /**
  * Merge strategy from the original cloud-load: keep max coins/best, union skins,
  * prefer the most recently saved theme/skin.
@@ -553,12 +678,20 @@ export function mergePlayerData(base: PlayerData, incoming: PlayerData): PlayerD
   for (const id of incoming.completedMissions) {
     if (!completedMissions.includes(id)) completedMissions.push(id);
   }
+  const claimedMissions = [...base.claimedMissions];
+  for (const id of incoming.claimedMissions) {
+    if (!claimedMissions.includes(id)) claimedMissions.push(id);
+  }
   const missionProgress: Record<string, number> = {};
   for (const id of new Set([...Object.keys(base.missionProgress), ...Object.keys(incoming.missionProgress)])) {
     missionProgress[id] = Math.max(
       base.missionProgress[id] ?? 0,
       incoming.missionProgress[id] ?? 0
     );
+  }
+  const revealedWorlds = [...base.revealedWorlds];
+  for (const id of incoming.revealedWorlds) {
+    if (!revealedWorlds.includes(id)) revealedWorlds.push(id);
   }
   return {
     totalCoins: Math.max(base.totalCoins, incoming.totalCoins),
@@ -570,11 +703,26 @@ export function mergePlayerData(base: PlayerData, incoming: PlayerData): PlayerD
     bestPerWorld: WORLDS.map((_, i) =>
       Math.max(base.bestPerWorld[i] ?? 0, incoming.bestPerWorld[i] ?? 0)
     ),
-    totalGems: Math.max(base.totalGems, incoming.totalGems),
+    totalCoinsCollected: Math.max(
+      sanitizeLegacyTotalCoins(base),
+      sanitizeLegacyTotalCoins(incoming)
+    ),
     totalPerfects: Math.max(base.totalPerfects, incoming.totalPerfects),
     bestStreak: Math.max(base.bestStreak, incoming.bestStreak),
+    bestStreakPerWorld: WORLDS.map((_, i) =>
+      Math.max(base.bestStreakPerWorld[i] ?? 0, incoming.bestStreakPerWorld[i] ?? 0)
+    ),
+    runsPlayed: Math.max(base.runsPlayed, incoming.runsPlayed),
+    totalCoinsEarned: Math.max(base.totalCoinsEarned, incoming.totalCoinsEarned),
+    soundVolume: sanitizeVolume(incoming.soundVolume),
+    musicVolume: sanitizeVolume(incoming.musicVolume),
+    sensitivity: sanitizeSensitivity(incoming.sensitivity),
     completedMissions,
+    claimedMissions,
     missionProgress,
+    revealedWorlds,
+    missionsUnlockSeen: base.missionsUnlockSeen || incoming.missionsUnlockSeen,
+    shieldCardSeen: base.shieldCardSeen || incoming.shieldCardSeen,
     selectedWorld: WORLDS.some((w) => w.id === incoming.selectedWorld)
       ? incoming.selectedWorld
       : base.selectedWorld

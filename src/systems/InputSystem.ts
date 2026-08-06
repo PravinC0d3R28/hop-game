@@ -77,7 +77,9 @@ export class InputSystem {
   private onMove(e: PointerEvent): void {
     if (!this.dragging) return;
     const st = this.state.getMutableState();
-    const delta = (e.clientX - this.startClientX) * -0.028;
+    // Sensitivity 0–100 scales the drag multiplier (50 = the original feel).
+    const sens = this.state.getPlayerData().sensitivity / 50;
+    const delta = (e.clientX - this.startClientX) * -0.028 * sens;
     st.xTarget = this.clamp(this.startTarget + delta, -5, 5);
   }
 
