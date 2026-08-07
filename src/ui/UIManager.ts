@@ -40,7 +40,6 @@ export class UIManager {
   private worldTitle = this.el<HTMLElement>('world-title');
   private missionsBtn = this.el<HTMLButtonElement>('missions-btn');
   private missionsMenuItem = this.el<HTMLElement>('missions-menu-item');
-  private missionsCallout = this.el<HTMLElement>('missions-callout');
   private missionsOverlay = this.el<HTMLElement>('missions-overlay');
   private missionsClose = this.el<HTMLElement>('missions-close');
   private missionsList = this.el<HTMLElement>('missions-list');
@@ -64,6 +63,15 @@ export class UIManager {
   private menuBtns = this.el<HTMLElement>('menu-btns');
   private goWorld = this.el<HTMLElement>('go-world');
   private playBtn = this.el<HTMLElement>('play-btn');
+  private teachHint = this.el<HTMLElement>('teach-hint');
+  private teachHand = this.el<HTMLElement>('teach-hand');
+  private teachText = this.el<HTMLElement>('teach-text');
+  private firstRunGuide = this.el<HTMLElement>('first-run-guide');
+  private frgRing = this.el<HTMLElement>('frg-ring');
+  private frgCaption = this.el<HTMLElement>('frg-caption');
+  private frgDrag = this.el<HTMLElement>('frg-drag');
+  private guideDragVisible = false;
+  private teachTimeline: gsap.core.Timeline | null = null;
   private bestScore = this.el<HTMLElement>('best-score');
   private bestScoreVal = this.el<HTMLElement>('best-score-value');
   private bestScoreCallout = this.el<HTMLElement>('best-score-callout');
@@ -77,6 +85,18 @@ export class UIManager {
   private shieldCardDialog = this.el<HTMLElement>('shield-card-dialog');
   private shieldCardClose = this.el<HTMLButtonElement>('shield-card-close');
   private shieldCardGotit = this.el<HTMLButtonElement>('shield-card-gotit');
+  private spotlightOverlay = this.el<HTMLElement>('spotlight-overlay');
+  private spotlightHole = this.el<HTMLElement>('spotlight-hole');
+  private spotlightRing = this.el<HTMLElement>('spotlight-ring');
+  private spotlightCard = this.el<HTMLElement>('spotlight-card');
+  private spotlightKicker = this.el<HTMLElement>('spotlight-kicker');
+  private spotlightCardTitle = this.el<HTMLElement>('spotlight-card-title');
+  private spotlightCardDesc = this.el<HTMLElement>('spotlight-card-desc');
+  /** Target element the spotlight hole/ring currently wraps (null = none). */
+  private spotlightTarget: HTMLElement | null = null;
+  /** Which teach is showing (world vs missions) — used to settle its gate when
+   *  the player dismisses it. */
+  private spotlightKind: 'world' | 'missions' | null = null;
   private streakGlow: HTMLElement | null = null;
   private missionQueue: boolean[] = [];
   private missionBusy = false;
@@ -85,6 +105,13 @@ export class UIManager {
   private bestCalloutTimer: number | null = null;
   private lastUnlockedCount: number | null = null;
   private pendingUnlockWorld: WorldId | null = null;
+  /** Pending timer for a scheduled spotlight (world unlock or new missions; kept
+   *  so re-renders don't stack multiple schedules). */
+  private spotlightTimer: number | null = null;
+  private spotlightOpen = false;
+  /** One-shot reveal timers that make the play button disappear the moment a
+   *  spotlight becomes eligible, so the teach is actually seen before running. */
+  private spotlightBlockTimer: number | null = null;
   /** Missions tabs whose bars already animated this overlay open (one-shot fill). */
   private animatedMissionsTabs = new Set<MissionKind>();
   /** Worlds that already showed the one-time "check this out!" callout. */
@@ -120,17 +147,28 @@ export class UIManager {
   /** Fired when the "music" volume slider changes (0–100). Reserved for a future track. */
   onMusicVolumeChange: (volume: number) => void = () => {};
 
-  /** Check circle for claimed rows. Drawn as a border-box circle (rect filled to
-   *  the edges + 2px ring) so it superimposes the collapsed claim capsule
-   *  exactly: same green fill, same ring, same footprint, no shadow. */
-  private static CHECK_SVG =
-    '<svg class="m-check-svg" viewBox="0 0 24 24" aria-hidden="true">' +
-    '<rect x="2" y="2" width="20" height="20" rx="10" fill="#28a858" stroke="#111" stroke-width="2"/>' +
-    '<path d="M7 12.6l3.3 3.3 6.6-7.2" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '</svg>';
+  /** Check circle for claimed rows. Green circle + a 2px black ring drawn fully
+   *  OUTSIDE the green, filling the whole element — exactly like the claim
+   *  capsule's CSS border (2px, border-box). Geometry is in px (viewBox = element
+   *  size) so at any resolution it superimposes the collapsed claim capsule
+   *  perfectly: same green, same ring thickness, same outer footprint, no shadow.
+   *  The white tick shares its path with TICK_SVG so it doesn't resize at the swap. */
+  private static checkSvg(size: number): string {
+    const c = size / 2;
+    const s = size / 24;
+    return (
+      `<svg class="m-check-svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" aria-hidden="true">` +
+      `<circle cx="${c}" cy="${c}" r="${c - 2}" fill="#28a858"/>` +
+      `<circle cx="${c}" cy="${c}" r="${c - 1}" fill="none" stroke="#111" stroke-width="2"/>` +
+      `<path d="M${7 * s} ${12.6 * s} l${3.3 * s} ${3.3 * s} l${6.6 * s} ${-7.2 * s}" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>` +
+      '</svg>'
+    );
+  }
 
   /** Tick only — popped into the collapsed claim capsule (the capsule itself
-   *  is already the green circle, so no nested check-circle is needed). */
+   *  is already the green circle, so no nested check-circle is needed). Its
+   *  white check shares the path used by checkSvg(), so the tick keeps its size
+   *  when the row re-renders to the check icon (no visual "jump"). */
   private static TICK_SVG =
     '<svg class="m-tick-svg" viewBox="0 0 24 24" aria-hidden="true">' +
     '<path d="M7 12.6l3.3 3.3 6.6-7.2" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>' +
@@ -287,7 +325,16 @@ export class UIManager {
     this.shieldCardDialog.addEventListener('click', (e) => {
       if (e.target === this.shieldCardDialog) this.closeShieldCard();
     });
+    // One-tap dismiss anywhere for a spotlight.
+    this.spotlightOverlay.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      this.closeSpotlight();
+    });
     window.addEventListener('resize', () => this.onResize());
+    // Pinch-zoom / embedded webviews resize the visual viewport without a
+    // window resize — re-pin the play button (and any open spotlight hole)
+    // there too, so zoom can never strand the tap-to-play overlay.
+    window.visualViewport?.addEventListener('resize', () => this.onResize());
   }
 
   onContinue: () => void = () => {};
@@ -336,18 +383,21 @@ export class UIManager {
     this.missionsMenuItem.classList.toggle('missions-gated', !missionsUnlocked);
     const missionsLabel = this.missionsMenuItem.querySelector<HTMLElement>('.menu-label');
     if (missionsLabel) missionsLabel.textContent = missionsUnlocked ? 'missions' : '???';
-    this.refreshMissionsCallout();
+    this.refreshMissionsPending();
     this.maybeShowShieldCard();
+    this.maybeShowSpotlights();
+    this.refreshTeachHint();
+    this.maybeShowDuskCallout();
   }
 
-  /** One-time "missions unlocked!" callout left of the missions button. Shown
-   *  while missions are unlocked but haven't been checked out yet; the play
-   *  button is dimmed and the next run stays blocked until the missions
-   *  overlay is opened once. */
-  private refreshMissionsCallout(): void {
-    const pending = this.state.hasPendingMissionsUnlock();
-    this.missionsCallout.hidden = !pending;
-    this.startScreen.classList.toggle('missions-callout-pending', pending);
+  /** While the one-time missions-unlocked gate is pending, the play button
+   *  stays hidden (pattern: `#start-screen.missions-callout-pending`) until the
+   *  missions overlay is opened once; the spotlight teaches where the button is. */
+  private refreshMissionsPending(): void {
+    this.startScreen.classList.toggle(
+      'missions-callout-pending',
+      this.state.hasPendingMissionsUnlock()
+    );
   }
 
   /** Navigate to an adjacent world via the start-screen arrows. */
@@ -424,7 +474,8 @@ export class UIManager {
       // Locked worlds keep the arrow (no lock/score preview) — the lock card
       // is the reveal. Dimmed arrow hints the world isn't ready yet.
       this.worldNext.classList.toggle('locked', !unlocked);
-      this.worldNext.innerHTML = '<span class="nav-chevron">&#9654;</span>';
+      this.worldNext.innerHTML =
+        `<span class="nav-chevron"><img src="${this.asset('arrow-right.png')}" alt="next"></span>`;
       this.setNavLabel(this.worldNext, this.navLabelFor(next));
       this.worldNext.title = unlocked
         ? `Go to ${next.name}`
@@ -551,6 +602,33 @@ export class UIManager {
     this.showBubble('check this out!', 5000, false);
   }
 
+  /** One-time callout after the player's first dusk run: a bubble by the world
+   *  nav teases the still-locked void world ("too easy? can you win here?").
+   *  This replaces the world-3 lock spotlight (see maybeShowWorldSpotlight).
+   *  Fires once per save — the flag is marked seen the moment it shows, and
+   *  only while void is still locked (once unlocked the tease is moot). Runs
+   *  from the END of renderStartScreen, AFTER renderWorldNav has scheduled its
+   *  periodic bubble: showBubble synchronously replaces that pending schedule
+   *  (nothing later can kill it) and reschedules the periodic cycle afterwards. */
+  private maybeShowDuskCallout(): void {
+    const data = this.state.getMutablePlayerData();
+    if (data.firstDuskCalloutSeen) return;
+    const dusk = getWorldById('dusk');
+    const voidWorld = getWorldById('void');
+    if (!dusk || !voidWorld) return;
+    // They must have actually played (and scored in) a dusk run.
+    if ((data.bestPerWorld[WORLDS.indexOf(dusk)] ?? 0) <= 0) return;
+    // The tease is for the LOCKED void world; once unlocked there's nothing
+    // to point at, so the flag can stay unset forever (the guard exits here).
+    if (this.state.canSelectWorld(voidWorld)) return;
+    data.firstDuskCalloutSeen = true;
+    this.onDataChanged();
+    this.stopBubble();
+    // reschedule=true keeps the normal periodic tease cycle going after this
+    // one-shot has had its moment.
+    this.showBubble('too easy? can you win here?', 6000, true);
+  }
+
   private hideBubble(onDone?: () => void): void {
     if (this.worldBubble.style.display === 'none') {
       onDone?.();
@@ -578,11 +656,23 @@ export class UIManager {
   /** Project the ball's start position onto the screen and park the play button there. */
   /** Center the tap-to-play overlay on the ball's projected position.
    *  Nudges come from the CSS vars --tap-offset-x / --tap-offset-y (see :root
-   *  in index.html) so the overlay can be repositioned without touching JS. */
+   *  in index.html) so the overlay can be repositioned without touching JS.
+   *  The projection uses the camera's BOOT pose, not its live one: the camera
+   *  follows the ball, so during the attract demo it drifts far ahead — a
+   *  behind-camera projection of the start tile would fling the button off-
+   *  screen on the next zoom/resize re-pin. The boot pose gives the tile's
+   *  canonical spot for any canvas size (fov/aspect stay live). */
   private positionPlayButton(): void {
     const canvas = this.renderer.renderer.domElement;
     const rect = canvas.getBoundingClientRect();
+    // A transient 0-size rect (mid-zoom / layout) must not overwrite the
+    // current position — keep the last good pin until the layout settles.
+    if (rect.width < 1 || rect.height < 1) return;
     const cam = this.renderer.camera;
+    const pos = cam.position.clone();
+    const quat = cam.quaternion.clone();
+    cam.position.set(0, GAME_CONFIG.CAMERA_OFFSET_Y, GAME_CONFIG.CAMERA_OFFSET_Z);
+    cam.lookAt(0, 0, GAME_CONFIG.CAMERA_LOOK_AHEAD);
     cam.updateMatrixWorld(true);
     cam.updateProjectionMatrix();
     const vec = new Vector3(
@@ -591,11 +681,22 @@ export class UIManager {
       0
     );
     vec.project(cam);
+    cam.position.copy(pos);
+    cam.quaternion.copy(quat);
+    cam.updateMatrixWorld(true);
+    cam.updateProjectionMatrix();
     const x = (vec.x * 0.5 + 0.5) * rect.width;
     const y = (-vec.y * 0.5 + 0.5) * rect.height;
     const rs = getComputedStyle(document.documentElement);
     const ox = parseFloat(rs.getPropertyValue('--tap-offset-x')) || 0;
     const oy = parseFloat(rs.getPropertyValue('--tap-offset-y')) || 0;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      // Never park the button at a garbage position: fall back to the CSS
+      // default (centered on the screen) so it stays visible and tappable.
+      this.playBtn.style.left = '';
+      this.playBtn.style.top = '';
+      return;
+    }
     this.playBtn.style.left = `${x + ox}px`;
     this.playBtn.style.top = `${y + oy}px`;
   }
@@ -633,6 +734,151 @@ export class UIManager {
     gsap.killTweensOf(this.playBtn);
     gsap.set(this.playBtn, { opacity: 1 });
     this.playBtn.style.pointerEvents = 'auto';
+  }
+
+  // ---- attract-demo teach hint: cycling "drag to aim / release to hop" ----
+
+  /** Start the cycling hint. Skips when already actively running (cheap to call
+   *  often); rebuilds if the timeline was killed externally — reset() clears the
+   *  GSAP global timeline, which would otherwise leave a dead reference here. */
+  private startTeachHint(): void {
+    if (this.teachTimeline && this.teachTimeline.isActive()) return;
+    if (this.teachTimeline) {
+      this.teachTimeline.kill();
+      this.teachTimeline = null;
+    }
+    this.teachHint.classList.remove('hidden');
+    const setText = (t: string): void => {
+      this.teachText.textContent = t;
+    };
+    setText('drag to aim');
+    this.teachTimeline = gsap
+      .timeline({ repeat: -1 })
+      .fromTo(this.teachHand, { x: -12, opacity: 1 }, { x: 12, duration: 0.8, ease: 'sine.inOut', yoyo: true, repeat: 2 })
+      .call(() => setText('stay on the tiles'))
+      .fromTo(this.teachHand, { scale: 1 }, { scale: 0.82, duration: 0.12, yoyo: true, repeat: 1, ease: 'power2.out' })
+      .to({}, { duration: 0.8 })
+      .call(() => setText('drag to aim'));
+  }
+
+  private stopTeachHint(): void {
+    if (this.teachTimeline) {
+      this.teachTimeline.kill();
+      this.teachTimeline = null;
+    }
+    gsap.killTweensOf(this.teachHand);
+    gsap.set(this.teachHand, { x: 0, scale: 1 });
+    this.teachHint.classList.add('hidden');
+  }
+
+  /** Keep the hint in sync with start-screen visibility (cheap to call often). */
+  private refreshTeachHint(): void {
+    if (this.startScreen.style.display !== 'none') this.startTeachHint();
+    else this.stopTeachHint();
+  }
+
+  // ---- first-run guided play: target ring over the next tile ----
+
+  /** Show/hide the guided-play overlay (ring + caption) for the tutorial run. */
+  showFirstRunGuide(show: boolean): void {
+    gsap.killTweensOf(this.frgCaption);
+    gsap.killTweensOf(this.frgRing);
+    gsap.killTweensOf(this.frgDrag);
+    this.firstRunGuide.classList.toggle('hidden', !show);
+    if (!show) {
+      this.frgRing.style.left = '';
+      this.guideDragVisible = false;
+      this.frgDrag.style.display = 'none';
+    } else {
+      gsap.set([this.frgCaption, this.frgRing, this.frgDrag], { opacity: 1 });
+      this.setGuideStep(0);
+    }
+  }
+
+  /** Advance the tutorial caption + drag hint for a completed guided hop. */
+  setGuideStep(step: number): void {
+    if (step === 0) this.frgCaption.textContent = 'tap to hop';
+    else if (step <= 2) this.frgCaption.textContent = 'drag to aim';
+    else this.frgCaption.textContent = 'drop on the diamond!';
+    this.guideDragVisible = step >= 1;
+    if (!this.guideDragVisible) this.frgDrag.style.display = 'none';
+  }
+
+  /**
+   * Fade the guided-play overlay out element by element — the tutorial's end
+   * is deliberately seamless (no end screen, no "tutorial over" moment): the
+   * guides simply melt away while the run keeps going.
+   */
+  fadeOutFirstRunGuide(): void {
+    if (this.firstRunGuide.classList.contains('hidden')) return;
+    gsap.killTweensOf(this.frgCaption);
+    gsap.killTweensOf(this.frgRing);
+    gsap.killTweensOf(this.frgDrag);
+    gsap.to([this.frgCaption, this.frgRing, this.frgDrag], {
+      opacity: 0,
+      duration: 0.45,
+      stagger: 0.15,
+      ease: 'power2.in',
+      onComplete: () => this.showFirstRunGuide(false)
+    });
+  }
+
+  /** Brief "you missed" flash on a tutorial retry, then back to the tap prompt. */
+  showTutorialRetry(): void {
+    this.frgCaption.textContent = 'almost! try again';
+    window.setTimeout(() => {
+      this.frgCaption.textContent = 'tap to hop';
+    }, 1200);
+  }
+
+  /** Project a tile's world position onto the screen and park the ring on it. */
+  positionGuideRing(x: number, z: number): void {
+    const canvas = this.renderer.renderer.domElement;
+    const rect = canvas.getBoundingClientRect();
+    const cam = this.renderer.camera;
+    cam.updateMatrixWorld(true);
+    cam.updateProjectionMatrix();
+    const vec = new Vector3(x, GAME_CONFIG.PLATFORM_HEIGHT / 2, z);
+    vec.project(cam);
+    if (vec.z > 1 || vec.z < -1) {
+      this.firstRunGuide.style.display = 'none';
+      return;
+    }
+    this.firstRunGuide.style.display = 'block';
+    this.frgRing.style.left = `${(vec.x * 0.5 + 0.5) * rect.width}px`;
+    this.frgRing.style.top = `${(-vec.y * 0.5 + 0.5) * rect.height}px`;
+  }
+
+  /**
+   * Drag hint: parked on the NEXT tile (below its ring) and pointed the way
+   * the player must drag. The direction is resolved in SCREEN space (project
+   * ball and target, compare NDC x) — the camera looks forward, so world +x
+   * is screen-left; a world-based sign would teach the wrong drag.
+   */
+  positionGuideDrag(ballX: number, ballZ: number, targetX: number, targetZ: number): void {
+    if (!this.guideDragVisible) {
+      this.frgDrag.style.display = 'none';
+      return;
+    }
+    const canvas = this.renderer.renderer.domElement;
+    const rect = canvas.getBoundingClientRect();
+    const cam = this.renderer.camera;
+    cam.updateMatrixWorld(true);
+    cam.updateProjectionMatrix();
+    const ballV = new Vector3(ballX, GAME_CONFIG.PLATFORM_HEIGHT / 2 + GAME_CONFIG.BALL_RADIUS, ballZ);
+    const tgtV = new Vector3(targetX, GAME_CONFIG.PLATFORM_HEIGHT / 2, targetZ);
+    ballV.project(cam);
+    tgtV.project(cam);
+    if (tgtV.z > 1 || tgtV.z < -1) {
+      this.frgDrag.style.display = 'none';
+      return;
+    }
+    // Target screen-left of the ball → drag left (arrow flipped); otherwise
+    // the arrow's default points right.
+    this.frgDrag.classList.toggle('left', tgtV.x < ballV.x);
+    this.frgDrag.style.display = 'block';
+    this.frgDrag.style.left = `${(tgtV.x * 0.5 + 0.5) * rect.width}px`;
+    this.frgDrag.style.top = `${(-tgtV.y * 0.5 + 0.5) * rect.height + 44}px`;
   }
 
   // ---- best score chip (crown asset) + occasional "can you beat this?" ----
@@ -716,6 +962,10 @@ export class UIManager {
     this.unlockDialog.classList.add('hidden');
     gsap.killTweensOf(this.unlockDialogConfetti);
     this.unlockDialogConfetti.innerHTML = '';
+    // A teach scheduled behind the dialog may now fire; play was unblocked
+    // the moment the dialog took over.
+    this.setSpotlightBlocking(false);
+    this.maybeShowSpotlights();
   }
 
   /** One-time shield powerup card, shown the first time the player is on world 2
@@ -749,6 +999,233 @@ export class UIManager {
     this.shieldCardDialog.classList.add('hidden');
     const card = this.shieldCardDialog.querySelector<HTMLElement>('#shield-card');
     if (card) gsap.killTweensOf(card);
+    // A teach scheduled behind the card may now fire; play was unblocked the
+    // moment the card took over.
+    this.setSpotlightBlocking(false);
+    this.maybeShowSpotlights();
+  }
+
+  /** True while a full-screen overlay that must not be stacked under/over a
+   *  teach is up (unlock dialog, shield card, missions overlay). */
+  private anyDialogVisible(): boolean {
+    if (!this.unlockDialog.classList.contains('hidden')) return true;
+    if (!this.shieldCardDialog.classList.contains('hidden')) return true;
+    if (this.missionsOverlay.style.display === 'flex') return true;
+    return false;
+  }
+
+  /** Two teach spots, world first: the locked-next-world spotlight, then (once
+   *  dismissed) the new-missions spotlight. Runs from renderStartScreen. */
+  private maybeShowSpotlights(): void {
+    if (this.maybeShowWorldSpotlight()) return;
+    this.maybeShowMissionsSpotlight();
+  }
+
+  /** One-time locked-world spotlight: dims everything except the next-arrow
+   *  button, showing a locked-world-style card. Fires once per locked next
+   *  world — the moment the world-nav arrows first reveal (score 250) on world
+   *  1, and again later for every world whose lock sits on the path ahead. The
+   *  flag is marked seen the moment it shows, so each world only teaches once.
+   *  World 3 (void) is exempt: its lock is teased by the one-time post-dusk
+   *  callout instead (see maybeShowDuskCallout), not a spotlight. */
+  private maybeShowWorldSpotlight(): boolean {
+    const data = this.state.getPlayerData();
+    const current = this.state.getActiveWorld();
+    const next = getNextWorld(current);
+    if (!next) return false;
+    // World 3's lock gets the lighter touch: a one-time bubble after the first
+    // dusk run, never a blocking spotlight teach.
+    if (next.id === 'void') return false;
+    if (this.state.canSelectWorld(next)) return false;
+    if (data.worldSpotlightSeen.includes(next.id)) return false;
+    if (data.totalScore < GAME_CONFIG.WORLD_NAV_REVEAL_SCORE) return false;
+    // Don't tease the world after a world 1 player with a huge first run that
+    // skips straight past world 2 — they haven't experienced dusk yet. The
+    // teach waits until they've actually played the world they're standing on.
+    const currentIndex = WORLDS.indexOf(current);
+    const playedCurrent = currentIndex === 0 || (data.bestPerWorld[currentIndex] ?? 0) > 0;
+    if (!playedCurrent) return false;
+    if (this.state.isPreviewLocked()) return false;
+    if (this.spotlightTimer !== null || this.spotlightOpen) return false;
+    // Don't stack on top of the dialogs — they have their own moment.
+    if (this.anyDialogVisible()) return false;
+    this.scheduleSpotlight(() => this.openWorldSpotlight(next));
+    return true;
+  }
+
+  /** One-time "new missions" spotlight: same dim + ring + card, aimed at the
+   *  missions button. Fires right after any pending locked-world spotlight, and
+   *  only from the start screen. Dismissing it settles the missions gate, so it
+   *  never leaves the player stuck (see closeSpotlight). */
+  private maybeShowMissionsSpotlight(): boolean {
+    const data = this.state.getPlayerData();
+    if (data.missionsSpotlightSeen) return false;
+    if (!this.state.hasPendingMissionsUnlock()) return false;
+    if (this.state.isPreviewLocked()) return false;
+    if (this.spotlightTimer !== null || this.spotlightOpen) return false;
+    if (this.anyDialogVisible()) return false;
+    this.scheduleSpotlight(() => this.openMissionsSpotlight());
+    return true;
+  }
+
+  /** Queue a spotlight to open after a beat, hiding the play button for the
+   *  whole wait so the teach isn't skipped. */
+  private scheduleSpotlight(open: () => void): void {
+    this.setSpotlightBlocking(true);
+    this.spotlightTimer = window.setTimeout(() => {
+      this.spotlightTimer = null;
+      open();
+    }, 1200);
+  }
+
+  /** During an in-flight teach the play button disappears; any dialog that
+   *  takes over (or a cancelled schedule) re-enables it. */
+  private setSpotlightBlocking(blocking: boolean): void {
+    if (blocking) {
+      if (this.spotlightBlockTimer !== null) return;
+      this.spotlightBlockTimer = window.setTimeout(() => {
+        this.spotlightBlockTimer = null;
+        this.startScreen.classList.add('spotlight-pending');
+      }, 0);
+    } else {
+      if (this.spotlightBlockTimer !== null) {
+        clearTimeout(this.spotlightBlockTimer);
+        this.spotlightBlockTimer = null;
+      }
+      this.startScreen.classList.remove('spotlight-pending');
+    }
+  }
+
+  private openWorldSpotlight(next: WorldConfig): void {
+    if (this.spotlightOpen || this.state.isPreviewLocked() || this.anyDialogVisible()) {
+      this.setSpotlightBlocking(false);
+      return;
+    }
+    const data = this.state.getMutablePlayerData();
+    if (!data.worldSpotlightSeen.includes(next.id)) {
+      data.worldSpotlightSeen.push(next.id);
+      this.onDataChanged();
+    }
+    this.spotlightKind = 'world';
+    this.openSpotlight(
+      this.worldNext,
+      'left',
+      'UNLOCK NEW WORLD',
+      next.name,
+      next.lockedDescription
+    );
+  }
+
+  private openMissionsSpotlight(): void {
+    if (this.spotlightOpen || this.state.isPreviewLocked() || this.anyDialogVisible()) {
+      this.setSpotlightBlocking(false);
+      return;
+    }
+    const data = this.state.getMutablePlayerData();
+    data.missionsSpotlightSeen = true;
+    this.onDataChanged();
+    this.spotlightKind = 'missions';
+    // No yellow kicker for missions — the card alone names the feature. The
+    // desc stays honest: missions only ever reward coins, across all three
+    // kinds (daily, world, lifetime).
+    this.openSpotlight(
+      this.missionsBtn,
+      'above',
+      null,
+      'Missions unlocked',
+      'Complete missions to earn coins.'
+    );
+  }
+
+  private openSpotlight(
+    target: HTMLElement,
+    placement: 'left' | 'above',
+    kicker: string | null,
+    title: string,
+    desc: string
+  ): void {
+    if (this.spotlightOpen) return;
+    this.spotlightOpen = true;
+    this.spotlightTarget = target;
+    this.spotlightOverlay.classList.toggle('above', placement === 'above');
+    this.spotlightKicker.textContent = kicker ?? '';
+    this.spotlightKicker.style.display = kicker ? '' : 'none';
+    this.spotlightCardTitle.textContent = title;
+    this.spotlightCardDesc.textContent = desc;
+    this.spotlightOverlay.classList.remove('hidden');
+    this.positionSpotlightHole(target);
+    gsap.killTweensOf(this.spotlightOverlay);
+    gsap.killTweensOf(this.spotlightHole);
+    gsap.killTweensOf(this.spotlightRing);
+    gsap.killTweensOf(this.spotlightCard);
+    gsap.fromTo(this.spotlightOverlay, { opacity: 0 }, { opacity: 1, duration: 0.3 });
+    gsap.fromTo(this.spotlightHole, { opacity: 0 }, { opacity: 1, duration: 0.35 });
+    gsap.fromTo(
+      this.spotlightRing,
+      { scale: 1.1, opacity: 0 },
+      { scale: 1.45, opacity: 0.9, duration: 0.7, repeat: -1, yoyo: true, ease: 'sine.inOut' }
+    );
+    const slide =
+      placement === 'left'
+        ? { x: 16, y: 0, xPercent: 0, yPercent: -50, opacity: 0 }
+        : { x: 0, y: 16, xPercent: -50, yPercent: 0, opacity: 0 };
+    const rest =
+      placement === 'left'
+        ? { x: 0, y: 0, xPercent: 0, yPercent: -50, opacity: 1 }
+        : { x: 0, y: 0, xPercent: -50, yPercent: 0, opacity: 1 };
+    gsap.fromTo(this.spotlightCard, slide, {
+      ...rest,
+      duration: 0.4,
+      delay: 0.15,
+      ease: 'back.out(2)'
+    });
+  }
+
+  /** Center the spotlight hole on a target button (next-arrow / missions). */
+  private positionSpotlightHole(target: HTMLElement): void {
+    const rect = target.getBoundingClientRect();
+    const overlayRect = this.spotlightOverlay.getBoundingClientRect();
+    if (rect.width === 0) return;
+    const r = Math.max(rect.width, rect.height) / 2 + 10;
+    this.spotlightHole.style.left = `${rect.left - overlayRect.left + rect.width / 2 - r}px`;
+    this.spotlightHole.style.top = `${rect.top - overlayRect.top + rect.height / 2 - r}px`;
+    this.spotlightHole.style.width = `${r * 2}px`;
+    this.spotlightHole.style.height = `${r * 2}px`;
+  }
+
+  private closeSpotlight(): void {
+    if (!this.spotlightOpen) return;
+    this.spotlightOpen = false;
+    this.spotlightTarget = null;
+    // Dismissing the missions teach counts as finding the missions feature —
+    // any tap anywhere re-enables play (no need to open the overlay itself).
+    if (this.spotlightKind === 'missions') this.settleMissionsTeach();
+    this.spotlightKind = null;
+    this.setSpotlightBlocking(false);
+    gsap.killTweensOf(this.spotlightOverlay);
+    gsap.killTweensOf(this.spotlightHole);
+    gsap.killTweensOf(this.spotlightRing);
+    gsap.killTweensOf(this.spotlightCard);
+    gsap.to(this.spotlightOverlay, {
+      opacity: 0,
+      duration: 0.25,
+      onComplete: () => {
+        this.spotlightOverlay.classList.add('hidden');
+        gsap.set(this.spotlightOverlay, { opacity: 1 });
+        // Let any queued teach (e.g. new missions) take over.
+        this.maybeShowSpotlights();
+      }
+    });
+  }
+
+  /** Clear the one-time missions gate once the teach has been acknowledged. */
+  private settleMissionsTeach(): void {
+    const data = this.state.getMutablePlayerData();
+    if (this.state.hasPendingMissionsUnlock()) {
+      data.missionsUnlockSeen = true;
+      this.onDataChanged();
+      this.refreshMissionsPending();
+    }
   }
 
   /** Confetti raining behind the card inside the unlock dialog. */
@@ -821,12 +1298,21 @@ export class UIManager {
   /** Open the missions tab: render the active tab, animate bars, confetti on claim. */
   openMissions(): void {
     this.animatedMissionsTabs.clear();
+    // A pending or open teach is moot once the missions overlay takes over —
+    // cancel it so it can't fire over/under the overlay. Play is unblocked; if
+    // a locked-world teach is still valid it reschedules via renderStartScreen.
+    if (this.spotlightTimer !== null) {
+      clearTimeout(this.spotlightTimer);
+      this.spotlightTimer = null;
+    }
+    this.setSpotlightBlocking(false);
+    if (this.spotlightOpen) this.closeSpotlight();
     // First visit after missions unlock: clear the one-time callout gate that
     // blocked the next run (persisted so a reload doesn't re-block).
     if (this.state.hasPendingMissionsUnlock()) {
       this.state.getMutablePlayerData().missionsUnlockSeen = true;
       this.onDataChanged();
-      this.refreshMissionsCallout();
+      this.refreshMissionsPending();
     }
     this.renderMissionsOverlay();
     this.missionsOverlay.style.display = 'flex';
@@ -1049,7 +1535,7 @@ export class UIManager {
       runCoins: run.runCoins,
       maxStreak: run.maxStreak,
       selectedWorld: this.state.getActiveWorld().id
-    }).filter((r) => r.kind === this.activeMissionTab);
+    }, undefined, this.state.isUnlockAllWorlds()).filter((r) => r.kind === this.activeMissionTab);
 
     // "Come back tomorrow" countdown only makes sense once today's set is cleared.
     // Start it whenever it becomes visible (covers first open AND tab switches),
@@ -1073,6 +1559,11 @@ export class UIManager {
       rows.sort((a, b) => a.target - b.target);
     }
 
+    // Re-renders must never yank the list: the claim animation rebuilds the
+    // DOM from scratch, and the browser clamps scrollTop to the new content
+    // height — preserve the offset so a claim at the bottom of the list keeps
+    // the view pinned there (tab switches reset explicitly beforehand).
+    const previousScrollTop = this.missionsScroll.scrollTop;
     this.missionsList.innerHTML = '';
 
     let lastWorld: string | null = null;
@@ -1136,7 +1627,7 @@ export class UIManager {
         if (this.state.isMissionClaimed(m.id)) {
           const check = document.createElement('span');
           check.className = 'm-check';
-          check.innerHTML = UIManager.CHECK_SVG;
+          check.innerHTML = UIManager.checkSvg(UIManager.resolveCheckSize());
           row.appendChild(check);
         } else {
           const claim = document.createElement('button');
@@ -1153,6 +1644,7 @@ export class UIManager {
     }
 
     this.animateMissionBars();
+    if (previousScrollTop > 0) this.missionsScroll.scrollTop = previousScrollTop;
   }
 
   /** Claim a completed mission's reward: award coins, morph the claim capsule
@@ -1427,10 +1919,12 @@ export class UIManager {
       this.positionPlayButton();
       this.startTapAnimation();
       this.startBestCallout();
+      this.startTeachHint();
     } else {
       this.stopBubble();
       this.stopTapAnimation();
       this.stopBestCallout();
+      this.stopTeachHint();
       this.closeLockOverlay();
       this.closeUnlockDialog();
     }
@@ -1468,6 +1962,7 @@ export class UIManager {
 
   private onResize(): void {
     this.positionPlayButton();
+    if (this.spotlightOpen && this.spotlightTarget) this.positionSpotlightHole(this.spotlightTarget);
   }
 
   /** Constant flame corner glow (v1 simplified): on once the fire reward fires,

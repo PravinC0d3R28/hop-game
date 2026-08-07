@@ -46,6 +46,8 @@ export class InputSystem {
   /** Public callbacks wired by Game. */
   onGameStart: () => void = () => {};
   onFirstJump: () => void = () => {};
+  /** Fired on the first drag move of each press — the player is steering. */
+  onSteer: () => void = () => {};
 
   private onDown(e: PointerEvent): void {
     const st = this.state.getMutableState();
@@ -60,12 +62,17 @@ export class InputSystem {
 
     if (!st.isStarted) {
       // The game only starts from the play button, not from anywhere on the screen.
+      // Note: the attract demo deliberately ignores menu touches — it runs
+      // indefinitely behind the start screen until a run actually starts.
       if (!this.playBtn.contains(e.target as Node)) return;
       this.onGameStart();
       return;
     }
     if (st.isWaitingForTap) {
       st.isWaitingForTap = false;
+      // End any drag session that started before the re-arm (e.g. the guided
+      // tutorial retry): a held pointer must not keep steering afterwards.
+      this.dragging = false;
       this.onFirstJump();
       return;
     }
@@ -77,10 +84,15 @@ export class InputSystem {
   private onMove(e: PointerEvent): void {
     if (!this.dragging) return;
     const st = this.state.getMutableState();
+    // While a tap is re-armed (run start, guided-tutorial retry), steering is
+    // gated: a held pointer must never push the ball off its platform while it
+    // waits for the tap.
+    if (st.isWaitingForTap) return;
     // Sensitivity 0–100 scales the drag multiplier (50 = the original feel).
     const sens = this.state.getPlayerData().sensitivity / 50;
     const delta = (e.clientX - this.startClientX) * -0.028 * sens;
     st.xTarget = this.clamp(this.startTarget + delta, -5, 5);
+    this.onSteer();
   }
 
   private onUp(): void {

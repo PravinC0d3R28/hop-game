@@ -1,4 +1,5 @@
 import { WORLDS, type WorldConfig, type WorldId } from '../config/Worlds';
+import { getWorldById } from './WorldLogic';
 import { MISSIONS, getDailyMissions, todayKey, type MissionConfig, type MissionMetric } from '../config/Missions';
 import type { PlayerData } from './Types';
 
@@ -118,15 +119,17 @@ export interface MissionProgressRow {
   current: number;
   percent: number;
   done: boolean;
-  /** World missions beyond the next unlock are shown locked on the start screen. */
+  /** World missions of a world the player hasn't unlocked yet are shown locked. */
   locked: boolean;
 }
 
 /**
  * Mission progress rows for the missions overlay, one list per tab:
  * - general: only today's 5 daily missions (from getDailyMissions).
- * - world: all 9 world missions; only the selected world's are unlocked, the
- *   other 6 are `locked` (their saved progress still shows once selected).
+ * - world: all 9 world missions; missions of worlds the player hasn't
+ *   unlocked (total score below the world's unlock score) are `locked`, the
+ *   rest show live progress — regardless of which world is currently selected
+ *   to play (progress only banks while playing in that world).
  * - lifetime: all 6 persistent missions.
  * Progress is session-based: general / world read the persisted `missionProgress`
  * map (cumulative across runs); lifetime reads the persisted counters.
@@ -135,7 +138,8 @@ export interface MissionProgressRow {
 export function getMissionProgressList(
   playerData: PlayerData,
   run: RunStats,
-  dateKey: string = todayKey()
+  dateKey: string = todayKey(),
+  unlockAllWorlds: boolean = false
 ): MissionProgressRow[] {
   const deck = [...getDailyMissions(dateKey), ...MISSIONS.filter((m) => m.kind !== 'general')];
   return deck.map((m: MissionConfig) => {
@@ -143,9 +147,13 @@ export function getMissionProgressList(
       ? getMetricValue(m.metric, playerData, run)
       : (playerData.missionProgress[m.id] ?? 0);
     const done = playerData.completedMissions.includes(m.id);
-    // Done missions always read as done (checkmark), even outside their world —
-    // only unfinished missions of non-selected worlds stay locked.
-    const locked = m.kind === 'world' && m.world !== run.selectedWorld && !done;
+    // A world mission is locked only while its OWN world is still locked
+    // (unlock score not met) — never merely because another world is selected.
+    // Done missions always read as done (checkmark) wherever they are.
+    const worldUnlocked = m.world
+      ? unlockAllWorlds || playerData.totalScore >= (getWorldById(m.world)?.unlockScore ?? Number.POSITIVE_INFINITY)
+      : true;
+    const locked = m.kind === 'world' && !done && !worldUnlocked;
     return {
       id: m.id,
       title: m.title,

@@ -124,8 +124,14 @@ export class PlatformEntity {
     };
   }
 
-  /** Random coin add (28% chance). Clears existing coins first (original `ou`+`Zd`). */
+  /** Master switch: while the start-screen attract demo runs, coins are
+   *  suppressed (cleared + never re-added) so the demo runway stays clean. */
+  static coinsEnabled = true;
+
+  /** Random coin add (28% chance). Clears existing coins first (original `ou`+`Zd`).
+   *  No-op while `coinsEnabled` is false (attract demo). */
   static addCoin(platform: PlatformData, scene: Scene): void {
+    if (!this.coinsEnabled) return;
     this.clearCoins(platform);
     if (Math.random() >= GAME_CONFIG.COIN_CHANCE) return;
 

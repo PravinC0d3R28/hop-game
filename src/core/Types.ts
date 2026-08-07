@@ -29,9 +29,20 @@ export interface PlayerData {
   /** True once the one-time "Shield unlocked" card has been shown (fires on the
    *  first arrival at world 2, gated by the shield's World-2 milestone). */
   shieldCardSeen: boolean;
+  /** World ids whose locked-world "unlock spotlight" (dim + ring + card) has been
+   *  shown — fires once per locked next world, not just world 2. */
+  worldSpotlightSeen: WorldId[];
+  /** True once the one-time "new missions" spotlight has been shown. */
+  missionsSpotlightSeen: boolean;
+  /** True once the one-time post-dusk-run callout ("too easy? can you win
+   *  here?") teasing the locked void world has been shown. */
+  firstDuskCalloutSeen: boolean;
   /** True once the player checked out the missions overlay after it unlocked
    *  (the one-time callout that must be clicked before the next run starts). */
   missionsUnlockSeen: boolean;
+  /** True once the one-time first-run tutorial (guided slow-mo first jump) has
+   *  been shown; returning players skip it. */
+  tutorialDone: boolean;
   completedMissions: string[];
   /** Mission rewards already claimed (completed but unclaimed = claimable). */
   claimedMissions: string[];

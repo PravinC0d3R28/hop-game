@@ -95,7 +95,7 @@ describe('world progress chips', () => {
 });
 
 describe('mission progress list', () => {
-  it('fresh profile: 5 daily general + 9 world + 6 lifetime rows; non-selected worlds locked', () => {
+  it('fresh profile: 5 daily general + 9 world + 6 lifetime rows; locked-world missions locked', () => {
     const rows = getMissionProgressList(FRESH_PLAYER, FRESH_RUN, KEY);
     expect(rows).toHaveLength(20);
     const general = rows.filter((r) => r.kind === 'general');
@@ -112,7 +112,7 @@ describe('mission progress list', () => {
     expect(rows.filter((r) => r.kind === 'lifetime')).toHaveLength(6);
   });
 
-  it('world mission locks follow the selected world of the run', () => {
+  it('world mission locks follow each world being unlocked, not the selected world', () => {
     const rows = getMissionProgressList(
       { ...FRESH_PLAYER, bestScore: 377, totalScore: 5000 },
       { ...FRESH_RUN, selectedWorld: 'dusk' },
@@ -121,7 +121,21 @@ describe('mission progress list', () => {
     const w1 = rows.find((r) => r.id === 'w1_perfects')!;
     const w2 = rows.find((r) => r.id === 'w2_score')!;
     const w3 = rows.find((r) => r.id === 'w3_coins')!;
-    expect(w1.locked).toBe(true);
+    expect(w1.locked).toBe(false);
+    expect(w2.locked).toBe(false);
+    expect(w3.locked).toBe(false);
+  });
+
+  it('missions of a still-locked world stay locked regardless of selection', () => {
+    const rows = getMissionProgressList(
+      { ...FRESH_PLAYER, totalScore: 1500 },
+      { ...FRESH_RUN, selectedWorld: 'dusk' },
+      KEY
+    );
+    const w1 = rows.find((r) => r.id === 'w1_perfects')!;
+    const w2 = rows.find((r) => r.id === 'w2_score')!;
+    const w3 = rows.find((r) => r.id === 'w3_coins')!;
+    expect(w1.locked).toBe(false);
     expect(w2.locked).toBe(false);
     expect(w3.locked).toBe(true);
   });
@@ -136,7 +150,9 @@ describe('mission progress list', () => {
     const pendingSunrise = rows.find((r) => r.id === 'w1_coins')!;
     expect(doneSunrise.done).toBe(true);
     expect(doneSunrise.locked).toBe(false);
-    expect(pendingSunrise.locked).toBe(true);
+    // Sunrise is unlocked from the start, so its missions are never faded even
+    // while another world is selected — only its done/undone state differs.
+    expect(pendingSunrise.locked).toBe(false);
   });
 
   it('veteran save: lifetime missions show real progress and done state', () => {

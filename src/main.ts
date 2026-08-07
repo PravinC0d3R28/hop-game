@@ -10,20 +10,57 @@ function bootstrap(): void {
     return;
   }
 
-  const game = new Game(container);
+  // Cold-start failures (e.g. the first-ever WebGL context on a fresh GPU
+  // process, or a one-off module hiccup) can throw exactly once and never
+  // again — retry after a beat before giving up. The splash's inline fallback
+  // (index.html) hides it on a hard deadline regardless, so the start screen
+  // underneath can never be permanently covered.
+  let game: Game | null = null;
+  try {
+    game = new Game(container);
+  } catch (err) {
+    console.error('HOP: boot init failed once — retrying.', err);
+    window.setTimeout(() => {
+      try {
+        game = new Game(container);
+      } catch (err2) {
+        console.error('HOP: boot init failed again.', err2);
+      }
+    }, 400);
+  }
 
-  // Fade the splash once the game is up
+  // Branded flash screen: fill the wordmark/descriptor/studio from config, show
+  // it for a short beat (shorter for returning players — there's a save), let a
+  // tap skip it, then hand the live world to the start-screen attract demo.
   const splash = document.getElementById('splash-screen');
   if (splash) {
-    setTimeout(() => {
+    const b = GAME_CONFIG.BRANDING;
+    const setText = (id: string, value: string): void => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value;
+    };
+    setText('splash-title', b.title);
+    setText('splash-descriptor', b.descriptor);
+    setText('splash-studio-name', b.studio);
+    const returning = !!localStorage.getItem('hop_player_data');
+    const holdMs = returning ? 900 : 1500;
+    const dismiss = (): void => {
+      if (splash.classList.contains('fade-out')) return;
       splash.classList.add('fade-out');
-    }, 100);
+      window.setTimeout(() => splash.classList.add('hidden'), 550);
+      // The demo only needs the live world once the game is up; a boot that's
+      // still retrying skips it (the splash fallback still reveals the screen).
+      game?.startAttractDemo();
+    };
+    splash.addEventListener('pointerdown', dismiss, { once: true });
+    window.setTimeout(dismiss, holdMs);
   }
 
   // Debug helpers (documented in CUSTOMIZATION_GUIDE):
   //   window.gameDebug.setScore(n) / giveCoins(n) / unlockAllSkins() / toggleInvincible()
   //   window.gameDebug.unlockAllWorlds() / forceWorld(id | null) / setTotalScore(n)
   const accessor = game as unknown as {
+    ball: { group: { position: { x: number; y: number; z: number } } };
     state: {
       setScore(n: number): void;
       getMutablePlayerData(): { totalCoins: number; purchasedSkins: string[] };
@@ -38,6 +75,7 @@ function bootstrap(): void {
       triggerWorldCallout(): void;
     };
     persistence: { save(d: unknown): Promise<void> };
+    platforms: { coinCount(): number };
   };
 
   (window as unknown as { gameDebug: Record<string, unknown> }).gameDebug = {
@@ -76,7 +114,12 @@ function bootstrap(): void {
     },
     triggerWorldCallout: () => {
       accessor.ui.triggerWorldCallout();
-    }
+    },
+    ballPos: () => {
+      const p = accessor.ball.group.position;
+      return { x: +p.x.toFixed(2), y: +p.y.toFixed(2), z: +p.z.toFixed(2) };
+    },
+    coins: () => accessor.platforms.coinCount()
   };
 }
 

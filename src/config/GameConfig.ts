@@ -73,6 +73,15 @@ export interface GameConfig {
   COLOR_PALETTES: ColorPalette[];
   // Audio
   AUDIO_ENABLED: boolean;
+  // Branding (flash screen)
+  BRANDING: {
+    /** Game logomark shown on the flash screen. */
+    title: string;
+    /** Descriptor line under the logomark. */
+    descriptor: string;
+    /** Studio name in the flash-screen footer (placeholder until decided). */
+    studio: string;
+  };
   // Economy / shop
   SHOP_SKINS: Skin[];
   // Debug
@@ -161,6 +170,12 @@ export const GAME_CONFIG: GameConfig = {
   ],
 
   AUDIO_ENABLED: true,
+
+  BRANDING: {
+    title: 'HOP',
+    descriptor: 'hop tiles · endless',
+    studio: 'STUDIO'
+  },
 
   SHOP_SKINS: [
     { id: 'default', name: 'Classic', color: 0xd0d8f0, price: 0 },

@@ -30,7 +30,11 @@ export const DEFAULT_PLAYER_DATA: PlayerData = {
   missionProgress: {},
   revealedWorlds: [],
   missionsUnlockSeen: false,
+  tutorialDone: false,
   shieldCardSeen: false,
+  worldSpotlightSeen: [],
+  missionsSpotlightSeen: false,
+  firstDuskCalloutSeen: false,
   selectedWorld: 'sunrise'
 };
 
@@ -117,6 +121,11 @@ export class GameStateManager {
 
   setUnlockAllWorlds(enabled: boolean): void {
     this.unlockAllWorlds = enabled;
+  }
+
+  /** DEBUG bypass flag (mirrors GAME_CONFIG.DEBUG.unlockAllWorlds). */
+  isUnlockAllWorlds(): boolean {
+    return this.unlockAllWorlds;
   }
 
   /** Cumulative lifetime score for unlock checks (wired from persistence). */
@@ -561,8 +570,16 @@ export function sanitizePlayerData(raw: Partial<PlayerData> | null | undefined):
     missionProgress: sanitizeMissionProgress(raw?.missionProgress),
     revealedWorlds: sanitizeRevealedWorlds(raw?.revealedWorlds),
     missionsUnlockSeen: raw?.missionsUnlockSeen === true,
+    // The tutorial is a true-first-run experience: anyone with an existing save
+    // (prior runs) skips it, even though the flag predates them.
+    tutorialDone:
+      raw?.tutorialDone === true ||
+      (typeof raw?.runsPlayed === 'number' && raw.runsPlayed > 0),
     shieldCardSeen: raw?.shieldCardSeen === true,
-    selectedWorld: sanitizeWorldId(raw?.selectedWorld)
+  worldSpotlightSeen: sanitizeWorldSpotlights(raw?.worldSpotlightSeen),
+  missionsSpotlightSeen: raw?.missionsSpotlightSeen === true,
+  firstDuskCalloutSeen: raw?.firstDuskCalloutSeen === true,
+  selectedWorld: sanitizeWorldId(raw?.selectedWorld)
   };
 }
 
@@ -583,6 +600,23 @@ function sanitizeSensitivity(raw: unknown): number {
  * array of known world ids. Legacy saves (no field) default to [].
  */
 function sanitizeRevealedWorlds(raw: unknown): WorldId[] {
+  if (!Array.isArray(raw)) return [];
+  const out: WorldId[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'string') continue;
+    const id = item as WorldId;
+    if (WORLDS.some((w) => w.id === id) && !out.includes(id)) out.push(id);
+  }
+  return out;
+}
+
+/**
+ * World ids whose locked-world spotlight already fired, as a unique array of
+ * known ids. Legacy saves stored a single boolean `worldSpotlightSeen` — that
+ * old flag is dropped (treated as []) so the redesigned per-world spotlight can
+ * teach each locked next world once.
+ */
+function sanitizeWorldSpotlights(raw: unknown): WorldId[] {
   if (!Array.isArray(raw)) return [];
   const out: WorldId[] = [];
   for (const item of raw) {
@@ -722,7 +756,13 @@ export function mergePlayerData(base: PlayerData, incoming: PlayerData): PlayerD
     missionProgress,
     revealedWorlds,
     missionsUnlockSeen: base.missionsUnlockSeen || incoming.missionsUnlockSeen,
+    tutorialDone: base.tutorialDone || incoming.tutorialDone,
     shieldCardSeen: base.shieldCardSeen || incoming.shieldCardSeen,
+    worldSpotlightSeen: Array.from(
+      new Set([...base.worldSpotlightSeen, ...incoming.worldSpotlightSeen])
+    ),
+    missionsSpotlightSeen: base.missionsSpotlightSeen || incoming.missionsSpotlightSeen,
+    firstDuskCalloutSeen: base.firstDuskCalloutSeen || incoming.firstDuskCalloutSeen,
     selectedWorld: WORLDS.some((w) => w.id === incoming.selectedWorld)
       ? incoming.selectedWorld
       : base.selectedWorld

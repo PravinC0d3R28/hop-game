@@ -87,6 +87,18 @@ export class PlatformManager {
     }
   }
 
+  /** Strip every coin from the runway (attract demo: no coins on screen). */
+  clearCoins(): void {
+    for (const platform of this.platforms) {
+      PlatformEntity.clearCoins(platform);
+    }
+  }
+
+  /** Total coin pickups currently on the runway (debug/inspection). */
+  coinCount(): number {
+    return this.platforms.reduce((n, p) => n + p.coins.length, 0);
+  }
+
   /** Coin idle animation: rotation + bob (original `Hy`). */
   updateCoins(delta: number, now: number): void {
     for (const platform of this.platforms) {
