@@ -63,15 +63,17 @@ export class UIManager {
   private menuBtns = this.el<HTMLElement>('menu-btns');
   private goWorld = this.el<HTMLElement>('go-world');
   private playBtn = this.el<HTMLElement>('play-btn');
-  private teachHint = this.el<HTMLElement>('teach-hint');
-  private teachHand = this.el<HTMLElement>('teach-hand');
-  private teachText = this.el<HTMLElement>('teach-text');
   private firstRunGuide = this.el<HTMLElement>('first-run-guide');
   private frgRing = this.el<HTMLElement>('frg-ring');
   private frgCaption = this.el<HTMLElement>('frg-caption');
   private frgDrag = this.el<HTMLElement>('frg-drag');
   private guideDragVisible = false;
-  private teachTimeline: gsap.core.Timeline | null = null;
+  /** Locked drag-arrow direction for the current target tile (true = points left). */
+  private guideDragLeft = false;
+  private tapNudge = this.el<HTMLElement>('tap-nudge');
+  private keepHoppingCallout = this.el<HTMLElement>('keep-hopping-callout');
+  /** Pending "almost! try again" revert timer (guided-tutorial retry). */
+  private tutorialRetryTimer: number | null = null;
   private bestScore = this.el<HTMLElement>('best-score');
   private bestScoreVal = this.el<HTMLElement>('best-score-value');
   private bestScoreCallout = this.el<HTMLElement>('best-score-callout');
@@ -385,9 +387,13 @@ export class UIManager {
     if (missionsLabel) missionsLabel.textContent = missionsUnlocked ? 'missions' : '???';
     this.refreshMissionsPending();
     this.maybeShowShieldCard();
-    this.maybeShowSpotlights();
-    this.refreshTeachHint();
-    this.maybeShowDuskCallout();
+    // World-nav callouts (spotlights, "too easy?" bubble) only start once the
+    // first-run tutorial is done — the tutorial owns the teaching while it's
+    // running, so unlock/nav teases stay quiet until it hands over.
+    if (this.state.getPlayerData().tutorialDone) {
+      this.maybeShowSpotlights();
+      this.maybeShowDuskCallout();
+    }
   }
 
   /** While the one-time missions-unlocked gate is pending, the play button
@@ -736,72 +742,72 @@ export class UIManager {
     this.playBtn.style.pointerEvents = 'auto';
   }
 
-  // ---- attract-demo teach hint: cycling "drag to aim / release to hop" ----
-
-  /** Start the cycling hint. Skips when already actively running (cheap to call
-   *  often); rebuilds if the timeline was killed externally — reset() clears the
-   *  GSAP global timeline, which would otherwise leave a dead reference here. */
-  private startTeachHint(): void {
-    if (this.teachTimeline && this.teachTimeline.isActive()) return;
-    if (this.teachTimeline) {
-      this.teachTimeline.kill();
-      this.teachTimeline = null;
-    }
-    this.teachHint.classList.remove('hidden');
-    const setText = (t: string): void => {
-      this.teachText.textContent = t;
-    };
-    setText('drag to aim');
-    this.teachTimeline = gsap
-      .timeline({ repeat: -1 })
-      .fromTo(this.teachHand, { x: -12, opacity: 1 }, { x: 12, duration: 0.8, ease: 'sine.inOut', yoyo: true, repeat: 2 })
-      .call(() => setText('stay on the tiles'))
-      .fromTo(this.teachHand, { scale: 1 }, { scale: 0.82, duration: 0.12, yoyo: true, repeat: 1, ease: 'power2.out' })
-      .to({}, { duration: 0.8 })
-      .call(() => setText('drag to aim'));
-  }
-
-  private stopTeachHint(): void {
-    if (this.teachTimeline) {
-      this.teachTimeline.kill();
-      this.teachTimeline = null;
-    }
-    gsap.killTweensOf(this.teachHand);
-    gsap.set(this.teachHand, { x: 0, scale: 1 });
-    this.teachHint.classList.add('hidden');
-  }
-
-  /** Keep the hint in sync with start-screen visibility (cheap to call often). */
-  private refreshTeachHint(): void {
-    if (this.startScreen.style.display !== 'none') this.startTeachHint();
-    else this.stopTeachHint();
-  }
-
   // ---- first-run guided play: target ring over the next tile ----
 
-  /** Show/hide the guided-play overlay (ring + caption) for the tutorial run. */
+  /** Show/hide the guided-play overlay (ring + caption) for the tutorial run.
+   *  In/out are animated: the ring/drag fade in when shown (the caption pops in
+   *  via setGuideStep) and everything fades out before the overlay hides. The
+   *  seamless ending staggers its own longer fade. */
   showFirstRunGuide(show: boolean): void {
     gsap.killTweensOf(this.frgCaption);
     gsap.killTweensOf(this.frgRing);
     gsap.killTweensOf(this.frgDrag);
-    this.firstRunGuide.classList.toggle('hidden', !show);
+    this.cancelTutorialRetry();
     if (!show) {
-      this.frgRing.style.left = '';
-      this.guideDragVisible = false;
-      this.frgDrag.style.display = 'none';
+      gsap.to([this.frgCaption, this.frgRing, this.frgDrag], {
+        opacity: 0,
+        duration: 0.22,
+        ease: 'power2.in',
+        onComplete: () => this.setGuideHidden()
+      });
     } else {
-      gsap.set([this.frgCaption, this.frgRing, this.frgDrag], { opacity: 1 });
-      this.setGuideStep(0);
+      this.firstRunGuide.classList.remove('hidden');
+      gsap.set([this.frgCaption, this.frgRing, this.frgDrag], { opacity: 0 });
+      // Force the caption pop even when its text is unchanged (the initial
+      // "tap to hop" is already in the markup) so the card always animates in.
+      this.setGuideStep(0, true);
+      gsap.to(this.frgRing, { opacity: 1, duration: 0.3, ease: 'power2.out' });
+      gsap.to(this.frgDrag, { opacity: 1, duration: 0.3, delay: 0.15, ease: 'power2.out' });
     }
   }
 
-  /** Advance the tutorial caption + drag hint for a completed guided hop. */
-  setGuideStep(step: number): void {
-    if (step === 0) this.frgCaption.textContent = 'tap to hop';
-    else if (step <= 2) this.frgCaption.textContent = 'drag to aim';
-    else this.frgCaption.textContent = 'drop on the diamond!';
-    this.guideDragVisible = step >= 1;
+  /** Apply the fully-hidden state for the guide overlay (after any fade-out). */
+  private setGuideHidden(): void {
+    this.firstRunGuide.classList.add('hidden');
+    this.frgRing.style.left = '';
+    this.guideDragVisible = false;
+    this.frgDrag.style.display = 'none';
+  }
+
+  /** Advance the tutorial caption + drag hint for a completed guided hop.
+   *  The 5 teaching hops each teach one lesson. */
+  setGuideStep(step: number, forcePop = false): void {
+    // A completed hop (or a new guide session) cancels any pending "try again"
+    // revert so a stale timer can never overwrite the current caption — a tap
+    // during the retry therefore jumps straight to the next hop.
+    this.cancelTutorialRetry();
+    let next: string;
+    if (step === 0) next = 'tap to hop';
+    else if (step === 1) next = 'drag left!';
+    else if (step === 2) next = 'drag right!';
+    else if (step === 3) next = 'drop on the diamond!';
+    else next = 'collect the coins!';
+    // The drag arrow only teaches the two steering lessons (steps 1-2).
+    this.guideDragVisible = step >= 1 && step <= 2;
     if (!this.guideDragVisible) this.frgDrag.style.display = 'none';
+    // Pop the caption when its text changes, or when the guide is being shown
+    // fresh (forcePop) — otherwise the initial "tap to hop" (already in the
+    // markup) would never animate in.
+    if (forcePop || this.frgCaption.textContent !== next) {
+      this.popCaption(next);
+    }
+  }
+
+  /** Swap the tutorial caption with a quick pop-in. */
+  private popCaption(text: string): void {
+    gsap.killTweensOf(this.frgCaption);
+    this.frgCaption.textContent = text;
+    gsap.fromTo(this.frgCaption, { opacity: 0 }, { opacity: 1, duration: 0.28, ease: 'power2.out' });
   }
 
   /**
@@ -823,12 +829,31 @@ export class UIManager {
     });
   }
 
-  /** Brief "you missed" flash on a tutorial retry, then back to the tap prompt. */
+  /** Brief "you missed" flash on a tutorial retry. Uses a rotating set of
+   *  friendly variants so a long tutorial never repeats the same line; the
+   *  caption stays up for a few seconds (or until the next tap — which jumps
+   *  straight to a new hop) instead of snapping back immediately. */
   showTutorialRetry(): void {
-    this.frgCaption.textContent = 'almost! try again';
-    window.setTimeout(() => {
-      this.frgCaption.textContent = 'tap to hop';
-    }, 1200);
+    this.cancelTutorialRetry();
+    const lines = [
+      'almost! try again',
+      "that was close — you've got this!",
+      'so close! tap when you are ready',
+      "don't worry — hop on it again!"
+    ];
+    const pick = Math.floor(Math.random() * lines.length);
+    this.popCaption(lines[pick]);
+    this.tutorialRetryTimer = window.setTimeout(() => {
+      this.tutorialRetryTimer = null;
+      this.popCaption('tap to hop');
+    }, 4500);
+  }
+
+  private cancelTutorialRetry(): void {
+    if (this.tutorialRetryTimer !== null) {
+      clearTimeout(this.tutorialRetryTimer);
+      this.tutorialRetryTimer = null;
+    }
   }
 
   /** Project a tile's world position onto the screen and park the ring on it. */
@@ -851,9 +876,9 @@ export class UIManager {
 
   /**
    * Drag hint: parked on the NEXT tile (below its ring) and pointed the way
-   * the player must drag. The direction is resolved in SCREEN space (project
-   * ball and target, compare NDC x) — the camera looks forward, so world +x
-   * is screen-left; a world-based sign would teach the wrong drag.
+   * the player must drag. The direction is locked per target tile (set via
+   * setGuideDragDirection when the guide advances) so it never flips while the
+   * ball approaches; only the screen position tracks the target each frame.
    */
   positionGuideDrag(ballX: number, ballZ: number, targetX: number, targetZ: number): void {
     if (!this.guideDragVisible) {
@@ -865,20 +890,86 @@ export class UIManager {
     const cam = this.renderer.camera;
     cam.updateMatrixWorld(true);
     cam.updateProjectionMatrix();
-    const ballV = new Vector3(ballX, GAME_CONFIG.PLATFORM_HEIGHT / 2 + GAME_CONFIG.BALL_RADIUS, ballZ);
     const tgtV = new Vector3(targetX, GAME_CONFIG.PLATFORM_HEIGHT / 2, targetZ);
-    ballV.project(cam);
     tgtV.project(cam);
     if (tgtV.z > 1 || tgtV.z < -1) {
       this.frgDrag.style.display = 'none';
       return;
     }
-    // Target screen-left of the ball → drag left (arrow flipped); otherwise
-    // the arrow's default points right.
-    this.frgDrag.classList.toggle('left', tgtV.x < ballV.x);
+    this.frgDrag.classList.toggle('left', this.guideDragLeft);
     this.frgDrag.style.display = 'block';
     this.frgDrag.style.left = `${(tgtV.x * 0.5 + 0.5) * rect.width}px`;
     this.frgDrag.style.top = `${(-tgtV.y * 0.5 + 0.5) * rect.height + 44}px`;
+  }
+
+  /**
+   * Lock the drag-arrow direction for the current target tile. Called ONCE per
+   * target (when the guide advances, i.e. after the ball lands on the tile it
+   * was aiming for) — the direction is resolved in screen space (project ball
+   * and target, compare NDC x; the camera looks forward, so world +x is
+   * screen-left). Locked until the next landing.
+   */
+  setGuideDragDirection(ballX: number, ballZ: number, targetX: number, targetZ: number): void {
+    const cam = this.renderer.camera;
+    cam.updateMatrixWorld(true);
+    cam.updateProjectionMatrix();
+    const ballV = new Vector3(ballX, GAME_CONFIG.PLATFORM_HEIGHT / 2 + GAME_CONFIG.BALL_RADIUS, ballZ);
+    const tgtV = new Vector3(targetX, GAME_CONFIG.PLATFORM_HEIGHT / 2, targetZ);
+    ballV.project(cam);
+    tgtV.project(cam);
+    this.guideDragLeft = tgtV.x < ballV.x;
+    this.frgDrag.classList.toggle('left', this.guideDragLeft);
+  }
+
+  /**
+   * Normal-run idle nudge: a bouncing hand + "tap to hop" pill over the ball
+   * once a run has been waiting for its first tap for a beat (never during the
+   * guided tutorial). Projected through the live camera, same as the guide ring.
+   */
+  showTapNudge(show: boolean, x = 0, z = 0): void {
+    if (!show) {
+      this.tapNudge.classList.add('hidden');
+      return;
+    }
+    const canvas = this.renderer.renderer.domElement;
+    const rect = canvas.getBoundingClientRect();
+    const cam = this.renderer.camera;
+    cam.updateMatrixWorld(true);
+    cam.updateProjectionMatrix();
+    const vec = new Vector3(x, GAME_CONFIG.PLATFORM_HEIGHT / 2 + GAME_CONFIG.BALL_RADIUS, z);
+    vec.project(cam);
+    if (vec.z > 1 || vec.z < -1) {
+      this.tapNudge.classList.add('hidden');
+      return;
+    }
+    this.tapNudge.style.left = `${(vec.x * 0.5 + 0.5) * rect.width}px`;
+    this.tapNudge.style.top = `${(-vec.y * 0.5 + 0.5) * rect.height - 46}px`;
+    this.tapNudge.classList.remove('hidden');
+  }
+
+  /** Brief top callout when the first-run tutorial fully hands over to normal
+   *  play ("keep hopping!") — a positive beat, then the run continues seamlessly. */
+  showKeepHoppingCallout(): void {
+    gsap.killTweensOf(this.keepHoppingCallout);
+    this.keepHoppingCallout.classList.remove('hidden');
+    gsap.fromTo(
+      this.keepHoppingCallout,
+      { opacity: 0 },
+      {
+        opacity: 1,
+        duration: 0.35,
+        ease: 'power2.out',
+        onComplete: () => {
+          gsap.to(this.keepHoppingCallout, {
+            opacity: 0,
+            duration: 0.4,
+            delay: 2.2,
+            ease: 'power2.in',
+            onComplete: () => this.keepHoppingCallout.classList.add('hidden')
+          });
+        }
+      }
+    );
   }
 
   // ---- best score chip (crown asset) + occasional "can you beat this?" ----
@@ -917,8 +1008,12 @@ export class UIManager {
   // ---- new-world unlock dialog ----
 
   private checkWorldUnlocks(): void {
+    // While the first-run tutorial is live, the unlock reveal (dialog +
+    // "check this out!" callout) stays quiet — the tutorial owns all teaching
+    // until it hands over. The baseline still tracks so nothing is missed.
+    const teachActive = !this.state.getPlayerData().tutorialDone;
     const count = WORLDS.filter((w) => this.state.canSelectWorld(w)).length;
-    if (this.lastUnlockedCount !== null && count > this.lastUnlockedCount) {
+    if (!teachActive && this.lastUnlockedCount !== null && count > this.lastUnlockedCount) {
       const unlockedWorld = WORLDS[count - 1];
       if (unlockedWorld) {
         this.showUnlockDialog(unlockedWorld);
@@ -1919,12 +2014,10 @@ export class UIManager {
       this.positionPlayButton();
       this.startTapAnimation();
       this.startBestCallout();
-      this.startTeachHint();
     } else {
       this.stopBubble();
       this.stopTapAnimation();
       this.stopBestCallout();
-      this.stopTeachHint();
       this.closeLockOverlay();
       this.closeUnlockDialog();
     }

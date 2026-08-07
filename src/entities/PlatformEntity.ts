@@ -129,11 +129,12 @@ export class PlatformEntity {
   static coinsEnabled = true;
 
   /** Random coin add (28% chance). Clears existing coins first (original `ou`+`Zd`).
-   *  No-op while `coinsEnabled` is false (attract demo). */
-  static addCoin(platform: PlatformData, scene: Scene): void {
+   *  No-op while `coinsEnabled` is false (attract demo). Pass `force` to
+   *  guarantee a coin regardless of the chance (first-run coin lesson). */
+  static addCoin(platform: PlatformData, scene: Scene, force = false): void {
     if (!this.coinsEnabled) return;
     this.clearCoins(platform);
-    if (Math.random() >= GAME_CONFIG.COIN_CHANCE) return;
+    if (!force && Math.random() >= GAME_CONFIG.COIN_CHANCE) return;
 
     const coinMat = MaterialFactory.createCoinMaterial();
     const coinMesh = new Mesh(coinGeo, coinMat);

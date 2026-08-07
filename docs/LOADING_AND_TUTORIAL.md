@@ -1,6 +1,6 @@
 # HOP — Loading Screen & Tutorial Design
 
-> Status: **implemented (v1)**. Follow-up decision after the brainstorm: the loading **bar was dropped** — since there is nothing to load, the splash is a short branded **flash screen** (§2.6b). The tutorial shipped as the **attract demo + cycling hint** on the start screen and the **one-shot guided first run** (§3).
+> Status: **implemented (v1)**. Follow-up decision after the brainstorm: the loading **bar was dropped** — since there is nothing to load, the splash is a short branded **flash screen** (§2.6b). The tutorial shipped as the **attract demo** on the start screen and the **one-shot guided first run** (§3).
 > Scope: design + implementation notes.
 
 ---
@@ -144,17 +144,23 @@ Three candidate formats, evaluated against this specific game (10-second teachab
      - **Dimmed world** behind the UI so the demo reads as "background" and the play button stays the hero.
       - **Runs indefinitely:** the demo keeps hopping forever on the start screen — menu touches (empty space, settings, stats, world arrows) never stop it, and a world switch re-seeds it from tile 0. Only an actual run start halts it; it restarts whenever the start screen shows again (reset / boot-fade).
       - **Locked worlds never demo:** selecting a locked world parks the ball on the start tile — the world stays as scenery (a tease), but no hops/coins (no spoiler of the new difficulty). The demo resumes automatically once the world unlocks (next start screen show).
-   - A pulsing hint fades in over it: **"drag to aim"** with a ghost drag-arrow, then **"stay on the tiles"**. (The hop chain is automatic — the player's skill is steering, so the hint teaches the control, not a fictional release gesture.) Loops quietly; only a run start yields the demo.
+   - **No overlay hint** — the "drag to aim / stay on the tiles" pill was removed (user decision): the demo itself is the hook, and the first-run guided play owns all teaching. (The hop chain is automatic — the player's skill is steering, which the guided run teaches in the exact context.)
    - This is the loading screen's "animated world" payoff and the tutorial's hook in one.
 
-2. **First-run guided play (multi-step, 5 tiles, retry loop):**
-   - On the player's very first actual run the tutorial guides **5 hops**:
-     - **Step 0** — caption **"tap to hop"** + a pulsing **target ring on the diamond** of the next tile, with a **down-arrow above** it pointing at the diamond.
-     - **Steps 1–2** — caption **"drag to aim"** + a **drag arrow on the next tile** (below its ring) pointing the **exact drag direction** — left or right, resolved in screen space (the camera looks forward, so a world-x sign would teach the wrong way) — + the ring on each next tile (steering is the whole skill — the hop chain is automatic).
-     - **Steps 3–4** — caption **"drop on the diamond!"**, ring follows the target (the perfect-dot bonus).
-   - Guided hops run in **slow motion (half speed)** so the arc + ring read clearly; the **first drag snaps the remaining hops back to full speed** (the player has the idea — never hold a reacting player back).
-   - **Retry loop (fallback):** if the player misses during the guided segment, the run is **not** ended — it respawns to the start tile with a brief **"almost! try again"**, re-arms the first tap, and repeats until the guided hops are completed. While the tap is re-armed, steering input is **ignored** (a still-held pointer can't drift the ball off its platform while it idles). This keeps a struggling first-timer in a safe teaching loop.
-   - **Seamless ending:** after 5 guided hops there is **no end screen** — the guides simply **fade out element by element** while the run keeps going at full speed, and the run counts as run 1 like any other. `tutorialDone` is persisted so returning players never see it again (existing saves with prior runs are migrated to skip it).
+2. **First-run guided play (5 teaching hops + 5-hop speed ramp):**
+   - On the player's very first actual run the tutorial guides **10 hops** — **5 teaching hops**, each teaching one lesson, followed by **5 ramp hops** that ease the speed back up to normal:
+     - **Lesson 1 (hop 1)** — **"tap to hop"**: a straight-ahead tile + a pulsing **target ring** on its diamond, with a **down-arrow above** pointing at it.
+     - **Lesson 2 (hop 2)** — **"drag left!"**: the next tile is **forced to a left lane** (world +x) so the player must drag left; the **drag arrow** points the way (resolved in screen space — the camera looks forward, so a world-x sign would teach the wrong way). The arrow's direction is **locked per target tile** — resolved once when the ball lands, so it never flips while approaching.
+     - **Lesson 3 (hop 3)** — **"drag right!"**: the next tile is **forced to a right lane** (world −x).
+     - **Lesson 4 (hop 4)** — **"drop on the diamond!"**: the ring emphasizes the perfect-dot bonus.
+     - **Lesson 5 (hop 5)** — **"collect the coins!"**: the tile is **guaranteed to carry a coin**.
+   - **Pacing:** the 5 teaching hops run at **0.4x speed throughout** (`GAME_CONFIG.GUIDED_LESSON_TIME_SCALE` = 2.5); the next **5 ramp hops** (`GUIDED_RAMP_HOPS`) ease the time scale linearly down to **1.0x** (full speed), so the player *feels* the handoff into real play.
+   - **Retry loop (teaching hops only):** if the player misses during hops 1–5, the run is **not** ended — it respawns to the start tile, shows a **rotating "try again" caption** ("almost! try again", "so close! tap when you are ready", …) that stays up **~4.5s** (or until the player taps — a tap jumps straight to the next hop and cancels any pending revert), re-arms the first tap, and repeats. While the tap is re-armed, steering input is **ignored** (a still-held pointer can't drift the ball off its platform while it idles). This keeps a struggling first-timer in a safe teaching loop.
+   - **Ramp hops are normal play (6–10):** once the 5 lessons complete, `tutorialDone` is marked and the guides fade; a miss on a ramp hop is a **real game over** (no tedious restart after late progress — the ramp *is* the transition to real stakes).
+   - **Handover callout:** after the 10th guided hop, a brief top **"keep hopping!"** pill fades in and out, then the run continues seamlessly — no end screen; the run counts as run 1 like any other. `tutorialDone` is persisted so returning players never see it again (existing saves with prior runs are migrated to skip it).
+   - **World-nav callouts stay quiet while the teach is live:** spotlights, the "too easy? can you win here?" bubble, and the unlock reveal are all gated on `tutorialDone` — the tutorial owns the teaching until it hands over.
+   - **Guide in/out animations:** the caption card + ring + drag arrow fade/pop in when the guide appears and on every caption change; the whole overlay fades out before hiding, and the handover staggers its own longer fade.
+   - **Normal-run idle nudge (not the tutorial):** when a run has been waiting for its first tap for `GAME_CONFIG.TAP_NUDGE_DELAY` (1.5s), the ball does a real-feel hop (arcs up, lands with a squash; the start platform budges like a normal landing), then **waits 2s and hops again indefinitely**, with a "tap to hop" pill over the ball. It stops the moment the tap lands and never appears during the guided tutorial.
    - The start screen also activates at boot (positioned, pulsing play button) so a first-time player clearly sees where to tap.
 
 ### Optional supplement (small, cheap)

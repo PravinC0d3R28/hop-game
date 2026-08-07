@@ -44,14 +44,20 @@ export class Game {
   private demoTween: { t: number } = { t: 0 };
   private demoStep = 0;
 
-  // ---- first-run guided play (slow-mo guided hops + retry loop) ----
+  // ---- first-run guided play (5 teaching hops + 5-hop speed ramp) ----
   private guidedFirst = false;
   /** Guided hops completed (0 = waiting for the first tap). */
   private guidedStep = 0;
-  /** True once the player steers (drags) — guided hops then run at full speed. */
-  private guidedReacted = false;
-  /** Number of guided hops before the tutorial hands over to normal play. */
-  private readonly GUIDE_TILES = 5;
+  /** Number of teaching hops (lessons) before the guides fade + ramp begins. */
+  private readonly GUIDE_LESSONS = 5;
+  /** Guided step the drag-arrow direction was last locked for (-1 = none). */
+  private guideDragDirectionStep = -1;
+
+  // ---- normal-run idle "tap to hop" nudge ----
+  /** Seconds the current run has waited for its first tap. */
+  private tapWaitTime = 0;
+  /** Looping idle-hop timeline on the ball while the nudge is up. */
+  private tapNudgeTween: gsap.core.Animation | null = null;
 
   constructor(container: HTMLElement) {
     this.gameContainer = container;
@@ -156,11 +162,6 @@ export class Game {
     );
     this.input.onGameStart = () => this.startGame();
     this.input.onFirstJump = () => this.firstJump();
-    this.input.onSteer = () => {
-      // First drag during the guided segment: the player has the idea — the
-      // remaining guided hops run at full speed instead of slow motion.
-      this.guidedReacted = true;
-    };
   }
 
   private async wirePersistence(): Promise<void> {
@@ -219,6 +220,10 @@ export class Game {
     PlatformEntity.randomizePaletteStart();
     this.ball.reset();
     this.ball.setShield(false);
+    // While the first-run tutorial is live, the runway is generated with the
+    // forced lesson layout (side lanes for drag-left/right, a guaranteed coin);
+    // otherwise it's the normal random runway.
+    this.platforms.setGuidedLayout(this.guidedFirst ? this.guidedLessonLayout() : null);
     this.platforms.reset();
     this.camera.reset();
     this.background.reset();
@@ -228,14 +233,35 @@ export class Game {
     st.xTarget = 0;
   }
 
+  /** The forced first-run lesson layout (see PlatformManager.setGuidedLayout). */
+  private guidedLessonLayout(): (index: number) => { x?: number; coins?: boolean } | null {
+    return (index) => {
+      // Drag-left lesson: tile 2 sits screen-left of the ball (world +x).
+      if (index === 2) return { x: GAME_CONFIG.GUIDED_LESSON_LANE };
+      // Drag-right lesson: tile 3 sits screen-right of the ball (world -x).
+      if (index === 3) return { x: -GAME_CONFIG.GUIDED_LESSON_LANE };
+      // Coin lesson: tile 5 always carries a coin.
+      if (index === 5) return { coins: true };
+      return null;
+    };
+  }
+
   /** Original `Gy()`: first tap on menu starts the run. */
   private startGame(): void {
     if (!this.state.canSelectWorld(this.state.getActiveWorld())) return;
     // The missions-unlocked callout is a one-time gate: the player must click
     // the missions button before the next run is allowed.
     if (this.state.hasPendingMissionsUnlock()) return;
+    // First-run tutorial: 5 teaching hops (lessons) + a 5-hop speed ramp.
+    this.guidedFirst = false;
+    this.guidedStep = 0;
+    this.guideDragDirectionStep = -1;
+    if (!this.state.getPlayerData().tutorialDone) {
+      this.guidedFirst = true;
+    }
     this.stopAttractDemo();
-    // The demo may have left the ball mid-runway — start every run clean.
+    // The demo may have left the ball mid-runway — start every run clean
+    // (resetEntities applies the guided lesson layout via guidedFirst).
     this.resetEntities();
     this.audio.resume();
     this.state.getMutableState().isStarted = true;
@@ -245,12 +271,7 @@ export class Game {
     this.ui.hideGameOver();
     this.ui.showScoreUI(true);
     this.ui.showCoinCounter(true);
-    // First-run tutorial: guided slow-mo hops for the first tiles.
-    this.guidedFirst = false;
-    this.guidedStep = 0;
-    this.guidedReacted = false;
-    if (!this.state.getPlayerData().tutorialDone) {
-      this.guidedFirst = true;
+    if (this.guidedFirst) {
       this.ui.showFirstRunGuide(true);
       this.ui.setGuideStep(0);
       this.updateFirstRunGuide();
@@ -295,7 +316,7 @@ export class Game {
     this.ui.showFirstRunGuide(false);
     this.guidedFirst = false;
     this.guidedStep = 0;
-    this.guidedReacted = false;
+    this.guideDragDirectionStep = -1;
 
     // Restore camera/entities BEFORE the start screen positions the play button,
     // so its projection uses the boot camera (not the end-of-run one).
@@ -355,15 +376,16 @@ export class Game {
   private jump(): void {
     const st = this.state.getMutableState();
     if (st.isJumping || st.isFailed) return;
+    // The idle nudge's ball-bounce must not fight the hop tween on position.y.
+    this.stopTapNudgeBounce();
     st.isJumping = true;
 
     const r = st.currentStep;
     const t = r + 1;
-    // First-run tutorial: guided hops run in slow motion (half speed) so the
-    // target ring + arc read clearly; the moment the player steers (first
-    // drag), the remaining guided hops snap back to full speed.
+    // First-run tutorial: the 5 teaching hops run at lesson speed (0.4x by
+    // default) and the next GUIDED_RAMP_HOPS hops ease up to full speed.
     const duration = this.guidedFirst
-      ? this.state.getJumpDuration() * (this.guidedReacted ? 1 : 2)
+      ? this.state.getJumpDuration() * this.guidedHopTimeScale()
       : this.state.getJumpDuration();
     const bounce = GAME_CONFIG.BOUNCE_HEIGHT;
     const current = this.platforms.getPlatformByIndex(r);
@@ -393,10 +415,11 @@ export class Game {
                 this.audio.playShieldBreak();
                 this.effects.playShieldBreak(this.ball.group.position.x, this.ball.group.position.z);
                 this.effects.playGlassFloor(this.ball.group.position.x, this.ball.group.position.z);
-              } else if (this.guidedFirst) {
-                // Tutorial fallback: missing during the guided segment respawns
-                // the guided run instead of ending it — the player retries in a
-                // loop until they get the hang of it.
+              } else if (this.guidedFirst && this.guidedStep < this.GUIDE_LESSONS) {
+                // Tutorial fallback (teaching hops only): missing respawns the
+                // guided run instead of ending it — the player retries in a
+                // loop until they get the hang of it. The speed-ramp hops
+                // (6-10) are normal play: a miss there is a real game over.
                 this.guidedRetry();
                 return;
               } else {
@@ -415,16 +438,19 @@ export class Game {
             if (this.guidedFirst) {
               // This landing completed guided hop #guidedStep+1.
               this.guidedStep++;
-              if (this.guidedStep >= this.GUIDE_TILES) {
-                // All guided tiles hopped — hand over to normal play. No end
-                // screen: the guides simply fade out and the run keeps going
-                // (it counts as run 1 like any other).
-                this.guidedFirst = false;
-                this.ui.fadeOutFirstRunGuide();
+              if (this.guidedStep === this.GUIDE_LESSONS) {
+                // All 5 teaching hops done: mark the tutorial complete and fade
+                // the guides. The ramp hops (6-10) then run silently at rising
+                // speed — no end screen, no repeat of the lessons.
                 this.finishTutorial();
-              } else {
+                this.ui.fadeOutFirstRunGuide();
+              } else if (this.guidedStep < this.GUIDE_LESSONS) {
                 this.ui.setGuideStep(this.guidedStep);
                 this.updateFirstRunGuide();
+              } else if (this.guidedStep >= GAME_CONFIG.GUIDED_TOTAL_HOPS) {
+                // Ramp finished — full handover to normal play + a keep-going callout.
+                this.guidedFirst = false;
+                this.ui.showKeepHoppingCallout();
               }
             }
             st.score++;
@@ -552,8 +578,24 @@ export class Game {
       this.ball.group.position.x = st.ballX;
     }
 
-    // Keep the guided-play ring glued to the target tile while it's up.
-    if (this.guidedFirst) this.updateFirstRunGuide();
+    // Normal runs only: once the run has been waiting for its first tap for a
+    // beat, nudge the player — bounce the ball and show a "tap to hop" pill.
+    // The tutorial never needs this (the guide owns the teaching there).
+    if (st.isStarted && st.isWaitingForTap) {
+      this.tapWaitTime += delta;
+      if (!this.guidedFirst && this.tapWaitTime >= GAME_CONFIG.TAP_NUDGE_DELAY) {
+        this.ui.showTapNudge(true, this.ball.group.position.x, this.ball.group.position.z);
+        this.startTapNudgeBounce();
+      }
+    } else {
+      this.tapWaitTime = 0;
+      this.ui.showTapNudge(false);
+      this.stopTapNudgeBounce();
+    }
+
+    // Keep the guided-play ring glued to the target tile while the lessons are
+    // up (the ramp hops run silently after the 5 teaching hops fade out).
+    if (this.guidedFirst && this.guidedStep < this.GUIDE_LESSONS) this.updateFirstRunGuide();
 
     this.shadow.update(this.ball.group.position.x, this.ball.group.position.y, this.ball.group.position.z);
     this.camera.update(st.ballX, this.ball.group.position.z);
@@ -663,15 +705,79 @@ export class Game {
 
   // ---- first-run guided play ----
 
+  /**
+   * Time-scale multiplier for the current guided hop. The 5 teaching hops run
+   * at lesson speed (GUIDED_LESSON_TIME_SCALE = 1/0.4 → 0.4x); the next
+   * GUIDED_RAMP_HOPS hops ease the multiplier down to 1.0x (full speed).
+   */
+  private guidedHopTimeScale(): number {
+    const start = GAME_CONFIG.GUIDED_LESSON_TIME_SCALE;
+    if (this.guidedStep < this.GUIDE_LESSONS) return start;
+    const t = (this.guidedStep - (this.GUIDE_LESSONS - 1)) / GAME_CONFIG.GUIDED_RAMP_HOPS;
+    return start + (1 - start) * Math.min(1, Math.max(0, t));
+  }
+
   /** Keep the guided-play ring glued to the next target tile. */
   private updateFirstRunGuide(): void {
     const target = this.platforms.getPlatformByIndex(this.guidedStep + 1);
     if (!target) return;
     const targetX = target.platformX + (target.swayOffset || 0);
     this.ui.positionGuideRing(targetX, target.z);
-    // The drag hint lives on the NEXT tile and points the way the player must
+    // Lock the drag-arrow direction per target tile: it is only recomputed when
+    // the guide advances (i.e. after the ball lands on the tile it was aiming
+    // for), never while the ball is still approaching — so it can't flip mid-hop.
+    if (this.guidedStep !== this.guideDragDirectionStep) {
+      this.guideDragDirectionStep = this.guidedStep;
+      this.ui.setGuideDragDirection(this.ball.group.position.x, this.ball.group.position.z, targetX, target.z);
+    }
+    // The arrow stays parked on the NEXT tile and points the way the player must
     // drag to land there (direction resolved in screen space by the UI).
     this.ui.positionGuideDrag(this.ball.group.position.x, this.ball.group.position.z, targetX, target.z);
+  }
+
+  // ---- normal-run idle "tap to hop" nudge (ball bounce) ----
+
+  /** Start the idle "tap to hop" nudge loop (only once; no-op if active).
+   *  A real-feel hop: the ball arcs up and lands with a squash, the start
+   *  platform budges like a normal-run landing, then a 2s pause — repeated
+   *  indefinitely until the player taps. */
+  private startTapNudgeBounce(): void {
+    if (this.tapNudgeTween) return;
+    const baseY = GAME_CONFIG.PLATFORM_HEIGHT / 2 + GAME_CONFIG.BALL_RADIUS;
+    const startPlatform = this.platforms.getPlatformByIndex(0);
+    this.tapNudgeTween = gsap
+      .timeline({ repeat: -1, repeatDelay: 2 })
+      .to(this.ball.group.position, { y: baseY + 1.3, duration: 0.3, ease: 'sine.out' })
+      .to(this.ball.group.position, { y: baseY, duration: 0.34, ease: 'sine.in' })
+      .call(() => {
+        gsap.fromTo(
+          this.ball.group.scale,
+          { y: 0.82, x: 1.1, z: 1.1 },
+          { y: 1, x: 1, z: 1, duration: 0.18, ease: 'power2.out' }
+        );
+        if (startPlatform) {
+          BallEntity.squashPlatform(startPlatform.group, startPlatform.baseScale || 1);
+        }
+      });
+  }
+
+  /** Stop the idle nudge loop, restoring the ball's resting height + scale and
+   *  the start platform's shape (no-op unless the loop is up). */
+  private stopTapNudgeBounce(): void {
+    if (!this.tapNudgeTween) return;
+    this.tapNudgeTween.kill();
+    this.tapNudgeTween = null;
+    gsap.killTweensOf(this.ball.group.scale);
+    const st = this.state.getMutableState();
+    if (!st.isJumping) {
+      this.ball.group.position.y = GAME_CONFIG.PLATFORM_HEIGHT / 2 + GAME_CONFIG.BALL_RADIUS;
+      this.ball.group.scale.set(1, 1, 1);
+    }
+    const startPlatform = this.platforms.getPlatformByIndex(0);
+    if (startPlatform) {
+      gsap.killTweensOf(startPlatform.group.scale);
+      startPlatform.group.scale.set(startPlatform.baseScale || 1, 1, startPlatform.baseScale || 1);
+    }
   }
 
   /** One-shot mark so returning players never see the tutorial again. */
@@ -686,7 +792,7 @@ export class Game {
   /**
    * Tutorial fallback: the player missed during the guided segment. Instead of
    * a real game over, respawn the guided run from the start tile and let them
-   * retry in a loop — the tutorial only hands over after GUIDE_TILES hops.
+   * retry in a loop — the tutorial only hands over after the teaching hops.
    */
   private guidedRetry(): void {
     const st = this.state.getMutableState();
@@ -705,7 +811,7 @@ export class Game {
     st.maxStreak = 0;
     st.isWaitingForTap = true;
     this.guidedStep = 0;
-    this.guidedReacted = false;
+    this.guideDragDirectionStep = -1;
     this.ui.setScore(0);
     this.ui.showFirstRunGuide(true);
     this.ui.showTutorialRetry();

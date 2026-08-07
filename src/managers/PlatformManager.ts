@@ -22,12 +22,29 @@ export class PlatformManager {
   private lastIndex: number;
   private lastZ: number;
 
+  /**
+   * First-run tutorial lesson layout. Returns the forced geometry for a tile
+   * index ({ x } lane and/or { coins } guarantee), or null for the normal
+   * random runway. Cleared once the guided run ends.
+   */
+  private guidedLayout: ((index: number) => { x?: number; coins?: boolean } | null) | null = null;
+
   constructor(
     private scene: Scene,
     private state: GameStateManager
   ) {
     this.lastIndex = GAME_CONFIG.VISIBLE_STEPS - 1;
     this.lastZ = this.lastIndex * GAME_CONFIG.PLATFORM_SPACING_Z;
+  }
+
+  /** Set (or clear, with null) the guided tutorial's forced lesson layout. */
+  setGuidedLayout(fn: ((index: number) => { x?: number; coins?: boolean } | null) | null): void {
+    this.guidedLayout = fn;
+  }
+
+  /** True when the current layout guarantees a coin on this tile index. */
+  private guidedCoins(index: number): boolean {
+    return !!this.guidedLayout && this.guidedLayout(index)?.coins === true;
   }
 
   getPlatforms(): PlatformData[] {
@@ -48,6 +65,8 @@ export class PlatformManager {
 
   private randomPlatformX(index: number): number {
     if (index <= 1) return 0;
+    const forced = this.guidedLayout?.(index);
+    if (forced && typeof forced.x === 'number') return forced.x;
     const range = this.state.getXRange();
     return (Math.random() - 0.5) * 2 * range;
   }
@@ -63,7 +82,7 @@ export class PlatformManager {
       const scale = this.state.getPlatformScale();
       const startY = i <= 2 ? 0 : -5;
       const platform = PlatformEntity.create(i, x, z, scale, startY, this.scene);
-      if (i > 2) PlatformEntity.addCoin(platform, this.scene);
+      if (i > 2 || this.guidedCoins(i)) PlatformEntity.addCoin(platform, this.scene, this.guidedCoins(i));
       this.platforms.push(platform);
       if (i > 2) {
         PlatformEntity.riseAnimation(platform);
@@ -150,7 +169,8 @@ export class PlatformManager {
       platform.platformX = this.randomPlatformX(i);
       platform.swayOffset = 0;
       PlatformEntity.resetPosition(platform, platform.platformX, platform.z);
-      (platform.mesh.material as MeshToonMaterial).color.setHex(PlatformEntity.platformColor(i));      if (i > 2) PlatformEntity.addCoin(platform, this.scene);
+      (platform.mesh.material as MeshToonMaterial).color.setHex(PlatformEntity.platformColor(i));
+      if (i > 2 || this.guidedCoins(i)) PlatformEntity.addCoin(platform, this.scene, this.guidedCoins(i));
     }
   }
 

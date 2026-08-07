@@ -720,41 +720,6 @@
     #start-screen.locked #top-right-btns { display: none; }
     #start-screen.locked #coin-card { display: none; }
 
-    /* Attract-demo teach hint: a small pill above the play button that cycles
-       "drag to aim" (hand slides) → "release to hop" (hand taps). Pure CSS
-       placement; the hand slide/tap is GSAP-driven from UIManager. */
-    #teach-hint {
-      position: absolute;
-      top: clamp(30%, 30vh, 36%);
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(255, 255, 255, 0.92);
-      border: 3px solid #111;
-      border-radius: 999px;
-      padding: 8px 16px;
-      box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.2);
-      z-index: 5;
-      white-space: nowrap;
-      pointer-events: none;
-    }
-    #teach-hint.hidden { display: none; }
-    #teach-hand {
-      font-size: clamp(18px, 4.5vmin, 28px);
-      line-height: 1;
-      transform-origin: 50% 80%;
-      will-change: transform;
-    }
-    #teach-text {
-      font-size: clamp(12px, 2.6vmin, 16px);
-      font-weight: 900;
-      letter-spacing: 1px;
-      color: #111;
-      text-transform: uppercase;
-    }
-
     /* First-run guided play: a target ring projected onto the next tile + a
        pulsing "aim · release" caption. Lives in the pointer-events-none UI
        overlay; the ring is positioned per-frame from the world camera. */
@@ -868,6 +833,59 @@
       50% { transform: translate(calc(-50% - 14px), -50%); }
     }
     #frg-drag.left { animation: frgDragGlideLeft 0.9s ease-in-out infinite; }
+
+    /* Normal-run idle nudge: a "tap to hop" pill over the ball once a run has
+       been waiting for its first tap for a beat. Pure CSS animation; positioned
+       per-frame from the world camera. */
+    #tap-nudge {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 29;
+    }
+    #tap-nudge.hidden { display: none; }
+    .tap-nudge-label {
+      background: #ffd23f;
+      border: 3px solid #111;
+      border-radius: 999px;
+      padding: 4px 14px;
+      font-size: clamp(12px, 2.6vmin, 16px);
+      font-weight: 900;
+      letter-spacing: 2px;
+      color: #111;
+      text-transform: uppercase;
+      animation: nudgePulse 1.1s ease-in-out infinite;
+      box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.2);
+    }
+    @keyframes nudgePulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.08); }
+    }
+
+    /* Tutorial handover callout: brief top-center "keep hopping!" pill. */
+    #keep-hopping-callout {
+      position: absolute;
+      top: clamp(14%, 16vh, 18%);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #ffd23f;
+      border: 3px solid #111;
+      border-radius: 999px;
+      padding: 8px 18px;
+      font-size: clamp(13px, 3vmin, 18px);
+      font-weight: 900;
+      letter-spacing: 2px;
+      color: #111;
+      text-transform: uppercase;
+      box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.2);
+      pointer-events: none;
+      z-index: 29;
+    }
+    #keep-hopping-callout.hidden { display: none; }
 
     /* Best-score block under the world title: heading, then a single centered
        line with the crown + score, and the "can you beat this?" callout below. */
@@ -2476,12 +2494,6 @@
               <span id="coin-card-amount">0</span>
             </div>
           </div>
-          <!-- Attract-demo teach: cycling "drag to aim / stay on the tiles" hint
-               shown above the play button while the start screen is up. -->
-          <div id="teach-hint" class="hidden">
-            <span id="teach-hand">👆</span>
-            <span id="teach-text">drag to aim</span>
-          </div>
         </div>
         <!-- First-run guided play (target ring over the next tile + drag hint + caption). -->
         <div id="first-run-guide" class="hidden">
@@ -2489,6 +2501,13 @@
           <div id="frg-ring"></div>
           <div id="frg-drag"></div>
         </div>
+        <!-- Normal-run idle nudge: "tap to hop" hint over the ball when a run
+             waits for its first tap (shown once TAP_NUDGE_DELAY elapses). -->
+        <div id="tap-nudge" class="hidden">
+          <span class="tap-nudge-label">tap to hop</span>
+        </div>
+        <!-- Tutorial handover callout: brief "keep hopping!" beat at the top. -->
+        <div id="keep-hopping-callout" class="hidden">keep hopping!</div>
         <div id="lock-overlay">
           <div class="lock-card">
             <button id="lock-close" title="Close">&#x2715;</button>

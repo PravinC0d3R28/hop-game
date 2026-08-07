@@ -46,8 +46,6 @@ export class InputSystem {
   /** Public callbacks wired by Game. */
   onGameStart: () => void = () => {};
   onFirstJump: () => void = () => {};
-  /** Fired on the first drag move of each press — the player is steering. */
-  onSteer: () => void = () => {};
 
   private onDown(e: PointerEvent): void {
     const st = this.state.getMutableState();
@@ -92,7 +90,6 @@ export class InputSystem {
     const sens = this.state.getPlayerData().sensitivity / 50;
     const delta = (e.clientX - this.startClientX) * -0.028 * sens;
     st.xTarget = this.clamp(this.startTarget + delta, -5, 5);
-    this.onSteer();
   }
 
   private onUp(): void {

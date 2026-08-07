@@ -47,6 +47,18 @@ export interface GameConfig {
   STREAK_FIRE: number;
   // Total score at which the start-screen world nav arrows are revealed
   WORLD_NAV_REVEAL_SCORE: number;
+  // Normal-run idle nudge: seconds the run waits for its first tap before a
+  // bouncing "tap to hop" hint appears over the ball.
+  TAP_NUDGE_DELAY: number;
+  // First-run tutorial pacing. The 5 teaching hops run at lesson speed
+  // (GUIDED_LESSON_TIME_SCALE = 1 / 0.4 → 0.4x), then the next GUIDED_RAMP_HOPS
+  // hops ease the time scale down to 1.0x (full speed).
+  GUIDED_LESSON_TIME_SCALE: number;
+  GUIDED_RAMP_HOPS: number;
+  /** Total guided hops before the tutorial fully hands over (5 lessons + ramp). */
+  GUIDED_TOTAL_HOPS: number;
+  /** Forced side-lane x for the drag-left / drag-right lessons. */
+  GUIDED_LESSON_LANE: number;
   // Runs played before the missions button unlocks (0 = from the start).
   MISSIONS_UNLOCK_RUNS: number;
   // Lifetime score at which the streak shield unlocks (World 2 milestone).
@@ -135,6 +147,13 @@ export const GAME_CONFIG: GameConfig = {
   STREAK_FIRE: 10,
 
   WORLD_NAV_REVEAL_SCORE: 250,
+
+  TAP_NUDGE_DELAY: 1.5,
+
+  GUIDED_LESSON_TIME_SCALE: 2.5,
+  GUIDED_RAMP_HOPS: 5,
+  GUIDED_TOTAL_HOPS: 10,
+  GUIDED_LESSON_LANE: 1.5,
 
   MISSIONS_UNLOCK_RUNS: 3,
 
