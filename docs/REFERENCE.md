@@ -447,6 +447,10 @@ suspended when tab hidden.
   score elastic pop.
 - **Speed lines** — spawn when intensity > 0, batch `1 + floor(intensity×3)`,
   interval `0.03 / max(0.1, intensity)`, max 30.
+- **Fire streak (10)** — `FireOverlay` (screen-space additive 2D canvas:
+  bottom fire band + embers + pulsing vignette + burst flash/ring) + 3D ball
+  burst (`playFireBurst`: ~30 additive flame/ember particles, shockwave ring,
+  central flash pop) + FIRE banner (DOM).
 - **Confetti** — 60 pieces, 7 colors, on new best score (DOM, GSAP).
 
 ---

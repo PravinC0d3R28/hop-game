@@ -11,6 +11,7 @@ import type { RendererSystem } from '../systems/RendererSystem';
 import type { ShadowSystem } from '../systems/ShadowSystem';
 import type { BackgroundSystem } from '../systems/BackgroundSystem';
 import type { BallEntity } from '../entities/BallEntity';
+import { FireOverlay } from '../systems/FireOverlay';
 import { gsap } from 'gsap';
 import { Vector3 } from 'three';
 
@@ -99,7 +100,7 @@ export class UIManager {
   /** Which teach is showing (world vs missions) — used to settle its gate when
    *  the player dismisses it. */
   private spotlightKind: 'world' | 'missions' | null = null;
-  private streakGlow: HTMLElement | null = null;
+  private streakGlow: FireOverlay | null = null;
   private missionQueue: boolean[] = [];
   private missionBusy = false;
   private activeMissionTab: MissionKind = 'general';
@@ -2061,26 +2062,22 @@ export class UIManager {
   /** Constant flame corner glow (v1 simplified): on once the fire reward fires,
    *  held for the rest of the run, cleared on game over/reset. */
   setStreakGlow(level: 'off' | 'fire'): void {
-    const el = this.ensureStreakGlow();
-    gsap.killTweensOf(el);
-    el.classList.toggle('fire', level === 'fire');
     if (level === 'off') {
-      gsap.to(el, { opacity: 0, duration: 0.45, ease: 'power2.out' });
+      // Let any live fire fade out (no-op if never lit).
+      this.streakGlow?.setFire(false);
       return;
     }
-    gsap.to(el, { opacity: 1, duration: 0.5, ease: 'power2.out' });
+    this.ensureFireOverlay().setFire(true);
   }
 
-  private ensureStreakGlow(): HTMLElement {
-    if (this.streakGlow) return this.streakGlow;
-    const el = document.createElement('div');
-    el.className = 'streak-corners';
-    el.innerHTML =
-      '<span class="c c-tl"></span><span class="c c-tr"></span>' +
-      '<span class="c c-bl"></span><span class="c c-br"></span>';
-    document.getElementById('ui-overlay')?.appendChild(el);
-    this.streakGlow = el;
-    return el;
+  private ensureFireOverlay(): FireOverlay {
+    if (!this.streakGlow) this.streakGlow = new FireOverlay();
+    return this.streakGlow;
+  }
+
+  /** Screen-level fire burst (flash + ember spray) when the 10-streak fires. */
+  fireBurst(): void {
+    this.ensureFireOverlay().burst();
   }
 
   /** FIRE banner on every fresh 10-perfect streak; the shield tagline only on the one-time grant. */

@@ -540,6 +540,8 @@ export class Game {
     if (shieldGranted) this.ball.setShield(true);
     this.audio.playMilestone();
     this.effects.playFireBurst(this.ball.group.position.x, this.ball.group.position.y, this.ball.group.position.z);
+    // Screen-level fire burst (flash + ember spray) + the FIRE banner.
+    this.ui.fireBurst();
     this.events.emit(GAME_EVENTS.STREAK_MILESTONE, { milestone, shield: shieldGranted });
   }
 

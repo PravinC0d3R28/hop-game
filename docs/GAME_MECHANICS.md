@@ -166,6 +166,16 @@ white sphere + outline sphere child, expand+fade over .3-.4s, `vy` then gravity 
 4. full-screen gold flash overlay `rgba(255,215,0, .15+.03*streak capped .35)`, .3s
 5. score elastic scale
 
+### Fire streak (10 perfects)
+- **Screen fire (`FireOverlay`, zero-dep 2D canvas, additive)**: a living fire
+  band along the bottom edge — rising flames that shift white-hot → orange →
+  red as they age, plus ember sparks — a pulsing heat vignette, and a
+  burst flash + shockwave ring on each fresh 10-streak. Own rAF loop; only runs
+  while lit, fades out on game over/reset.
+- **3D ball burst (`EffectsSystem.playFireBurst`)**: ~30 additive flame/ember
+  particles (upward-biased) + an expanding shockwave ring + a central flash pop.
+- **FIRE banner** (DOM) + one-time shield grant on the milestone.
+
 ### Speed lines
 box(.04,.04,1) translated z .5, lookAt toward target, scale z `3..9+6*intensity`,
 alpha `(.12+.3*intensity)*(.5+rand*.5)`, velocity toward `(15..40)+25*intensity`,

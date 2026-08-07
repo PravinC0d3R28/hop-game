@@ -1,4 +1,5 @@
 import {
+  AdditiveBlending,
   BackSide,
   BoxGeometry,
   CircleGeometry,
@@ -259,25 +260,74 @@ export class EffectsSystem {
     this.speedLines = [];
   }
 
-  /** Streak 10 (FR-4): fire particle burst around the ball. */
+  /** Streak 10 (FR-4): fire burst around the ball — additive flames + embers,
+   *  an expanding shockwave ring and a central flash pop. */
   playFireBurst(x: number, y: number, z: number): void {
-    const colors = [0xff4d00, 0xff8c00, 0xffd700];
-    for (let i = 0; i < 16; i++) {
-      const color = colors[i % colors.length];
-      const mat = new MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false });
+    // Central flash: a bright sphere that pops and fades fast.
+    const flashMat = new MeshBasicMaterial({
+      color: 0xfff0d0,
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+      blending: AdditiveBlending
+    });
+    const flash = new Mesh(new SphereGeometry(0.22, 12, 10), flashMat);
+    flash.position.set(x, y + 0.3, z);
+    this.scene.add(flash);
+    gsap.to(flash.scale, { x: 2.4, y: 2.4, z: 2.4, duration: 0.32, ease: 'power2.out' });
+    gsap.to(flashMat, {
+      opacity: 0,
+      duration: 0.32,
+      ease: 'power2.out',
+      onComplete: () => {
+        this.scene.remove(flash);
+        flashMat.dispose();
+        (flash.geometry as SphereGeometry).dispose();
+      }
+    });
+
+    // Expanding shockwave ring on the platform.
+    const ringMat = new MeshBasicMaterial({
+      color: 0xff8c20,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+      side: DoubleSide,
+      blending: AdditiveBlending
+    });
+    const ring = new Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(x, GAME_CONFIG.PLATFORM_HEIGHT / 2 + 0.02, z);
+    this.scene.add(ring);
+    gsap.to(ring.scale, { x: 8, y: 8, z: 1, duration: 0.5, ease: 'power2.out' });
+    gsap.to(ringMat, {
+      opacity: 0,
+      duration: 0.5,
+      ease: 'power2.out',
+      onComplete: () => {
+        this.scene.remove(ring);
+        ringMat.dispose();
+      }
+    });
+
+    // Flame + ember particles: upward-biased, additive so they read as fire.
+    const flameColors = [0xfff2d0, 0xffd54d, 0xff8c00, 0xff4d00, 0xe02500];
+    for (let i = 0; i < 30; i++) {
+      const color = flameColors[Math.floor(Math.random() * flameColors.length)];
+      const mat = new MeshBasicMaterial({ color, transparent: true, opacity: 0.95, depthWrite: false, blending: AdditiveBlending });
       const burst = new Mesh(burstGeo, mat);
-      const radius = 0.3 + Math.random() * 0.25;
+      const radius = 0.25 + Math.random() * 0.3;
       const phi = Math.random() * Math.PI * 2;
-      burst.position.set(x + Math.cos(phi) * radius, y + 0.3 + Math.random() * 0.3, z + Math.sin(phi) * radius);
-      const speed = 2.2 + Math.random() * 1.6;
-      const ang = (i / 16) * Math.PI * 2 + Math.random() * 0.5;
+      burst.position.set(x + Math.cos(phi) * radius, y + 0.25 + Math.random() * 0.4, z + Math.sin(phi) * radius);
+      const speed = 2 + Math.random() * 2.4;
+      const ang = Math.random() * Math.PI * 2;
       this.scene.add(burst);
       this.particles.push({
         mesh: burst,
-        vx: Math.cos(ang) * speed * 0.6,
-        vy: 0,
-        vz: Math.sin(ang) * speed * 0.6,
-        life: 0.7,
+        vx: Math.cos(ang) * speed * 0.7,
+        vy: 1.2 + Math.random() * 2.2,
+        vz: Math.sin(ang) * speed * 0.7,
+        life: 0.55 + Math.random() * 0.4,
         maxLife: 0.7,
         startSize: 1
       });
