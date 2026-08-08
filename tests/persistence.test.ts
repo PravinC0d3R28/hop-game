@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { PersistenceManager, type SaveBackend } from '../src/managers/PersistenceManager';
+import {
+  PersistenceManager,
+  LocalStorageBackend,
+  type SaveBackend
+} from '../src/managers/PersistenceManager';
 import { GameStateManager, DEFAULT_PLAYER_DATA } from '../src/core/GameStateManager';
 
 class MemoryBackend implements SaveBackend {
@@ -19,6 +23,30 @@ describe('PersistenceManager round-trip', () => {
     expect(loaded.totalScore).toBe(0);
     expect(loaded.bestPerWorld).toEqual([0, 0, 0]);
     expect(loaded.selectedWorld).toBe('sunrise');
+  });
+
+  it('LocalStorageBackend honors a custom key (dev-mode isolated save)', async () => {
+    const keys: string[] = [];
+    const store = new Map<string, string>();
+    (globalThis as { localStorage?: unknown }).localStorage = {
+      getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+      setItem: (k: string, v: string) => {
+        keys.push(k);
+        store.set(k, v);
+      }
+    };
+    const dev = new LocalStorageBackend('hop_dev_player_data');
+    const real = new LocalStorageBackend(); // default hop_player_data
+    await dev.save({ ...DEFAULT_PLAYER_DATA, totalCoins: 42 });
+    await real.save({ ...DEFAULT_PLAYER_DATA, totalCoins: 7 });
+
+    expect(keys.filter((k) => k === 'hop_dev_player_data')).toHaveLength(1);
+    expect(keys.filter((k) => k === 'hop_player_data')).toHaveLength(1);
+
+    const devLoaded = await dev.load();
+    const realLoaded = await real.load();
+    expect(devLoaded!.totalCoins).toBe(42);
+    expect(realLoaded!.totalCoins).toBe(7);
   });
 
   it('saving then loading round-trips the new fields', async () => {

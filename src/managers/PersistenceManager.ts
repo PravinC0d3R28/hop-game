@@ -9,11 +9,14 @@ export interface SaveBackend {
   save(data: PlayerData): Promise<void>;
 }
 
-/** Standalone localStorage backend. */
+/** Standalone localStorage backend. The storage key is parameterizable so dev
+ *  mode can isolate its saves under its own key (`hop_dev_player_data`). */
 export class LocalStorageBackend implements SaveBackend {
+  constructor(private storageKey: string = STORAGE_KEY) {}
+
   async load(): Promise<PlayerData | null> {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(this.storageKey);
       if (!raw) return null;
       return JSON.parse(raw) as PlayerData;
     } catch {
@@ -23,7 +26,7 @@ export class LocalStorageBackend implements SaveBackend {
 
   async save(data: PlayerData): Promise<void> {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      localStorage.setItem(this.storageKey, JSON.stringify(data));
     } catch {
       // storage full / unavailable — non-fatal
     }

@@ -1,7 +1,9 @@
 import { gsap } from 'gsap';
+import { Mesh } from 'three';
+import type { Object3D } from 'three';
 import { GAME_CONFIG } from './config/GameConfig';
 import type { ThemeName } from './config/Themes';
-import type { WorldConfig } from './config/Worlds';
+import type { WorldConfig, WorldId } from './config/Worlds';
 import { GameStateManager } from './core/GameStateManager';
 import { EventBus, GAME_EVENTS } from './core/EventBus';
 import { RendererSystem } from './systems/RendererSystem';
@@ -15,8 +17,14 @@ import { InputSystem } from './systems/InputSystem';
 import { BallEntity } from './entities/BallEntity';
 import { PlatformEntity, type CoinObject, type PlatformData } from './entities/PlatformEntity';
 import { PlatformManager } from './managers/PlatformManager';
-import { PersistenceManager } from './managers/PersistenceManager';
+import { PersistenceManager, LocalStorageBackend } from './managers/PersistenceManager';
 import { UIManager } from './ui/UIManager';
+
+/** Optional construction knobs (dev mode uses the isolated save key). */
+export interface GameOptions {
+  /** localStorage key for the save. Dev mode passes `hop_dev_player_data`. */
+  persistenceKey?: string;
+}
 
 /**
  * Game coordinator: wires systems together, owns the main loop and game flow.
@@ -59,12 +67,14 @@ export class Game {
   /** Looping idle-hop timeline on the ball while the nudge is up. */
   private tapNudgeTween: gsap.core.Animation | null = null;
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, options: GameOptions = {}) {
     this.gameContainer = container;
     this.state = new GameStateManager();
     this.state.setUnlockAllWorlds(GAME_CONFIG.DEBUG.unlockAllWorlds);
     this.state.setWorldOverride(GAME_CONFIG.DEBUG.forceWorld);
-    this.persistence = new PersistenceManager();
+    this.persistence = options.persistenceKey
+      ? new PersistenceManager(new LocalStorageBackend(options.persistenceKey))
+      : new PersistenceManager();
     MaterialFactory.init();
 
     this.renderer = new RendererSystem(container);
@@ -827,6 +837,56 @@ export class Game {
     // The chain stays parked behind isJumping until the player's first tap:
     // firstJump() clears the flag and starts the hop. Nothing else unblocks
     // it, so the ball cannot move (or be steered) while it waits.
+  }
+
+  // ---- dev panel helpers (dev-only server builds) ----
+
+  /**
+   * Force the active world like a start-screen world switch: re-seeds the
+   * runway and restarts the attract demo so ramps + demo coordinates stay
+   * consistent (mirrors the `onWorldSelect` flow).
+   */
+  devForceWorld(id: WorldId | null): void {
+    GAME_CONFIG.DEBUG.forceWorld = id;
+    this.state.setWorldOverride(id);
+    void this.persistence.save(this.state.getMutablePlayerData());
+    this.platforms.reset();
+    if (this.demoActive) {
+      this.stopAttractDemo();
+      this.resetEntities();
+      this.startAttractDemo();
+    }
+  }
+
+  /**
+   * Re-roll the runway so layout toggles (straight line, no sway) take effect
+   * before the next run. On the start screen the attract demo restarts; during
+   * a live run only the pool is re-seeded (panel toggles are start-screen use).
+   */
+  devReseedRunway(): void {
+    if (this.demoActive) {
+      this.stopAttractDemo();
+      this.resetEntities();
+      this.startAttractDemo();
+    } else {
+      this.platforms.reset();
+    }
+  }
+
+  /** Dev hitbox view: toggle wireframe on the ball + every platform mesh. */
+  devSetHitboxes(on: boolean): void {
+    const apply = (root: Object3D): void => {
+      root.traverse((obj) => {
+        const mesh = obj as Mesh;
+        if (!mesh.isMesh) return;
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        for (const m of mats) {
+          (m as { wireframe?: boolean }).wireframe = on;
+        }
+      });
+    };
+    for (const p of this.platforms.getPlatforms()) apply(p.group);
+    apply(this.ball.group);
   }
 
   dispose(): void {

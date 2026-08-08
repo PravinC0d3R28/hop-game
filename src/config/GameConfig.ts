@@ -106,6 +106,10 @@ export interface GameConfig {
     infiniteCoins: boolean;
     unlockAllWorlds: boolean;
     forceWorld: WorldId | null;
+    /** Dev: every platform spawns at x=0 (straight line — no lane changes). */
+    straightLane: boolean;
+    /** Dev: disable per-world sway (platforms never drift sideways). */
+    noSway: boolean;
   };
 }
 
@@ -216,6 +220,8 @@ export const GAME_CONFIG: GameConfig = {
     unlockAllSkins: false,
     infiniteCoins: false,
     unlockAllWorlds: false,
-    forceWorld: null
+    forceWorld: null,
+    straightLane: false,
+    noSway: false
   }
 };

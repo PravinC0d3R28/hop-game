@@ -15,14 +15,21 @@ function bootstrap(): void {
   // again — retry after a beat before giving up. The splash's inline fallback
   // (index.html) hides it on a hard deadline regardless, so the start screen
   // underneath can never be permanently covered.
+  // Dev mode (vite dev server, `npm run dev:dev` via VITE_DEV_MODE, or `?dev=1`):
+  // the save goes to its own key so the real player's progress is never
+  // touched, and the panel toggles are exposed as window.gameDebug helpers.
+  const devMode =
+    import.meta.env.DEV ||
+    import.meta.env.VITE_DEV_MODE === 'true' ||
+    new URLSearchParams(location.search).has('dev');
   let game: Game | null = null;
   try {
-    game = new Game(container);
+    game = new Game(container, devMode ? { persistenceKey: 'hop_dev_player_data' } : {});
   } catch (err) {
     console.error('HOP: boot init failed once — retrying.', err);
     window.setTimeout(() => {
       try {
-        game = new Game(container);
+        game = new Game(container, devMode ? { persistenceKey: 'hop_dev_player_data' } : {});
       } catch (err2) {
         console.error('HOP: boot init failed again.', err2);
       }
@@ -59,6 +66,7 @@ function bootstrap(): void {
   // Debug helpers (documented in CUSTOMIZATION_GUIDE):
   //   window.gameDebug.setScore(n) / giveCoins(n) / unlockAllSkins() / toggleInvincible()
   //   window.gameDebug.unlockAllWorlds() / forceWorld(id | null) / setTotalScore(n)
+  //   window.gameDebug.straightLane(on) / noSway(on) / hitboxes(on) / reseedRunway()
   const accessor = game as unknown as {
     ball: { group: { position: { x: number; y: number; z: number } } };
     state: {
@@ -76,6 +84,9 @@ function bootstrap(): void {
     };
     persistence: { save(d: unknown): Promise<void> };
     platforms: { coinCount(): number };
+    devForceWorld(id: WorldId | null): void;
+    devReseedRunway(): void;
+    devSetHitboxes(on: boolean): void;
   };
 
   (window as unknown as { gameDebug: Record<string, unknown> }).gameDebug = {
@@ -106,8 +117,21 @@ function bootstrap(): void {
     },
     forceWorld: (id: string | null) => {
       const world: WorldId | null = WORLDS.some((w) => w.id === id) ? (id as WorldId) : null;
-      GAME_CONFIG.DEBUG.forceWorld = world;
-      accessor.state.setWorldOverride(world);
+      accessor.devForceWorld(world);
+    },
+    straightLane: (on: boolean) => {
+      GAME_CONFIG.DEBUG.straightLane = on;
+      accessor.devReseedRunway();
+    },
+    noSway: (on: boolean) => {
+      GAME_CONFIG.DEBUG.noSway = on;
+      accessor.devReseedRunway();
+    },
+    hitboxes: (on: boolean) => {
+      accessor.devSetHitboxes(on);
+    },
+    reseedRunway: () => {
+      accessor.devReseedRunway();
     },
     setTotalScore: (n: number) => {
       accessor.state.setTotalScore(n);

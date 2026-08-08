@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { Scene } from 'three';
 import { GameStateManager } from '../src/core/GameStateManager';
 import { PlatformManager } from '../src/managers/PlatformManager';
@@ -189,5 +189,56 @@ describe('per-world sway (updateSway)', () => {
     const p1 = platforms.getPlatforms().find((p) => p.index === 1)!;
     expect(Math.abs(p1.swayOffset)).toBeGreaterThan(0.5);
     expect(p1.group.position.x).toBeCloseTo(p1.platformX + p1.swayOffset, 10);
+  });
+});
+
+describe('dev flags: straightLane + noSway', () => {
+  afterEach(() => {
+    GAME_CONFIG.DEBUG.straightLane = false;
+    GAME_CONFIG.DEBUG.noSway = false;
+  });
+
+  it('straightLane pins every platform to x=0 across recycles', () => {
+    GAME_CONFIG.DEBUG.straightLane = true;
+    const { state, platforms } = setup();
+    state.setScore(90); // full ramp — normally wide lanes
+    for (const p of platforms.getPlatforms()) {
+      expect(p.platformX).toBe(0);
+      expect(p.group.position.x).toBeCloseTo(p.platformX, 10);
+    }
+    state.getMutableState().currentStep = 20;
+    platforms.recycle();
+    for (const p of platforms.getPlatforms()) {
+      expect(p.platformX).toBe(0);
+      expect(p.group.position.x).toBeCloseTo(p.platformX, 10);
+    }
+  });
+
+  it('without straightLane the ramp still widens lanes', () => {
+    const { state, platforms } = setup();
+    state.setScore(90);
+    const xs = platforms.getPlatforms().map((p) => Math.abs(p.platformX));
+    expect(Math.max(...xs)).toBeGreaterThan(0);
+  });
+
+  it('noSway freezes dusk sway: offsets zeroed and meshes parked at platformX', () => {
+    GAME_CONFIG.DEBUG.noSway = true;
+    const { state, platforms } = setup();
+    state.setUnlockAllWorlds(true);
+    state.selectWorld('dusk');
+    platforms.updateSway(5000);
+    for (const p of platforms.getPlatforms()) {
+      expect(p.swayOffset).toBe(0);
+      expect(p.group.position.x).toBeCloseTo(p.platformX, 10);
+    }
+  });
+
+  it('noSway off restores dusk sway', () => {
+    const { state, platforms } = setup();
+    state.setUnlockAllWorlds(true);
+    state.selectWorld('dusk');
+    platforms.updateSway(5000);
+    const swaying = platforms.getPlatforms().filter((p) => p.swayOffset !== 0);
+    expect(swaying.length).toBeGreaterThan(0);
   });
 });

@@ -64,6 +64,8 @@ export class PlatformManager {
   }
 
   private randomPlatformX(index: number): number {
+    // Dev straight-line mode: every platform spawns dead-center (x=0).
+    if (GAME_CONFIG.DEBUG.straightLane) return 0;
     if (index <= 1) return 0;
     const forced = this.guidedLayout?.(index);
     if (forced && typeof forced.x === 'number') return forced.x;
@@ -140,6 +142,16 @@ export class PlatformManager {
    */
   updateSway(now: number): void {
     const sway = this.state.getActiveWorld().sway;
+    // Dev no-sway mode: platforms stay perfectly still (like Sunrise).
+    if (GAME_CONFIG.DEBUG.noSway) {
+      for (const platform of this.platforms) {
+        if (platform.swayOffset !== 0) {
+          platform.swayOffset = 0;
+          platform.group.position.x = platform.platformX;
+        }
+      }
+      return;
+    }
     const staticEvery = staticCadence(sway.ratio);
     const t = now * 0.001;
     for (const platform of this.platforms) {
