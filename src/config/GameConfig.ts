@@ -81,14 +81,21 @@ export interface GameConfig {
     dropDuration: number;
     flagColor: number;
     poleColor: number;
+    /** Podium (base) color under the pole. */
+    podiumColor: number;
     debrisCount: number;
     impactShake: number;
-    /** Number of cloth segments along the pennant (more = smoother wave). */
-    clothSegments: number;
-    /** Cloth flutter speed (radians/sec of the sine wave). */
+    /** Cloth poly-mesh subdivision: columns along the length × rows of height. */
+    clothColumns: number;
+    clothRows: number;
+    /** Cloth flutter speed (radians/sec of the traveling sine). */
     waveSpeed: number;
-    /** Cloth flutter amplitude (radians) — 0 = stiff cloth. */
+    /** Cloth flutter amplitude (units of z displacement, 0 = stiff cloth). */
     waveAmp: number;
+    /** Cloth ripple spatial frequency (radians/unit along the cloth). */
+    waveRipple: number;
+    /** Phong specular strength — makes light glint off the swaying cloth. */
+    clothShininess: number;
   };
   // Camera
   CAMERA_OFFSET_Y: number;
@@ -197,11 +204,15 @@ export const GAME_CONFIG: GameConfig = {
     dropDuration: 0.42,
     flagColor: 0xc0392b,
     poleColor: 0xf0e6d8,
+    podiumColor: 0xd9c6a3,
     debrisCount: 12,
     impactShake: 1.5,
-    clothSegments: 5,
+    clothColumns: 12,
+    clothRows: 4,
     waveSpeed: 6,
-    waveAmp: 0.22
+    waveAmp: 0.14,
+    waveRipple: 5,
+    clothShininess: 40
   },
 
   CAMERA_OFFSET_Y: 9.5,

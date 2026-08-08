@@ -151,30 +151,30 @@ describe('failure flag cloth animation', () => {
     expect(Math.abs(Math.atan2(dir.x, dir.z) - expected) % Math.PI).toBeLessThan(0.01);
   });
 
-  it('the cloth segments wave over time (physics flutter)', () => {
+  it('the cloth poly mesh waves over time (vertex displacement)', () => {
     const { effects } = setupEffects();
     const platform = makePlatform();
     effects.playFailureFlag(platform);
     const flagRoot = platform.group.children.find((c) => c.type === 'Group') as Group;
     const cloth = flagRoot.children.find((c) => c.type === 'Group') as Group;
-
-    // Segments are nested (each at the previous one's tip); walk the chain.
-    const segments: Group[] = [];
-    let cursor: Group | undefined = cloth.children.find((c) => c.type === 'Group') as Group;
-    while (cursor) {
-      segments.push(cursor);
-      cursor = cursor.children.find((c) => c.type === 'Group') as Group | undefined;
-    }
-    expect(segments.length).toBe(GAME_CONFIG.FAIL_FLAG.clothSegments);
+    const mesh = cloth.children.find((c) => c.type === 'Mesh') as Mesh;
+    expect(mesh).toBeDefined();
+    // Subdivided polygon mesh: (columns+1) x (rows+1) vertices
+    const pos = mesh.geometry.attributes.position as unknown as { array: Float32Array };
+    expect(pos.array.length / 3).toBe(
+      (GAME_CONFIG.FAIL_FLAG.clothColumns + 1) * (GAME_CONFIG.FAIL_FLAG.clothRows + 1)
+    );
 
     effects.updateFailureFlags(0);
-    const r0 = segments.map((s) => s.rotation.y);
+    const z0 = Array.from(pos.array).filter((_, i) => i % 3 === 2);
     effects.updateFailureFlags(1000);
-    const r1 = segments.map((s) => s.rotation.y);
-    // the wave is time-driven: rotations must differ between frames
-    expect(r1).not.toEqual(r0);
-    // amplitude grows toward the tip: last segment swings the most
-    expect(Math.abs(r1[r1.length - 1])).toBeGreaterThanOrEqual(Math.abs(r1[0]));
+    const z1 = Array.from(pos.array).filter((_, i) => i % 3 === 2);
+    // the wave is time-driven: z displacements must differ between frames
+    expect(z1).not.toEqual(z0);
+    // amplitude grows toward the tip: max |z| is not at the pole (x=0) edge
+    const maxAbs = Math.max(...z1.map((v) => Math.abs(v)));
+    expect(maxAbs).toBeGreaterThan(0);
+    expect(Math.abs(z1[0])).toBeLessThanOrEqual(maxAbs);
   });
 });
 

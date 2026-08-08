@@ -2,15 +2,17 @@ import {
   AdditiveBlending,
   BackSide,
   BoxGeometry,
+  BufferAttribute,
+  BufferGeometry,
   CircleGeometry,
+  Float32BufferAttribute,
   Group,
   Mesh,
   MeshBasicMaterial,
+  MeshPhongMaterial,
   MeshToonMaterial,
   PlaneGeometry,
   RingGeometry,
-  Shape,
-  ShapeGeometry,
   SphereGeometry,
   Vector3,
   DoubleSide,
@@ -48,8 +50,12 @@ interface FailureFlag {
   root: Group;
   /** Cloth assembly — yaw-rotated each frame to face the camera. */
   cloth: Group;
-  /** Pennant segments in the cloth; rotated around Y for the flutter wave. */
-  segments: Group[];
+  /** Subdivided pennant mesh; vertices are displaced per frame (poly wave). */
+  clothMesh: Mesh;
+  /** Resting (x,y) per vertex, used to recompute the wave each frame. */
+  baseXY: Float32Array;
+  /** Cloth length along +x (for the traveling-wave amplitude ramp). */
+  clothLength: number;
   /** Random phase offset so two flags never wave in sync. */
   phase: number;
 }
@@ -440,10 +446,11 @@ export class EffectsSystem {
 
   /** Game-over marker: a crimson pennant flag drops from the sky and plants
    *  into the missed platform. The flag is parented to the platform's group so
-   *  it rides the platform's sway in dusk/void. The cloth is billboarded to
-   *  always face the camera and flutters with a segmented sine wave
-   *  (updateFailureFlags per frame). On impact: mixed debris + dust puff +
-   *  onImpact (camera shake). Stays planted until clearFailureFlags(). */
+   *  it rides the platform's sway in dusk/void. The cloth is a subdivided poly
+   *  mesh with a lit Phong material — the traveling vertex wave makes light
+   *  glint off it as it sways (updateFailureFlags per frame). On impact: mixed
+   *  debris + dust puff + onImpact (camera shake). Stays planted until
+   *  clearFailureFlags(). */
   playFailureFlag(platform: PlatformData, onImpact?: () => void): void {
     const flag = GAME_CONFIG.FAIL_FLAG;
     // Platform top surface, in the platform group's local space (the box is
@@ -458,63 +465,89 @@ export class EffectsSystem {
     const bs = Math.max(platform.baseScale || 1, 0.1);
     root.scale.set(flag.scale / bs, flag.scale, flag.scale / bs);
 
-    // Pole: cream paper rod (paper-craft) with a dark rim. Base at local y=0
-    // (platform top), so the whole flag rests on the platform center.
+    // Pole: cream paper rod (no dark rim — the old BackSide rim capped the top
+    // in black). Base at local y=0 (platform top).
     const poleGeo = new BoxGeometry(0.07, 1.1, 0.07);
     const poleMat = new MeshBasicMaterial({ color: flag.poleColor });
     const pole = new Mesh(poleGeo, poleMat);
     pole.position.y = 0.55; // center of the 1.1 rod → base at y = 0
     root.add(pole);
-    const poleRimMat = new MeshBasicMaterial({ color: GAME_CONFIG.COLOR_OUTLINE, side: BackSide });
-    const poleRim = new Mesh(poleGeo, poleRimMat);
-    poleRim.scale.multiplyScalar(1.3);
-    poleRim.position.y = 0.55;
-    root.add(poleRim);
 
-    // Cloth assembly: pennant segments, flat edge at the pole (x=0), tip
-    // flying outward (+x). Origin sits at the pole so the billboard yaw (which
-    // happens around this origin) swings the cloth around the pole like a
-    // weathervane — the flat edge always stays on the stick.
+    // Podium: a small paper base under the pole so it reads as planted, not
+    // floating. Slightly wider than the pole, resting on the platform top.
+    const podiumGeo = new BoxGeometry(0.22, 0.08, 0.22);
+    const podiumMat = new MeshBasicMaterial({ color: flag.podiumColor });
+    const podium = new Mesh(podiumGeo, podiumMat);
+    podium.position.y = 0.04; // centered under the pole base
+    root.add(podium);
+
+    // Cloth assembly: subdivided pennant mesh, flat edge at the pole (x=0),
+    // tip flying outward (+x) in a uniform triangle. Origin sits at the pole
+    // so the billboard yaw (around this origin) swings the cloth around the
+    // stick like a weathervane — the flat edge always stays on the pole.
     const cloth = new Group();
     cloth.position.set(0, 0.9, 0);
     root.add(cloth);
 
-    // Segmented pennant: N nested quads with a tapered, gently bulged outline.
-    const N = flag.clothSegments;
+    // Uniform triangular pennant: straight taper from full height at the pole
+    // (x=0) to a point at the tip (x=clothLen). Subdivided into a grid of
+    // quads (clothColumns × clothRows) so the Phong lighting can reflect off
+    // the moving surface as the vertex wave travels.
     const clothLen = 0.7;
-    const segW = clothLen / N;
-    const hAt = (x: number): number => {
-      const t = x / clothLen;
-      return 0.12 * (1 - 0.83 * t) + 0.05 * Math.sin(t * Math.PI);
-    };
-    const segments: Group[] = [];
-    let parent: Group = cloth;
-    for (let i = 0; i < N; i++) {
-      const a = i * segW;
-      const b = a + segW;
-      const shape = new Shape();
-      shape.moveTo(0, hAt(a));
-      shape.quadraticCurveTo(segW / 2, hAt((a + b) / 2) + 0.015, segW, hAt(b));
-      shape.lineTo(segW, -hAt(b));
-      shape.quadraticCurveTo(segW / 2, -hAt((a + b) / 2) - 0.015, 0, -hAt(a));
-      shape.closePath();
-      const geo = new ShapeGeometry(shape);
-      const mat = new MeshBasicMaterial({ color: flag.flagColor, side: DoubleSide });
-      const segGroup = new Group();
-      segGroup.add(new Mesh(geo, mat));
-      // Nest each segment at the previous one's tip so the wave compounds.
-      parent.add(segGroup);
-      segGroup.position.x = i === 0 ? 0 : segW;
-      segments.push(segGroup);
-      parent = segGroup;
+    const h0 = 0.15; // half-height at the pole
+    const cols = flag.clothColumns;
+    const rows = flag.clothRows;
+    const positions: number[] = [];
+    const indices: number[] = [];
+    const vertsPerCol = rows + 1;
+    for (let c = 0; c <= cols; c++) {
+      const x = (c / cols) * clothLen;
+      const h = h0 * (1 - x / clothLen); // straight taper → triangle
+      for (let r = 0; r <= rows; r++) {
+        const y = -h + (2 * h * r) / rows;
+        positions.push(x, y, 0);
+      }
     }
+    for (let c = 0; c < cols; c++) {
+      for (let r = 0; r < rows; r++) {
+        const a = c * vertsPerCol + r;
+        const b = a + 1;
+        const d = (c + 1) * vertsPerCol + r;
+        const e = d + 1;
+        indices.push(a, d, b, b, d, e);
+      }
+    }
+    const clothGeo = new BufferGeometry();
+    clothGeo.setAttribute('position', new Float32BufferAttribute(positions, 3));
+    clothGeo.setIndex(indices);
+    clothGeo.computeVertexNormals();
+    const clothMat = new MeshPhongMaterial({
+      color: flag.flagColor,
+      side: DoubleSide,
+      shininess: flag.clothShininess,
+      specular: 0xffffff
+    });
+    const clothMesh = new Mesh(clothGeo, clothMat);
+    cloth.add(clothMesh);
+
+    // Store the resting vertex (x,y) so the per-frame wave can displace z.
+    const baseXY = new Float32Array(positions.length);
+    for (let i = 0; i < positions.length; i++) baseXY[i] = positions[i];
 
     // Plant on the platform (rides sway automatically); drop from the sky.
     platform.group.add(root);
     root.position.set(0, topLocalY + flag.dropHeight, 0);
-    this.failureFlags.push({ root, cloth, segments, phase: Math.random() * Math.PI * 2 });
+    this.failureFlags.push({
+      root,
+      cloth,
+      clothMesh,
+      baseXY,
+      clothLength: clothLen,
+      phase: Math.random() * Math.PI * 2
+    });
 
-    // Drop from the sky, accelerating (gravity feel), plant on the platform.
+    // Drop from the sky, accelerating (gravity feel), plant directly on the
+    // platform — no bounce-back, it slams and stays.
     gsap.to(root.position, {
       y: topLocalY,
       duration: flag.dropDuration,
@@ -553,12 +586,6 @@ export class EffectsSystem {
         }
         // Small dust puff at the base.
         this.spawnJumpDust(world.x, world.y + 0.02, world.z);
-        // Settle wobble on the pole after planting.
-        gsap.fromTo(
-          root.rotation,
-          { z: (Math.random() - 0.5) * 0.4 },
-          { z: 0.04, duration: 0.35, ease: 'elastic.out(1, 0.4)' }
-        );
         onImpact?.();
       }
     });
@@ -566,6 +593,10 @@ export class EffectsSystem {
 
   /** Per-frame flag update: billboard the cloth toward the camera and run the
    *  segmented flutter wave. Called from the game loop (no-op when empty). */
+  /** Per-frame flag update: billboard the cloth toward the camera and displace
+   *  the cloth mesh vertices with a traveling wave. The subdivided polygon mesh
+   *  + lit Phong material means the changing normals reflect light as the cloth
+   *  sways. Called from the game loop (no-op when empty). */
   updateFailureFlags(now: number): void {
     if (this.failureFlags.length === 0) return;
     const flag = GAME_CONFIG.FAIL_FLAG;
@@ -582,13 +613,22 @@ export class EffectsSystem {
           f.cloth.rotation.y = Math.atan2(dx, dz);
         }
       }
-      // Flutter wave: amplitude + phase grow toward the tip (nested segments
-      // compound, so the tip swings the most — cloth-like physics).
-      const n = f.segments.length;
-      for (let i = 0; i < n; i++) {
-        f.segments[i].rotation.y =
-          Math.sin(t * flag.waveSpeed + f.phase + i * 0.9) * flag.waveAmp * ((i + 1) / n);
+      // Poly wave: displace each vertex's z by a sine that travels along the
+      // cloth. Amplitude grows toward the tip (0 at the pole → full at the
+      // tip), so the free end flutters most — cloth-like physics.
+      const posAttr = f.clothMesh.geometry.attributes.position as BufferAttribute;
+      const arr = posAttr.array as Float32Array;
+      for (let i = 0; i < f.baseXY.length; i += 3) {
+        const x = f.baseXY[i];
+        const y = f.baseXY[i + 1];
+        const tipT = x / f.clothLength; // 0 at pole → 1 at tip
+        arr[i] = x;
+        arr[i + 1] = y;
+        arr[i + 2] =
+          Math.sin(x * flag.waveRipple - t * flag.waveSpeed + f.phase) * flag.waveAmp * tipT;
       }
+      posAttr.needsUpdate = true;
+      f.clothMesh.geometry.computeVertexNormals();
       // Subtle whole-cloth tilt so it never looks rigid.
       f.cloth.rotation.z = Math.sin(t * flag.waveSpeed * 0.6 + f.phase) * 0.05;
     }
