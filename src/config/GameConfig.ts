@@ -72,6 +72,16 @@ export interface GameConfig {
   SPEED_LINES_MAX_COUNT: number;
   SPEED_LINES_SPAWN_RATE: number;
   SPEED_LINES_LIFETIME: number;
+  // Failure flag (red marker planted on the missed platform at game over)
+  FAIL_FLAG: {
+    enabled: boolean;
+    dropHeight: number;
+    dropDuration: number;
+    flagColor: number;
+    poleColor: number;
+    debrisCount: number;
+    impactShake: number;
+  };
   // Camera
   CAMERA_OFFSET_Y: number;
   CAMERA_OFFSET_Z: number;
@@ -171,6 +181,16 @@ export const GAME_CONFIG: GameConfig = {
   SPEED_LINES_MAX_COUNT: 30,
   SPEED_LINES_SPAWN_RATE: 0.03,
   SPEED_LINES_LIFETIME: 0.45,
+
+  FAIL_FLAG: {
+    enabled: true,
+    dropHeight: 7,
+    dropDuration: 0.42,
+    flagColor: 0xc0392b,
+    poleColor: 0x111111,
+    debrisCount: 12,
+    impactShake: 1.5
+  },
 
   CAMERA_OFFSET_Y: 9.5,
   CAMERA_OFFSET_Z: -8.5,

@@ -3,10 +3,13 @@ import {
   BackSide,
   BoxGeometry,
   CircleGeometry,
+  Group,
   Mesh,
   MeshBasicMaterial,
   PlaneGeometry,
   RingGeometry,
+  Shape,
+  ShapeGeometry,
   SphereGeometry,
   Vector3,
   DoubleSide,
@@ -42,6 +45,7 @@ const ringGeo = new RingGeometry(0.2, 0.3, 32);
 const burstGeo = new CircleGeometry(0.06, 6);
 const lineGeo = new BoxGeometry(0.04, 0.04, 1);
 lineGeo.translate(0, 0, 0.5);
+const flagChipGeo = new BoxGeometry(0.12, 0.12, 0.04);
 
 const CONFETTI_COLORS = ['#FFD700', '#FF4444', '#44AAFF', '#44FF88', '#FF44AA', '#8844FF', '#FF8800'];
 
@@ -53,6 +57,7 @@ export class EffectsSystem {
   private particles: Particle[] = [];
   private speedLines: SpeedLine[] = [];
   private speedAccumulator = 0;
+  private failureFlags: Group[] = [];
 
   constructor(
     private scene: Scene,
@@ -416,6 +421,121 @@ export class EffectsSystem {
     this.particles = [];
   }
 
+  /** Game-over marker: a crimson pennant flag drops from the sky, plants into
+   *  the missed platform, kicks up debris (crimson + the platform's own palette
+   *  color) and calls onImpact (camera shake) when it lands. The flag stays
+   *  planted until clearFailureFlags() (run reset). */
+  playFailureFlag(x: number, z: number, platformColor: number, onImpact?: () => void): void {
+    const flag = GAME_CONFIG.FAIL_FLAG;
+    const topY = GAME_CONFIG.PLATFORM_HEIGHT / 2; // 0.4 — platform top surface
+
+    const group = new Group();
+
+    // Pole: thin dark rod sitting on the platform top.
+    const poleGeo = new BoxGeometry(0.05, 0.72, 0.05);
+    const poleMat = new MeshBasicMaterial({ color: flag.poleColor });
+    const pole = new Mesh(poleGeo, poleMat);
+    pole.position.y = 0.36; // center of the 0.72 rod → base at y = 0
+    group.add(pole);
+
+    // Pennant: crimson triangle near the pole top (paper-craft feel).
+    const shape = new Shape();
+    shape.moveTo(0, 0);
+    shape.lineTo(0.3, 0.09);
+    shape.lineTo(0.3, -0.09);
+    shape.closePath();
+    const pennantGeo = new ShapeGeometry(shape);
+    const pennantMat = new MeshBasicMaterial({ color: flag.flagColor, side: DoubleSide });
+    const pennant = new Mesh(pennantGeo, pennantMat);
+    pennant.position.set(0.025, 0.6, 0);
+    group.add(pennant);
+
+    // Dark paper edge: a slightly larger dark pennant in front and behind.
+    const edgeMat = new MeshBasicMaterial({ color: GAME_CONFIG.COLOR_OUTLINE, side: DoubleSide });
+    for (const dz of [-0.014, 0.014]) {
+      const edge = new Mesh(pennantGeo, edgeMat);
+      edge.position.set(0.025, 0.6, dz);
+      edge.scale.setScalar(1.16);
+      group.add(edge);
+    }
+
+    // Random facing + slight lean so it reads as planted, not sterile.
+    group.rotation.y = Math.random() * Math.PI * 2;
+    group.rotation.z = (Math.random() - 0.5) * 0.18;
+
+    group.position.set(x, topY + flag.dropHeight, z);
+    this.scene.add(group);
+    this.failureFlags.push(group);
+
+    // Drop from the sky, accelerating (gravity feel), plant on the platform.
+    gsap.to(group.position, {
+      y: topY,
+      duration: flag.dropDuration,
+      ease: 'power2.in',
+      onComplete: () => {
+        // Debris: crimson + the platform's own palette color + outline chips.
+        const colors = [flag.flagColor, platformColor, GAME_CONFIG.COLOR_OUTLINE];
+        for (let i = 0; i < flag.debrisCount; i++) {
+          const mat = new MeshBasicMaterial({
+            color: colors[Math.floor(Math.random() * colors.length)],
+            transparent: true,
+            opacity: 0.95,
+            depthWrite: false
+          });
+          const chip = new Mesh(flagChipGeo, mat);
+          const size = 0.5 + Math.random() * 0.7;
+          chip.scale.setScalar(size);
+          chip.position.set(x, topY + 0.05, z);
+          const ang = Math.random() * Math.PI * 2;
+          const speed = 1.5 + Math.random() * 2;
+          this.scene.add(chip);
+          const life = 0.5 + Math.random() * 0.3;
+          this.particles.push({
+            mesh: chip,
+            vx: Math.cos(ang) * speed,
+            vy: 1.5 + Math.random() * 2,
+            vz: Math.sin(ang) * speed,
+            life,
+            maxLife: life,
+            startSize: size
+          });
+        }
+        // Small dust puff at the base.
+        this.spawnJumpDust(x, topY + 0.02, z);
+        // Settle wobble on the pole after planting.
+        gsap.fromTo(
+          group.rotation,
+          { z: (Math.random() - 0.5) * 0.4 },
+          { z: 0.04, duration: 0.35, ease: 'elastic.out(1, 0.4)' }
+        );
+        onImpact?.();
+      }
+    });
+  }
+
+  /** Remove + dispose any planted failure flags (run reset). */
+  clearFailureFlags(): void {
+    for (const group of this.failureFlags) {
+      this.scene.remove(group);
+      group.traverse((obj) => {
+        const mesh = obj as Mesh;
+        if (mesh.geometry) mesh.geometry.dispose();
+        if (mesh.material) (mesh.material as MeshBasicMaterial).dispose();
+      });
+    }
+    this.failureFlags = [];
+  }
+
+  /** Test/smoke accessor: number of planted failure flags still in the scene. */
+  getFailureFlagCount(): number {
+    return this.failureFlags.length;
+  }
+
+  /** Test/smoke accessor: number of live particles (dust/debris/embers). */
+  getParticleCount(): number {
+    return this.particles.length;
+  }
+
   /** Original `ky`: confetti celebration (new best). */
   showConfetti(): void {
     if (!this.confettiContainer) return;
@@ -455,5 +575,6 @@ export class EffectsSystem {
   dispose(): void {
     this.clearParticles();
     this.clearSpeedLines();
+    this.clearFailureFlags();
   }
 }

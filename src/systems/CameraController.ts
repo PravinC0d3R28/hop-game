@@ -50,14 +50,16 @@ export class CameraController {
     this.cam.lookAt(0, 0, GAME_CONFIG.CAMERA_LOOK_AHEAD);
   }
 
-  /** Screen shake: 6 random offsets, 0.04s each (original game-over shake). */
-  shake(): void {
+  /** Screen shake: 6 random offsets, 0.04s each (original game-over shake).
+   *  `strength` scales the offset amplitude (1 = original; the flag impact
+   *  uses a larger multiplier so the plant reads harder). */
+  shake(strength = 1): void {
     const startX = this.cam.position.x;
     const startY = this.cam.position.y;
     for (let i = 0; i < 6; i++) {
       setTimeout(() => {
-        this.cam.position.x = startX + (Math.random() - 0.5) * 0.3;
-        this.cam.position.y = startY + (Math.random() - 0.5) * 0.15;
+        this.cam.position.x = startX + (Math.random() - 0.5) * 0.3 * strength;
+        this.cam.position.y = startY + (Math.random() - 0.5) * 0.15 * strength;
       }, i * 40);
     }
     setTimeout(() => {

@@ -1,5 +1,5 @@
 import { gsap } from 'gsap';
-import { Mesh } from 'three';
+import { Mesh, MeshToonMaterial } from 'three';
 import type { Object3D } from 'three';
 import { GAME_CONFIG } from './config/GameConfig';
 import type { ThemeName } from './config/Themes';
@@ -235,6 +235,7 @@ export class Game {
     // otherwise it's the normal random runway.
     this.platforms.setGuidedLayout(this.guidedFirst ? this.guidedLessonLayout() : null);
     this.platforms.reset();
+    this.effects.clearFailureFlags();
     this.camera.reset();
     this.background.reset();
     const st = this.state.getMutableState();
@@ -365,6 +366,21 @@ export class Game {
     this.camera.shake();
     gsap.to(this.ball.group.position, { y: this.ball.group.position.y - 5, duration: 0.6, ease: 'power2.in' });
     gsap.to(this.ball.group.scale, { x: 0.5, y: 0.5, z: 0.5, duration: 0.6 });
+
+    // Red failure flag: drop from the sky onto the missed platform. The flag
+    // plants at the platform's live center (platformX + sway), kicks up mixed
+    // debris + dust, and triggers a stronger camera shake on impact.
+    if (GAME_CONFIG.FAIL_FLAG.enabled) {
+      const failed = this.platforms.getPlatformByIndex(st.currentStep);
+      if (failed) {
+        const fx = failed.platformX + (failed.swayOffset || 0);
+        const fz = failed.z;
+        const platformColor = (failed.mesh.material as MeshToonMaterial).color.getHex();
+        this.effects.playFailureFlag(fx, fz, platformColor, () =>
+          this.camera.shake(GAME_CONFIG.FAIL_FLAG.impactShake)
+        );
+      }
+    }
 
     // Global ledger keeps the all-time best for stats; the NEW BEST! badge and
     // the game-over "best" line are per-world, so each run is compared against
