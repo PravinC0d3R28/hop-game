@@ -5,6 +5,7 @@ import {
   BufferAttribute,
   BufferGeometry,
   CircleGeometry,
+  CylinderGeometry,
   Float32BufferAttribute,
   Group,
   Mesh,
@@ -16,10 +17,10 @@ import {
   SphereGeometry,
   Vector3,
   DoubleSide,
-  type PerspectiveCamera,
   type Scene
 } from 'three';
 import { GAME_CONFIG } from '../config/GameConfig';
+import type { WorldId } from '../config/Worlds';
 import type { PlatformData } from '../entities/PlatformEntity';
 import { gsap } from 'gsap';
 
@@ -85,9 +86,7 @@ export class EffectsSystem {
 
   constructor(
     private scene: Scene,
-    private confettiContainer: HTMLElement,
-    /** Needed only for the failure flag's cloth billboarding (faces the camera). */
-    private camera?: PerspectiveCamera
+    private confettiContainer: HTMLElement
   ) {}
 
   /** Original `Uy`: 5-6 dust particles with outlines around the ball. */
@@ -447,15 +446,19 @@ export class EffectsSystem {
     this.particles = [];
   }
 
-  /** Game-over marker: a crimson pennant flag drops from the sky and plants
-   *  into the missed platform. The flag is parented to the platform's group so
-   *  it rides the platform's sway in dusk/void. The cloth is a subdivided poly
-   *  mesh with a lit Phong material — the traveling vertex wave makes light
-   *  glint off it as it sways (updateFailureFlags per frame). On impact: mixed
-   *  debris + dust puff + onImpact (camera shake). Stays planted until
-   *  clearFailureFlags(). */
-  playFailureFlag(platform: PlatformData, onImpact?: () => void): void {
+  /** Game-over marker: a raw-wood flag drops from the sky and plants into the
+   *  missed platform. The flag is parented to the platform's group so it rides
+   *  the platform's sway in dusk/void. Colors come from the active world's
+   *  palette (FLAG_WORLD_PALETTES) so the flag vibes with the world. The pole
+   *  is a tapered wooden stake (1.2x thick on top, 1x at the bottom) that
+   *  sinks into the tile; the cloth is a subdivided poly mesh with a lit Phong
+   *  material in a FIXED orientation (faces +z, tip at +x) so it never snaps
+   *  or jumps. On impact: a crater + mixed debris + dust puff + onImpact.
+   *  Stays planted until clearFailureFlags(). */
+  playFailureFlag(platform: PlatformData, worldId: WorldId, onImpact?: () => void): void {
     const flag = GAME_CONFIG.FAIL_FLAG;
+    // Colors resolve to the active world's palette (falls back to FAIL_FLAG).
+    const pal = GAME_CONFIG.FLAG_WORLD_PALETTES[worldId] ?? flag;
     // Platform top surface, in the platform group's local space (the box is
     // centered at the group origin, so the top sits at +PLATFORM_HEIGHT/2).
     const topLocalY = GAME_CONFIG.PLATFORM_HEIGHT / 2;
@@ -468,44 +471,32 @@ export class EffectsSystem {
     const bs = Math.max(platform.baseScale || 1, 0.1);
     root.scale.set(flag.scale / bs, flag.scale, flag.scale / bs);
 
-    // Pole: warm dark-gray rod (palette "Pole"). Base at local y=0 (platform
-    // top). No dark rim on the rod itself — instead a gold finial knob caps
-    // the top (palette "Highlight"), so the pole reads as crafted paper.
-    const poleGeo = new BoxGeometry(0.07, 1.1, 0.07);
-    const poleMat = new MeshBasicMaterial({ color: flag.poleColor });
-    const pole = new Mesh(poleGeo, poleMat);
-    pole.position.y = 0.55; // center of the 1.1 rod → base at y = 0
+    // Raw-wood pole: a tapered stake (square cross-section via 4-seg cylinder)
+    // that is 1.2x thick at the top and 1x at the bottom. It is planted INTO
+    // the platform tile: the base sits below the top surface (local y<0) and
+    // the exposed part rises above it.
+    const bottomW = 0.07;
+    const topW = bottomW * 1.2;
+    const poleTotalH = 1.5;
+    const sunkDepth = 0.45; // how far below the tile top the stake goes
+    const poleGeo = new CylinderGeometry(topW / 2, bottomW / 2, poleTotalH, 4);
+    const pole = new Mesh(poleGeo, new MeshBasicMaterial({ color: flag.woodColor }));
+    pole.rotation.y = Math.PI / 4; // align the square faces with the axis
+    pole.position.y = -sunkDepth + poleTotalH / 2; // base at y=-sunkDepth
     root.add(pole);
 
     // Gold finial on the pole top (palette "Highlight").
     const finialGeo = new SphereGeometry(0.055, 10, 8);
-    const finialMat = new MeshBasicMaterial({ color: flag.highlightColor });
-    const finial = new Mesh(finialGeo, finialMat);
-    finial.position.y = 1.12; // just above the rod top
+    const finial = new Mesh(finialGeo, new MeshBasicMaterial({ color: pal.highlightColor }));
+    finial.position.y = poleTotalH - sunkDepth + 0.02; // just above the pole top
     root.add(finial);
 
-    // Podium: two-tier paper base so the flag reads as planted, not floating.
-    // Shadow-colored bottom tier (palette "Shadow") + base-colored top tier
-    // (palette "Base") with a thin outline rim (palette "Outline").
-    const podiumBaseGeo = new BoxGeometry(0.26, 0.05, 0.26);
-    const podiumBase = new Mesh(podiumBaseGeo, new MeshBasicMaterial({ color: flag.shadowColor }));
-    podiumBase.position.y = 0.025; // centered under the pole base
-    root.add(podiumBase);
-    const podiumTopGeo = new BoxGeometry(0.18, 0.05, 0.18);
-    const podiumTop = new Mesh(podiumTopGeo, new MeshBasicMaterial({ color: flag.podiumColor }));
-    podiumTop.position.y = 0.075; // sits on the bottom tier
-    root.add(podiumTop);
-    const podiumRim = new Mesh(podiumTopGeo, new MeshBasicMaterial({ color: flag.outlineColor, side: BackSide }));
-    podiumRim.scale.multiplyScalar(1.12);
-    podiumRim.position.y = 0.075;
-    root.add(podiumRim);
-
     // Cloth assembly: subdivided pennant mesh, flat edge at the pole (x=0),
-    // tip flying outward (+x) in a uniform triangle. Origin sits at the pole
-    // so the billboard yaw (around this origin) swings the cloth around the
-    // stick like a weathervane — the flat edge always stays on the pole.
+    // tip flying outward (+x) in a uniform triangle. The cloth has a FIXED
+    // orientation — it faces +z (the camera always sits at -z) with the tip at
+    // +x, so the pointy end reads on the RIGHT and never flips 180 degrees.
     const cloth = new Group();
-    cloth.position.set(0, 0.9, 0);
+    cloth.position.set(0, poleTotalH - sunkDepth - 0.12, 0);
     root.add(cloth);
 
     // Uniform triangular pennant: straight taper from full height at the pole
@@ -541,7 +532,7 @@ export class EffectsSystem {
     clothGeo.setIndex(indices);
     clothGeo.computeVertexNormals();
     const clothMat = new MeshPhongMaterial({
-      color: flag.flagColor,
+      color: pal.flagColor,
       side: DoubleSide,
       shininess: flag.clothShininess,
       specular: 0xffffff
@@ -578,13 +569,41 @@ export class EffectsSystem {
         duration: flag.dropDuration,
         ease: 'power2.in',
         onComplete: () => {
-          f.landed = true; // cloth may now billboard + wave
+          f.landed = true; // cloth may now wave
           // Impact point in world space (the platform may still be swaying).
           const world = new Vector3();
           root.getWorldPosition(world);
+
+          // Crater: a dark ring pressed into the tile top where the pole
+          // struck, so the impact visibly reads on the platform.
+          const craterGeo = new RingGeometry(0.1, 0.32, 24);
+          const craterMat = new MeshBasicMaterial({
+            color: 0x1a1a22,
+            transparent: true,
+            opacity: 0.55,
+            depthWrite: false,
+            side: DoubleSide
+          });
+          const crater = new Mesh(craterGeo, craterMat);
+          crater.rotation.x = -Math.PI / 2;
+          crater.position.set(0, 0.006, 0); // on the platform top, root-local
+          root.add(crater);
+          // Slight dark center so it reads as a real dent, not a sticker ring.
+          const dentGeo = new CircleGeometry(0.09, 24);
+          const dentMat = new MeshBasicMaterial({
+            color: 0x111116,
+            transparent: true,
+            opacity: 0.35,
+            depthWrite: false
+          });
+          const dent = new Mesh(dentGeo, dentMat);
+          dent.rotation.x = -Math.PI / 2;
+          dent.position.set(0, 0.004, 0);
+          root.add(dent);
+
           const platformColor = (platform.mesh.material as MeshToonMaterial).color.getHex();
-          // Debris: crimson + the platform's own palette color + outline chips.
-          const colors = [flag.flagColor, platformColor, GAME_CONFIG.COLOR_OUTLINE];
+          // Debris: world flag color + the platform's own palette color + outline.
+          const colors = [pal.flagColor, platformColor, pal.outlineColor];
           for (let i = 0; i < flag.debrisCount; i++) {
             const mat = new MeshBasicMaterial({
               color: colors[Math.floor(Math.random() * colors.length)],
@@ -618,12 +637,13 @@ export class EffectsSystem {
     });
   }
 
-  /** Per-frame flag update: billboard the cloth toward the camera and displace
-   *  the cloth mesh vertices with a traveling wave. The subdivided polygon mesh
-   *  + lit Phong material means the changing normals reflect light as the cloth
-   *  sways. The cloth only animates once the flag has landed — during the drop
-   *  it stays rigid so the flag slams down as a solid object. Called from the
-   *  game loop (no-op when empty). */
+  /** Per-frame flag update: displace the cloth mesh vertices with a traveling
+   *  wave. The subdivided polygon mesh + lit Phong material means the changing
+   *  normals reflect light as the cloth sways. The cloth is in a FIXED
+   *  orientation (faces +z toward the camera, tip at +x) — no billboard, so it
+   *  never snaps 180 degrees. The cloth only animates once the flag has landed
+   *  — during the drop it stays rigid so the flag slams down as a solid object.
+   *  Called from the game loop (no-op when empty). */
   updateFailureFlags(now: number): void {
     if (this.failureFlags.length === 0) return;
     const flag = GAME_CONFIG.FAIL_FLAG;
@@ -631,17 +651,6 @@ export class EffectsSystem {
     for (const f of this.failureFlags) {
       // Still falling: keep the cloth rigid so the drop reads as a clean slam.
       if (!f.landed) continue;
-      // Billboarding: swing the cloth around the pole so its face (+z) points
-      // at the camera in the horizontal plane (weathervane around the stick).
-      if (this.camera) {
-        const wp = new Vector3();
-        f.cloth.getWorldPosition(wp);
-        const dx = this.camera.position.x - wp.x;
-        const dz = this.camera.position.z - wp.z;
-        if (Math.abs(dx) > 1e-6 || Math.abs(dz) > 1e-6) {
-          f.cloth.rotation.y = Math.atan2(dx, dz);
-        }
-      }
       // Poly wave: displace each vertex's z by a sine that travels along the
       // cloth. Amplitude grows toward the tip (0 at the pole → full at the
       // tip), so the free end flutters most — cloth-like physics.

@@ -54,10 +54,8 @@ function makePlatform(x = 0.5, z = 2, baseScale = 1): PlatformData {
 
 function setupEffects() {
   const scene = new Scene();
-  const cam = new PerspectiveCamera(55, 1.6, 0.1, 100);
-  cam.position.set(0, 9.5, -8.5);
-  const effects = new EffectsSystem(scene, {} as HTMLElement, cam);
-  return { scene, effects, cam };
+  const effects = new EffectsSystem(scene, {} as HTMLElement);
+  return { scene, effects };
 }
 
 /** Play the flag with near-instant drop timing and wait for it to land. */
@@ -68,7 +66,7 @@ async function plantAndLand(
 ): Promise<void> {
   GAME_CONFIG.FAIL_FLAG.dropDuration = 0.001;
   GAME_CONFIG.FAIL_FLAG.dropDelay = 0.001;
-  effects.playFailureFlag(platform, onImpact);
+  effects.playFailureFlag(platform, 'sunrise', onImpact);
   await new Promise((resolve) => setTimeout(resolve, 60));
 }
 
@@ -77,7 +75,7 @@ describe('failure flag (playFailureFlag)', () => {
     const { effects } = setupEffects();
     const platform = makePlatform(0.5, 2);
     expect(effects.getFailureFlagCount()).toBe(0);
-    effects.playFailureFlag(platform);
+    effects.playFailureFlag(platform, 'sunrise');
     expect(effects.getFailureFlagCount()).toBe(1);
     // the flag rides the platform group (child of platform.group)
     expect(platform.group.children.some((c) => c.type === 'Group')).toBe(true);
@@ -88,7 +86,7 @@ describe('failure flag (playFailureFlag)', () => {
   it('the flag is 200% bigger (scale 2 applies to pole height)', () => {
     const { effects } = setupEffects();
     const platform = makePlatform();
-    effects.playFailureFlag(platform);
+    effects.playFailureFlag(platform, 'sunrise');
     // Find the pole mesh inside the flag root
     const flagRoot = platform.group.children.find((c) => c.type === 'Group') as Group;
     const worldScale = new Vector3();
@@ -100,7 +98,7 @@ describe('failure flag (playFailureFlag)', () => {
   it('the flag sticks to a swaying platform (rides group x)', () => {
     const { effects } = setupEffects();
     const platform = makePlatform(0.5, 2);
-    effects.playFailureFlag(platform);
+    effects.playFailureFlag(platform, 'sunrise');
     const flagRoot = platform.group.children.find((c) => c.type === 'Group') as Group;
 
     // Simulate the platform swaying to a new x
@@ -120,7 +118,7 @@ describe('failure flag (playFailureFlag)', () => {
   it('clearFailureFlags removes the flag from the platform and the tracker', () => {
     const { effects } = setupEffects();
     const platform = makePlatform();
-    effects.playFailureFlag(platform);
+    effects.playFailureFlag(platform, 'sunrise');
     expect(effects.getFailureFlagCount()).toBe(1);
     effects.clearFailureFlags();
     expect(effects.getFailureFlagCount()).toBe(0);
@@ -141,25 +139,25 @@ describe('failure flag (playFailureFlag)', () => {
 });
 
 describe('failure flag cloth animation', () => {
-  it('billboards the cloth toward the camera each frame', async () => {
-    const { effects, cam } = setupEffects();
+  it('keeps a fixed orientation — tip at +x (right), no 180-degree snap', async () => {
+    const { effects } = setupEffects();
     const platform = makePlatform();
     await plantAndLand(effects, platform);
     const flagRoot = platform.group.children.find((c) => c.type === 'Group') as Group;
     const cloth = flagRoot.children.find((c) => c.type === 'Group') as Group;
+    const clothMesh = cloth.children.find((c) => c.type === 'Mesh') as Mesh;
 
-    // Camera parked on the +x side → cloth yaw points its face that way
-    cam.position.set(5, 9.5, -8.5);
+    // The cloth is never yawed: rotation.y stays 0, so the tip built at +x
+    // reads on the RIGHT from the camera (which sits at -z looking +z).
     effects.updateFailureFlags(1000);
-    platform.group.updateMatrixWorld(true);
-    const wp = new Vector3();
-    cloth.getWorldPosition(wp);
-    const expected = Math.atan2(cam.position.x - wp.x, cam.position.z - wp.z);
-    // rotation.y holds in local space; compare via a world direction check
-    const dir = new Vector3(0, 0, 1).applyEuler(cloth.rotation);
-    const toCam = new Vector3(cam.position.x - wp.x, 0, cam.position.z - wp.z).normalize();
-    expect(dir.dot(toCam)).toBeGreaterThan(0.99);
-    expect(Math.abs(Math.atan2(dir.x, dir.z) - expected) % Math.PI).toBeLessThan(0.01);
+    expect(cloth.rotation.y).toBe(0);
+
+    const pos = clothMesh.geometry.attributes.position as unknown as { array: Float32Array };
+    let maxX = -Infinity;
+    for (let i = 0; i < pos.array.length; i += 3) {
+      maxX = Math.max(maxX, pos.array[i]);
+    }
+    expect(maxX).toBeGreaterThan(0);
   });
 
   it('the cloth poly mesh waves over time (vertex displacement)', async () => {
@@ -186,6 +184,56 @@ describe('failure flag cloth animation', () => {
     const maxAbs = Math.max(...z1.map((v) => Math.abs(v)));
     expect(maxAbs).toBeGreaterThan(0);
     expect(Math.abs(z1[0])).toBeLessThanOrEqual(maxAbs);
+  });
+
+  it('sinks a tapered wood pole into the platform (no podium)', async () => {
+    const { effects } = setupEffects();
+    const platform = makePlatform();
+    await plantAndLand(effects, platform);
+    const flagRoot = platform.group.children.find((c) => c.type === 'Group') as Group;
+
+    // The pole is a 4-segment cylinder (tapered: top 1.2x bottom), not a box.
+    const pole = flagRoot.children.find((c) => c.type === 'Mesh') as Mesh;
+    expect(pole).toBeDefined();
+    expect(pole.geometry.type).toBe('CylinderGeometry');
+    const params = (pole.geometry as unknown as { parameters: { radiusTop: number; radiusBottom: number } })
+      .parameters;
+    expect(params.radiusTop).toBeCloseTo(params.radiusBottom * 1.2, 10);
+
+    // No podium: the only meshes are the pole + finial (+ crater/dent after
+    // landing) — no podium tiers.
+    const meshes = flagRoot.children.filter((c) => c.type === 'Mesh') as Mesh[];
+    const boxMeshes = meshes.filter((m) => m.geometry.type === 'BoxGeometry');
+    expect(boxMeshes.length).toBe(0);
+
+    // The pole base is sunk below the tile top (root-local y<0).
+    expect(pole.position.y - (pole.geometry as unknown as { parameters: { height: number } }).parameters.height / 2)
+      .toBeLessThan(0);
+  });
+
+  it('leaves a crater (dark ring + dent) on the platform at impact', async () => {
+    const { effects } = setupEffects();
+    const platform = makePlatform();
+    await plantAndLand(effects, platform);
+    const flagRoot = platform.group.children.find((c) => c.type === 'Group') as Group;
+
+    const craters = flagRoot.children.filter((c) => c.type === 'Mesh' && (c as Mesh).geometry.type === 'RingGeometry');
+    const dents = flagRoot.children.filter((c) => c.type === 'Mesh' && (c as Mesh).geometry.type === 'CircleGeometry');
+    expect(craters.length).toBe(1);
+    expect(dents.length).toBe(1);
+    // The crater lies flat on the platform top (rotated -90° around x).
+    expect((craters[0] as Mesh).rotation.x).toBeCloseTo(-Math.PI / 2, 10);
+  });
+
+  it('applies the active world palette to the cloth color', async () => {
+    const { effects } = setupEffects();
+    const platform = makePlatform();
+    await plantAndLand(effects, platform);
+    const flagRoot = platform.group.children.find((c) => c.type === 'Group') as Group;
+    const cloth = flagRoot.children.find((c) => c.type === 'Group') as Group;
+    const clothMesh = cloth.children.find((c) => c.type === 'Mesh') as Mesh;
+    const material = clothMesh.material as unknown as { color: { getHex(): number } };
+    expect(material.color.getHex()).toBe(GAME_CONFIG.FLAG_WORLD_PALETTES.sunrise.flagColor);
   });
 });
 

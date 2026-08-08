@@ -12,6 +12,17 @@ export interface ColorPalette {
   light: number;
 }
 
+/** Per-world flag palette: cloth, pole finial accent and debris colors so the
+ *  flag vibes with the current world's art direction. */
+export interface FlagColors {
+  flagColor: number;
+  poleColor: number;
+  podiumColor: number;
+  highlightColor: number;
+  shadowColor: number;
+  outlineColor: number;
+}
+
 export interface GameConfig {
   // Platform geometry
   PLATFORM_WIDTH: number;
@@ -84,6 +95,8 @@ export interface GameConfig {
     flagColor: number;
     /** Pole rod color. */
     poleColor: number;
+    /** Raw-wood pole color (the pole is a tapered wooden stake). */
+    woodColor: number;
     /** Podium (base) color under the pole. */
     podiumColor: number;
     /** Gold finial accent (pole-top knob). */
@@ -110,6 +123,9 @@ export interface GameConfig {
   CAMERA_OFFSET_Y: number;
   CAMERA_OFFSET_Z: number;
   CAMERA_LOOK_AHEAD: number;
+  /** Per-world flag palettes so the failure flag vibes with the current
+   *  world's art direction (fallback = FAIL_FLAG colors). */
+  FLAG_WORLD_PALETTES: Record<WorldId, FlagColors>;
   // Colors
   COLOR_BG: number;
   COLOR_BALL: number;
@@ -214,6 +230,7 @@ export const GAME_CONFIG: GameConfig = {
     dropDuration: 0.3,
     flagColor: 0xc0392b,
     poleColor: 0x3a3430,
+    woodColor: 0x9a7a52,
     podiumColor: 0x51483f,
     highlightColor: 0xffd166,
     shadowColor: 0xd47a16,
@@ -231,6 +248,34 @@ export const GAME_CONFIG: GameConfig = {
   CAMERA_OFFSET_Y: 9.5,
   CAMERA_OFFSET_Z: -8.5,
   CAMERA_LOOK_AHEAD: 3,
+
+  // Per-world flag palettes — the failure flag inherits the world's mood.
+  FLAG_WORLD_PALETTES: {
+    sunrise: {
+      flagColor: 0xe0552e,
+      poleColor: 0xf0e6d8,
+      podiumColor: 0xe8c87a,
+      highlightColor: 0xffd166,
+      shadowColor: 0xc99a45,
+      outlineColor: 0x8a6a3a
+    },
+    dusk: {
+      flagColor: 0xd8506a,
+      poleColor: 0xe8c9a8,
+      podiumColor: 0xd8957a,
+      highlightColor: 0xffb3a0,
+      shadowColor: 0xa86a5a,
+      outlineColor: 0x7a4a48
+    },
+    void: {
+      flagColor: 0xff4dd8,
+      poleColor: 0x3a4470,
+      podiumColor: 0x2a3060,
+      highlightColor: 0x38f0e8,
+      shadowColor: 0x1a2048,
+      outlineColor: 0x101430
+    }
+  },
 
   COLOR_BG: 0x2a2a2a,
   COLOR_BALL: 0xd0d8f0,

@@ -86,7 +86,7 @@ export class Game {
     this.buildUI();
     this.platforms = new PlatformManager(this.renderer.scene, this.state);
     this.platforms.initializePlatforms();
-    this.effects = new EffectsSystem(this.renderer.scene, this.ui.confettiContainerEl(), this.renderer.camera);
+    this.effects = new EffectsSystem(this.renderer.scene, this.ui.confettiContainerEl());
     this.audio = new AudioSystem();
     this.audio.setSoundVolume(this.state.getPlayerData().soundVolume);
 
@@ -368,12 +368,13 @@ export class Game {
     gsap.to(this.ball.group.scale, { x: 0.5, y: 0.5, z: 0.5, duration: 0.6 });
 
     // Red failure flag: drop from the sky onto the missed platform. The flag is
-    // parented to the platform (rides its sway), kicks up mixed debris + dust,
-    // and triggers a stronger camera shake on impact.
+    // parented to the platform (rides its sway), takes the active world's color
+    // palette, kicks up a crater + mixed debris + dust, and triggers a stronger
+    // camera shake on impact.
     if (GAME_CONFIG.FAIL_FLAG.enabled) {
       const failed = this.platforms.getPlatformByIndex(st.currentStep);
       if (failed) {
-        this.effects.playFailureFlag(failed, () =>
+        this.effects.playFailureFlag(failed, this.state.getActiveWorld().id, () =>
           this.camera.shake(GAME_CONFIG.FAIL_FLAG.impactShake)
         );
       }
