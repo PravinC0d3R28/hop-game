@@ -25,7 +25,7 @@ beforeAll(() => {
 afterEach(() => {
   // Restore the real drop timing after tests shorten it.
   GAME_CONFIG.FAIL_FLAG.dropDuration = 0.3;
-  GAME_CONFIG.FAIL_FLAG.dropDelay = 0.24;
+  GAME_CONFIG.FAIL_FLAG.dropDelay = 0;
 });
 
 /** Minimal stand-in platform: a group with a tinted mesh (for color sampling). */
@@ -220,13 +220,23 @@ describe('failure flag cloth animation', () => {
     await plantAndLand(effects, platform);
     const flagRoot = platform.group.children.find((c) => c.type === 'Group') as Group;
 
-    // Crater debris = BoxGeometry chips scattered in a ring around the pole.
+    // Crater debris = BoxGeometry cube chips scattered in a ring around the
+    // pole, all in the platform's dynamic color.
     const chips = flagRoot.children.filter(
       (c) => c.type === 'Mesh' && (c as Mesh).geometry.type === 'BoxGeometry'
     ) as Mesh[];
     expect(chips.length).toBe(GAME_CONFIG.FAIL_FLAG.craterDebrisCount);
-    // They sit on the tile top at roughly the configured radius, flat-ish.
+    const platformHex = (platform.mesh.material as unknown as { color: { getHex(): number } }).color.getHex();
     for (const chip of chips) {
+      // Cube shape (equal x/y/z at scale 1).
+      const params = (chip.geometry as unknown as { parameters: { width: number; height: number; depth: number } })
+        .parameters;
+      expect(params.width).toBeCloseTo(params.height, 10);
+      expect(params.height).toBeCloseTo(params.depth, 10);
+      // Dynamic platform color.
+      const mat = chip.material as unknown as { color: { getHex(): number } };
+      expect(mat.color.getHex()).toBe(platformHex);
+      // They sit on the tile top at roughly the configured radius.
       const d = Math.hypot(chip.position.x, chip.position.z);
       expect(d).toBeGreaterThan(GAME_CONFIG.FAIL_FLAG.craterRadius * 0.6);
       expect(d).toBeLessThan(GAME_CONFIG.FAIL_FLAG.craterRadius * 1.4);

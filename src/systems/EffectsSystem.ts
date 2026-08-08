@@ -70,7 +70,7 @@ const ringGeo = new RingGeometry(0.2, 0.3, 32);
 const burstGeo = new CircleGeometry(0.06, 6);
 const lineGeo = new BoxGeometry(0.04, 0.04, 1);
 lineGeo.translate(0, 0, 0.5);
-const flagChipGeo = new BoxGeometry(0.12, 0.12, 0.04);
+const flagChipGeo = new BoxGeometry(0.12, 0.12, 0.12);
 
 const CONFETTI_COLORS = ['#FFD700', '#FF4444', '#44AAFF', '#44FF88', '#FF44AA', '#8844FF', '#FF8800'];
 
@@ -575,10 +575,11 @@ export class EffectsSystem {
           root.getWorldPosition(world);
 
           const platformColor = (platform.mesh.material as MeshToonMaterial).color.getHex();
-          // Debris: world flag color + the platform's own palette color + outline.
-          const colors = [pal.flagColor, platformColor, pal.outlineColor];
+          // Debris cubes are all the platform's own color (dynamic — sampled
+          // live from the missed platform's material), so the broken tile
+          // pieces read as chunks of that exact platform.
 
-          // Crater: real debris chips thrown out in a ring around the pole
+          // Crater: real debris cubes thrown out in a ring around the pole
           // base (a crater rim — not a flat shadow), resting on the tile top.
           // Each chip gets its own geometry so root cleanup can dispose safely
           // (flagChipGeo is a shared module geometry used by flying debris).
@@ -586,12 +587,12 @@ export class EffectsSystem {
             const ang = (i / flag.craterDebrisCount) * Math.PI * 2 + Math.random() * 0.4;
             const radius = flag.craterRadius * (0.75 + Math.random() * 0.5);
             const chipMat = new MeshBasicMaterial({
-              color: colors[Math.floor(Math.random() * colors.length)],
+              color: platformColor,
               transparent: true,
               opacity: 0.95,
               depthWrite: false
             });
-            const chip = new Mesh(new BoxGeometry(0.12, 0.12, 0.04), chipMat);
+            const chip = new Mesh(new BoxGeometry(0.12, 0.12, 0.12), chipMat);
             const size = 0.35 + Math.random() * 0.45;
             chip.scale.setScalar(size);
             chip.rotation.x = -Math.PI / 2 + (Math.random() - 0.5) * 0.35;
@@ -601,7 +602,7 @@ export class EffectsSystem {
           }
           for (let i = 0; i < flag.debrisCount; i++) {
             const mat = new MeshBasicMaterial({
-              color: colors[Math.floor(Math.random() * colors.length)],
+              color: platformColor,
               transparent: true,
               opacity: 0.95,
               depthWrite: false

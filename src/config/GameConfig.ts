@@ -89,8 +89,7 @@ export interface GameConfig {
     /** Size multiplier for the whole flag (2 = twice as big as the base art). */
     scale: number;
     dropHeight: number;
-    /** Pause before the drop starts — waits for the ball to fall away (10
-     *  units down) so the flag drops onto a settled platform, no mid-air jump. */
+    /** Delay before the flag starts falling — 0 = falls immediately, unbound. */
     dropDelay: number;
     dropDuration: number;
     /** Ball sink distance on game over (the flag waits for this to finish). */
@@ -235,10 +234,9 @@ export const GAME_CONFIG: GameConfig = {
     enabled: true,
     scale: 2,
     dropHeight: 7,
-    // The ball sinks 10 units over 0.7s on game over; the flag waits that
-    // long before starting its own fall, so it drops onto a settled platform
-    // (no mid-air jump) right as the ball disappears below the world.
-    dropDelay: 0.7,
+    // The flag falls IMMEDIATELY at the miss — its drop is bound to nothing
+    // (no waiting for the ball to sink or the game-over screen).
+    dropDelay: 0,
     dropDuration: 0.3,
     ballFallDistance: 10,
     ballFallDuration: 0.7,
