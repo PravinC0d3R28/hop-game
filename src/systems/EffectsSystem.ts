@@ -431,37 +431,43 @@ export class EffectsSystem {
 
     const group = new Group();
 
-    // Pole: thin dark rod sitting on the platform top.
-    const poleGeo = new BoxGeometry(0.05, 0.72, 0.05);
+    // Pole: cream paper rod (paper-craft) with a dark rim, sitting on the
+    // platform top. Centered at x=0 so its base lands at the platform center.
+    const poleGeo = new BoxGeometry(0.07, 1.1, 0.07);
     const poleMat = new MeshBasicMaterial({ color: flag.poleColor });
     const pole = new Mesh(poleGeo, poleMat);
-    pole.position.y = 0.36; // center of the 0.72 rod → base at y = 0
+    pole.position.y = 0.55; // center of the 1.1 rod → base at y = 0
     group.add(pole);
+    const poleRimMat = new MeshBasicMaterial({ color: GAME_CONFIG.COLOR_OUTLINE, side: BackSide });
+    const poleRim = new Mesh(poleGeo, poleRimMat);
+    poleRim.scale.multiplyScalar(1.3);
+    poleRim.position.y = 0.55;
+    group.add(poleRim);
 
-    // Pennant: crimson triangle near the pole top (paper-craft feel).
+    // Pennant: crimson paper cloth. The FLAT edge sits on the pole (x=0) and
+    // the tip flies outward (+x) — a proper pennant, with gently curved
+    // top/bottom edges so it reads as fluttering cloth. A single slightly
+    // larger dark twin BEHIND the cloth (never in front) gives the paper edge.
     const shape = new Shape();
-    shape.moveTo(0, 0);
-    shape.lineTo(0.3, 0.09);
-    shape.lineTo(0.3, -0.09);
+    shape.moveTo(0, 0.12);
+    shape.quadraticCurveTo(0.35, 0.18, 0.7, 0.02);
+    shape.lineTo(0.7, -0.02);
+    shape.quadraticCurveTo(0.35, -0.15, 0, -0.12);
     shape.closePath();
     const pennantGeo = new ShapeGeometry(shape);
     const pennantMat = new MeshBasicMaterial({ color: flag.flagColor, side: DoubleSide });
     const pennant = new Mesh(pennantGeo, pennantMat);
-    pennant.position.set(0.025, 0.6, 0);
+    pennant.position.set(0, 0.92, 0); // flat edge overlaps the pole near its top
     group.add(pennant);
-
-    // Dark paper edge: a slightly larger dark pennant in front and behind.
     const edgeMat = new MeshBasicMaterial({ color: GAME_CONFIG.COLOR_OUTLINE, side: DoubleSide });
-    for (const dz of [-0.014, 0.014]) {
-      const edge = new Mesh(pennantGeo, edgeMat);
-      edge.position.set(0.025, 0.6, dz);
-      edge.scale.setScalar(1.16);
-      group.add(edge);
-    }
+    const edge = new Mesh(pennantGeo, edgeMat);
+    edge.position.set(0, 0.92, 0.015); // behind the cloth (camera sits at -z)
+    edge.scale.setScalar(1.07);
+    group.add(edge);
 
     // Random facing + slight lean so it reads as planted, not sterile.
     group.rotation.y = Math.random() * Math.PI * 2;
-    group.rotation.z = (Math.random() - 0.5) * 0.18;
+    group.rotation.z = (Math.random() - 0.5) * 0.12;
 
     group.position.set(x, topY + flag.dropHeight, z);
     this.scene.add(group);

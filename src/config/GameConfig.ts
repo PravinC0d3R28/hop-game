@@ -187,7 +187,7 @@ export const GAME_CONFIG: GameConfig = {
     dropHeight: 7,
     dropDuration: 0.42,
     flagColor: 0xc0392b,
-    poleColor: 0x111111,
+    poleColor: 0xf0e6d8,
     debrisCount: 12,
     impactShake: 1.5
   },
