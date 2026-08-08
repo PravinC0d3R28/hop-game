@@ -4,7 +4,7 @@ import type { ThemeName } from '../config/Themes';
 import { getTierScore, getWorldById, isWorldUnlocked } from './WorldLogic';
 import { WORLDS } from '../config/Worlds';
 import type { WorldConfig, WorldId } from '../config/Worlds';
-import { getActiveMissions, getMissionById, todayKey } from '../config/Missions';
+import { getActiveMissions, getMissionById, todayKey, MISSIONS } from '../config/Missions';
 import type { MissionKind, MissionReward } from '../config/Missions';
 import { getMetricValue } from './Progression';
 
@@ -465,6 +465,33 @@ export class GameStateManager {
       reward: mission.reward,
       kind: mission.kind
     };
+  }
+
+  // ---- dev helpers (window.gameDebug) ----
+
+  /** Dev: force every mission into its completed state, unlocking the missions
+   *  gate too, so the whole feature can be QA'd without playing N runs. */
+  forceCompleteAllMissions(): void {
+    if (this.playerData.runsPlayed < GAME_CONFIG.MISSIONS_UNLOCK_RUNS) {
+      this.playerData.runsPlayed = GAME_CONFIG.MISSIONS_UNLOCK_RUNS;
+    }
+    this.playerData.missionsUnlockSeen = true;
+    for (const mission of MISSIONS) {
+      if (!this.playerData.completedMissions.includes(mission.id)) {
+        this.playerData.completedMissions.push(mission.id);
+      }
+      this.playerData.missionProgress[mission.id] = mission.target;
+    }
+  }
+
+  /** Dev: claim every completed-but-unclaimed mission (banks all their coins). */
+  claimAllMissions(): MissionReward[] {
+    const rewards: MissionReward[] = [];
+    for (const id of this.getClaimableMissionIds()) {
+      const reward = this.claimMissionReward(id);
+      if (reward) rewards.push(reward);
+    }
+    return rewards;
   }
 
   // ---- economy / shop ----

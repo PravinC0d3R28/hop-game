@@ -63,10 +63,11 @@ function bootstrap(): void {
     window.setTimeout(dismiss, holdMs);
   }
 
-  // Debug helpers (documented in CUSTOMIZATION_GUIDE):
+  // Debug helpers (documented in docs/DEV_COMMANDS.md):
   //   window.gameDebug.setScore(n) / giveCoins(n) / unlockAllSkins() / toggleInvincible()
   //   window.gameDebug.unlockAllWorlds() / forceWorld(id | null) / setTotalScore(n)
   //   window.gameDebug.straightLane(on) / noSway(on) / hitboxes(on) / reseedRunway()
+  //   window.gameDebug.completeAllMissions() / claimAllMissions() / resetProgress()
   const accessor = game as unknown as {
     ball: { group: { position: { x: number; y: number; z: number } } };
     state: {
@@ -75,14 +76,17 @@ function bootstrap(): void {
       setUnlockAllWorlds(v: boolean): void;
       setWorldOverride(id: string | null): void;
       setTotalScore(n: number): void;
+      forceCompleteAllMissions(): void;
+      claimAllMissions(): unknown[];
     };
     ui: {
       setScore(n: number): void;
       refreshCoins(): void;
       renderShop(): void;
       triggerWorldCallout(): void;
+      openMissions(): void;
     };
-    persistence: { save(d: unknown): Promise<void> };
+    persistence: { save(d: unknown): Promise<void>; clear(): Promise<void> };
     platforms: { coinCount(): number };
     devForceWorld(id: WorldId | null): void;
     devReseedRunway(): void;
@@ -135,6 +139,20 @@ function bootstrap(): void {
     },
     setTotalScore: (n: number) => {
       accessor.state.setTotalScore(n);
+    },
+    completeAllMissions: () => {
+      accessor.state.forceCompleteAllMissions();
+      accessor.ui.openMissions();
+      void accessor.persistence.save(accessor.state.getMutablePlayerData());
+    },
+    claimAllMissions: () => {
+      const rewards = accessor.state.claimAllMissions();
+      accessor.ui.refreshCoins();
+      void accessor.persistence.save(accessor.state.getMutablePlayerData());
+      return rewards;
+    },
+    resetProgress: () => {
+      void accessor.persistence.clear().then(() => window.location.reload());
     },
     triggerWorldCallout: () => {
       accessor.ui.triggerWorldCallout();

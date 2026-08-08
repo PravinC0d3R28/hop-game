@@ -573,3 +573,34 @@ describe('session-based missions (progress persists across runs)', () => {
   });
 });
 
+describe('dev helpers (forceCompleteAllMissions / claimAllMissions)', () => {
+  it('forceCompleteAllMissions unlocks the gate and completes every mission', () => {
+    const gm = new GameStateManager();
+    expect(gm.isMissionsUnlocked()).toBe(false);
+    gm.forceCompleteAllMissions();
+    expect(gm.isMissionsUnlocked()).toBe(true);
+    expect(gm.getPlayerData().completedMissions.length).toBe(MISSIONS.length);
+    for (const m of MISSIONS) {
+      expect(gm.getPlayerData().completedMissions).toContain(m.id);
+      expect(gm.getPlayerData().missionProgress[m.id]).toBe(m.target);
+    }
+    expect(gm.getClaimableMissionIds().length).toBe(MISSIONS.length);
+  });
+
+  it('claimAllMissions banks every reward exactly once', () => {
+    const gm = new GameStateManager();
+    gm.forceCompleteAllMissions();
+    const before = gm.getPlayerData().totalCoins;
+    const rewards = gm.claimAllMissions();
+    expect(rewards.length).toBe(MISSIONS.length);
+    const expected = MISSIONS.reduce((sum, m) => sum + m.reward, 0);
+    expect(gm.getPlayerData().totalCoins).toBe(before + expected);
+    expect(gm.getClaimableMissionIds().length).toBe(0);
+
+    // idempotent — second call claims nothing
+    const again = gm.claimAllMissions();
+    expect(again.length).toBe(0);
+    expect(gm.getPlayerData().totalCoins).toBe(before + expected);
+  });
+});
+

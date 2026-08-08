@@ -132,22 +132,44 @@ save later, implement the `SaveBackend` interface (see `managers/PersistenceMana
 
 ## 11. Debug & Dev Tools
 
-`GAME_CONFIG.DEBUG`:
+**Full command reference: [`docs/DEV_COMMANDS.md`](./DEV_COMMANDS.md)** — all
+npm scripts, dev-mode vs production behavior, the complete `window.gameDebug`
+console helper list, save keys, and the `GAME_CONFIG.DEBUG` flag table.
+
+Quick summary:
+
+`GAME_CONFIG.DEBUG` (in `src/config/GameConfig.ts`) controls the build-time
+defaults:
 ```ts
-DEBUG: { enabled: true, showHitboxes: false, showFPS: true,
-         invincible: false, unlockAllSkins: false, infiniteCoins: false }
+DEBUG: { enabled: false, invincible: false, unlockAllSkins: false,
+         infiniteCoins: false, unlockAllWorlds: false, forceWorld: null,
+         straightLane: false, noSway: false, showFPS: false, showHitboxes: false }
 ```
 - `invincible` skips the failure check
 - `infiniteCoins` sets coins to max on load
 - `unlockAllSkins` grants all skins on load
-- FPS meter renders in the corner
+- `unlockAllWorlds` unlocks dusk/void from boot
+- `straightLane` / `noSway` pin the runway for deterministic testing
+- FPS meter and hitbox wireframe render when their flags are on
 
-Console helpers (when DEBUG.enabled):
+Console helpers (always defined; dev mode isolates the save under
+`hop_dev_player_data`):
 ```js
 window.gameDebug.setScore(100)
+window.gameDebug.setTotalScore(5000)      // lifetime score → world unlocks
 window.gameDebug.giveCoins(1000)
 window.gameDebug.unlockAllSkins()
 window.gameDebug.toggleInvincible()
+window.gameDebug.unlockAllWorlds()
+window.gameDebug.forceWorld('dusk')       // or null to revert
+window.gameDebug.straightLane(true)
+window.gameDebug.noSway(true)
+window.gameDebug.hitboxes(true)
+window.gameDebug.reseedRunway()
+window.gameDebug.completeAllMissions()    // force every mission completed
+window.gameDebug.claimAllMissions()       // bank all claimable rewards
+window.gameDebug.ballPos() / coins()
+window.gameDebug.resetProgress()          // wipe current save + reload
 ```
 
 ---
