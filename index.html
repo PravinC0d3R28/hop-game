@@ -654,15 +654,15 @@
       -webkit-user-select: none;
       touch-action: none;
     }
-    /* 100% bigger invisible hit target around the text + gif so the tap area is
-       generous even while the overlay is faded out. */
+    /* 200% → 300% bigger invisible hit target around the text + gif so the tap
+       area is generous even while the overlay is faded out. */
     #play-btn::before {
       content: '';
       position: absolute;
       left: 50%;
       top: 50%;
-      width: 200%;
-      height: 200%;
+      width: 300%;
+      height: 300%;
       transform: translate(-50%, -50%);
     }
     #tap-text {

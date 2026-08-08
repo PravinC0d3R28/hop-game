@@ -280,6 +280,12 @@ export class Game {
 
   /** Original first-tap handler: begins the auto-chain. */
   private firstJump(): void {
+    const st = this.state.getMutableState();
+    // The guided-tutorial retry parks the chain behind isJumping for a beat;
+    // the player's first tap must ALWAYS be able to start it (a tap inside the
+    // park window would otherwise be consumed, leave the chain dead and the
+    // ball unlocked — the next drag then slides it off its platform to hover).
+    st.isJumping = false;
     this.jump();
   }
 
@@ -818,10 +824,9 @@ export class Game {
     this.ui.showFirstRunGuide(true);
     this.ui.showTutorialRetry();
     this.updateFirstRunGuide();
-    // Unblock the chain now that the tap gate is armed again.
-    window.setTimeout(() => {
-      st.isJumping = false;
-    }, 100);
+    // The chain stays parked behind isJumping until the player's first tap:
+    // firstJump() clears the flag and starts the hop. Nothing else unblocks
+    // it, so the ball cannot move (or be steered) while it waits.
   }
 
   dispose(): void {

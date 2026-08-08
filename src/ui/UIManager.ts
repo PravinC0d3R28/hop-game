@@ -108,6 +108,9 @@ export class UIManager {
   private bestCalloutTimer: number | null = null;
   private lastUnlockedCount: number | null = null;
   private pendingUnlockWorld: WorldId | null = null;
+  /** Worlds unlocked in one shot (a huge run can cross several gates at once);
+   *  each gets its own intro dialog, in order. */
+  private unlockQueue: WorldConfig[] = [];
   /** Pending timer for a scheduled spotlight (world unlock or new missions; kept
    *  so re-renders don't stack multiple schedules). */
   private spotlightTimer: number | null = null;
@@ -311,11 +314,12 @@ export class UIManager {
     });
     this.unlockShowmeBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      // Capture the clicked world BEFORE closing: closing pumps the unlock
+      // queue and the next intro takes over pendingUnlockWorld.
+      const world = this.pendingUnlockWorld;
+      this.pendingUnlockWorld = null;
       this.closeUnlockDialog();
-      if (this.pendingUnlockWorld) {
-        this.selectWorld(this.pendingUnlockWorld);
-        this.pendingUnlockWorld = null;
-      }
+      if (world) this.selectWorld(world);
     });
     this.shieldCardClose.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -393,7 +397,6 @@ export class UIManager {
     // running, so unlock/nav teases stay quiet until it hands over.
     if (this.state.getPlayerData().tutorialDone) {
       this.maybeShowSpotlights();
-      this.maybeShowDuskCallout();
     }
   }
 
@@ -487,14 +490,11 @@ export class UIManager {
       this.worldNext.title = unlocked
         ? `Go to ${next.name}`
         : `${next.name} unlocks at ${next.unlockScore.toLocaleString()} total score`;
-      // Bubble only when an UNLOCKED world faces its locked +1 (not during
-      // locked previews, not for +2 "coming soon" worlds). The locked world's
-      // id picks its themed taunt pool.
-      if (unlocked || !this.state.canSelectWorld(world)) {
-        this.stopBubble();
-      } else {
-        this.scheduleBubble(next.id);
-      }
+      // Thought bubble by the nav: teases the NEXT world whether it's locked
+      // ("what lies beyond?") or already open ("your next world is ready").
+      // Only the "coming soon" far slot stays bubble-free (no next world — the
+      // else branch below stops it).
+      this.scheduleBubble(next.id, !unlocked);
       this.worldFar.classList.add('hidden');
     } else {
       this.worldNext.innerHTML = '';
@@ -521,18 +521,25 @@ export class UIManager {
     label.textContent = text;
   }
 
-  /** Thought bubble teases the locked next world (curiosity, not rage-bait).
-   *  Each locked world has its own themed taunts; the general set is shared so
-   *  some messages overlap between worlds. The pool is picked from the LOCKED
-   *  NEXT world (e.g. teasing dusk while on sunrise → dusk-themed + general). */
-  private static readonly BUBBLE_GENERAL = [
+  /** Thought-bubble pools: tease the NEXT world with copy that depends on
+   *  whether it's still locked ("what lies beyond?") or already open ("your
+   *  next world is ready"). Every world also has its own themed lines for both
+   *  states; sunrise never appears here (it's never a "next" world). */
+  private static readonly BUBBLE_LOCKED_GENERAL = [
     'what lies beyond?',
     'don\u2019t you wonder what\u2019s out there?',
     'another world is waiting\u2026',
     'see what the fog hides\u2026',
     'curious yet?'
   ];
-  private static readonly BUBBLE_THEMED: Record<string, string[]> = {
+  private static readonly BUBBLE_UNLOCKED_GENERAL = [
+    'your next world is ready\u2026',
+    'a new world is open for you',
+    'hop over when you are ready\u2026',
+    'the next horizon is calling\u2026',
+    'what are you waiting for?'
+  ];
+  private static readonly BUBBLE_LOCKED_THEMED: Record<string, string[]> = {
     dusk: [
       'somewhere the sun is setting\u2026',
       'a golden hour is waiting\u2026',
@@ -544,6 +551,20 @@ export class UIManager {
       'the neon hums your name\u2026',
       'step into the void\u2026',
       'the lights never sleep out there\u2026'
+    ]
+  };
+  private static readonly BUBBLE_UNLOCKED_THEMED: Record<string, string[]> = {
+    dusk: [
+      'dusk is open\u2014 a golden hour waits\u2026',
+      'the sun never quite sets here\u2026',
+      'the amber horizon is ready for you\u2026',
+      'welcome to the golden hour\u2026'
+    ],
+    void: [
+      'the void is open\u2014 neon awaits\u2026',
+      'step in\u2014 the dark is yours to light\u2026',
+      'the lights never sleep\u2014 join them\u2026',
+      'the deep is ready when you are\u2026'
     ]
   };
   private bubbleTimer: number | null = null;
@@ -559,11 +580,11 @@ export class UIManager {
     }
   }
 
-  private scheduleBubble(worldId?: string): void {
+  private scheduleBubble(worldId?: string, locked = true): void {
     this.stopBubble();
     this.bubbleTimer = window.setTimeout(() => {
       this.bubbleTimer = null;
-      this.showBubble(undefined, 5000, true, worldId);
+      this.showBubble(undefined, 5000, true, worldId, locked);
     }, 9000 + Math.random() * 6000);
   }
 
@@ -571,7 +592,8 @@ export class UIManager {
     text?: string,
     duration = 5000,
     reschedule = true,
-    worldId?: string
+    worldId?: string,
+    locked = true
   ): void {
     // Drop any pending hide/schedule timer so a stale timeout can't fire early
     // and cut this bubble's display short (overlapping cycles would show
@@ -580,10 +602,9 @@ export class UIManager {
       window.clearTimeout(this.bubbleTimer);
       this.bubbleTimer = null;
     }
-    const themed = worldId ? UIManager.BUBBLE_THEMED[worldId] : undefined;
-    const pool = themed
-      ? [...UIManager.BUBBLE_GENERAL, ...themed]
-      : [...UIManager.BUBBLE_GENERAL, ...Object.values(UIManager.BUBBLE_THEMED).flat()];
+    const themed = (locked ? UIManager.BUBBLE_LOCKED_THEMED : UIManager.BUBBLE_UNLOCKED_THEMED)[worldId ?? ''];
+    const general = locked ? UIManager.BUBBLE_LOCKED_GENERAL : UIManager.BUBBLE_UNLOCKED_GENERAL;
+    const pool = themed ? [...general, ...themed] : [...general];
     const content =
       text ?? pool[Math.floor(Math.random() * pool.length)];
     this.worldBubble.textContent = content;
@@ -598,7 +619,7 @@ export class UIManager {
       // Reschedule only after the out animation finishes (via onDone), so the
       // fade-out is never killed mid-flight by the next schedule.
       this.hideBubble(() => {
-        if (reschedule) this.scheduleBubble();
+        if (reschedule) this.scheduleBubble(worldId, locked);
       });
     }, duration);
   }
@@ -606,34 +627,7 @@ export class UIManager {
   /** One-shot "check this out!" bubble next to the freshly unlocked world arrow. */
   private showUnlockCallout(): void {
     this.stopBubble();
-    this.showBubble('check this out!', 5000, false);
-  }
-
-  /** One-time callout after the player's first dusk run: a bubble by the world
-   *  nav teases the still-locked void world ("too easy? can you win here?").
-   *  This replaces the world-3 lock spotlight (see maybeShowWorldSpotlight).
-   *  Fires once per save — the flag is marked seen the moment it shows, and
-   *  only while void is still locked (once unlocked the tease is moot). Runs
-   *  from the END of renderStartScreen, AFTER renderWorldNav has scheduled its
-   *  periodic bubble: showBubble synchronously replaces that pending schedule
-   *  (nothing later can kill it) and reschedules the periodic cycle afterwards. */
-  private maybeShowDuskCallout(): void {
-    const data = this.state.getMutablePlayerData();
-    if (data.firstDuskCalloutSeen) return;
-    const dusk = getWorldById('dusk');
-    const voidWorld = getWorldById('void');
-    if (!dusk || !voidWorld) return;
-    // They must have actually played (and scored in) a dusk run.
-    if ((data.bestPerWorld[WORLDS.indexOf(dusk)] ?? 0) <= 0) return;
-    // The tease is for the LOCKED void world; once unlocked there's nothing
-    // to point at, so the flag can stay unset forever (the guard exits here).
-    if (this.state.canSelectWorld(voidWorld)) return;
-    data.firstDuskCalloutSeen = true;
-    this.onDataChanged();
-    this.stopBubble();
-    // reschedule=true keeps the normal periodic tease cycle going after this
-    // one-shot has had its moment.
-    this.showBubble('too easy? can you win here?', 6000, true);
+    this.showBubble('check this out!', 5000);
   }
 
   private hideBubble(onDone?: () => void): void {
@@ -1015,13 +1009,25 @@ export class UIManager {
     const teachActive = !this.state.getPlayerData().tutorialDone;
     const count = WORLDS.filter((w) => this.state.canSelectWorld(w)).length;
     if (!teachActive && this.lastUnlockedCount !== null && count > this.lastUnlockedCount) {
-      const unlockedWorld = WORLDS[count - 1];
-      if (unlockedWorld) {
-        this.showUnlockDialog(unlockedWorld);
-        this.scheduleUnlockCallout(unlockedWorld.id);
+      // One giant run can cross several unlock gates at once (e.g. 999 → 5,000
+      // total score unlocks dusk AND void). Queue every newly unlocked world
+      // so each one gets its own intro dialog, in order — never just the last.
+      for (const world of WORLDS.slice(this.lastUnlockedCount, count)) {
+        this.unlockQueue.push(world);
       }
     }
     this.lastUnlockedCount = count;
+    this.pumpUnlockQueue();
+  }
+
+  /** Show the next queued unlock intro, one world at a time. */
+  private pumpUnlockQueue(): void {
+    if (this.unlockQueue.length === 0) return;
+    if (!this.unlockDialog.classList.contains('hidden')) return;
+    const world = this.unlockQueue.shift();
+    if (!world) return;
+    this.showUnlockDialog(world);
+    this.scheduleUnlockCallout(world.id);
   }
 
   /** Show the one-time "check this out!" callout a moment after the unlock dialog
@@ -1062,6 +1068,9 @@ export class UIManager {
     // the moment the dialog took over.
     this.setSpotlightBlocking(false);
     this.maybeShowSpotlights();
+    // Multi-unlock: if more worlds were unlocked in the same shot, their
+    // intros come up next, in order.
+    this.pumpUnlockQueue();
   }
 
   /** One-time shield powerup card, shown the first time the player is on world 2
@@ -1122,8 +1131,8 @@ export class UIManager {
    *  world — the moment the world-nav arrows first reveal (score 250) on world
    *  1, and again later for every world whose lock sits on the path ahead. The
    *  flag is marked seen the moment it shows, so each world only teaches once.
-   *  World 3 (void) is exempt: its lock is teased by the one-time post-dusk
-   *  callout instead (see maybeShowDuskCallout), not a spotlight. */
+   *  World 3 (void) is exempt: no blocking spotlight — the periodic nav
+   *  thought-bubble teases its lock instead. */
   private maybeShowWorldSpotlight(): boolean {
     const data = this.state.getPlayerData();
     const current = this.state.getActiveWorld();
