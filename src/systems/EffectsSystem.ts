@@ -6,6 +6,7 @@ import {
   Group,
   Mesh,
   MeshBasicMaterial,
+  MeshToonMaterial,
   PlaneGeometry,
   RingGeometry,
   Shape,
@@ -13,9 +14,11 @@ import {
   SphereGeometry,
   Vector3,
   DoubleSide,
+  type PerspectiveCamera,
   type Scene
 } from 'three';
 import { GAME_CONFIG } from '../config/GameConfig';
+import type { PlatformData } from '../entities/PlatformEntity';
 import { gsap } from 'gsap';
 
 interface Particle {
@@ -39,6 +42,18 @@ interface SpeedLine {
   startAlpha: number;
 }
 
+/** A planted failure flag: root rides the platform, cloth billboards + waves. */
+interface FailureFlag {
+  /** Parented to the missed platform's group (follows sway automatically). */
+  root: Group;
+  /** Cloth assembly — yaw-rotated each frame to face the camera. */
+  cloth: Group;
+  /** Pennant segments in the cloth; rotated around Y for the flutter wave. */
+  segments: Group[];
+  /** Random phase offset so two flags never wave in sync. */
+  phase: number;
+}
+
 const dustGeo = new SphereGeometry(1, 8, 6);
 const dustOutlineGeo = new SphereGeometry(1, 8, 6);
 const ringGeo = new RingGeometry(0.2, 0.3, 32);
@@ -57,11 +72,13 @@ export class EffectsSystem {
   private particles: Particle[] = [];
   private speedLines: SpeedLine[] = [];
   private speedAccumulator = 0;
-  private failureFlags: Group[] = [];
+  private failureFlags: FailureFlag[] = [];
 
   constructor(
     private scene: Scene,
-    private confettiContainer: HTMLElement
+    private confettiContainer: HTMLElement,
+    /** Needed only for the failure flag's cloth billboarding (faces the camera). */
+    private camera?: PerspectiveCamera
   ) {}
 
   /** Original `Uy`: 5-6 dust particles with outlines around the ball. */
@@ -421,64 +438,92 @@ export class EffectsSystem {
     this.particles = [];
   }
 
-  /** Game-over marker: a crimson pennant flag drops from the sky, plants into
-   *  the missed platform, kicks up debris (crimson + the platform's own palette
-   *  color) and calls onImpact (camera shake) when it lands. The flag stays
-   *  planted until clearFailureFlags() (run reset). */
-  playFailureFlag(x: number, z: number, platformColor: number, onImpact?: () => void): void {
+  /** Game-over marker: a crimson pennant flag drops from the sky and plants
+   *  into the missed platform. The flag is parented to the platform's group so
+   *  it rides the platform's sway in dusk/void. The cloth is billboarded to
+   *  always face the camera and flutters with a segmented sine wave
+   *  (updateFailureFlags per frame). On impact: mixed debris + dust puff +
+   *  onImpact (camera shake). Stays planted until clearFailureFlags(). */
+  playFailureFlag(platform: PlatformData, onImpact?: () => void): void {
     const flag = GAME_CONFIG.FAIL_FLAG;
-    const topY = GAME_CONFIG.PLATFORM_HEIGHT / 2; // 0.4 — platform top surface
+    // Platform top surface, in the platform group's local space (the box is
+    // centered at the group origin, so the top sits at +PLATFORM_HEIGHT/2).
+    const topLocalY = GAME_CONFIG.PLATFORM_HEIGHT / 2;
 
-    const group = new Group();
+    const root = new Group();
+    // One uniform world-scale for the whole flag: flag.scale (2 = 200% bigger
+    // than the base art) × counter-scale of the platform's own baseScale
+    // (applied to the platform group's x/z), so the flag never shrinks with
+    // the platform it lands on.
+    const bs = Math.max(platform.baseScale || 1, 0.1);
+    root.scale.set(flag.scale / bs, flag.scale, flag.scale / bs);
 
-    // Pole: cream paper rod (paper-craft) with a dark rim, sitting on the
-    // platform top. Centered at x=0 so its base lands at the platform center.
+    // Pole: cream paper rod (paper-craft) with a dark rim. Base at local y=0
+    // (platform top), so the whole flag rests on the platform center.
     const poleGeo = new BoxGeometry(0.07, 1.1, 0.07);
     const poleMat = new MeshBasicMaterial({ color: flag.poleColor });
     const pole = new Mesh(poleGeo, poleMat);
     pole.position.y = 0.55; // center of the 1.1 rod → base at y = 0
-    group.add(pole);
+    root.add(pole);
     const poleRimMat = new MeshBasicMaterial({ color: GAME_CONFIG.COLOR_OUTLINE, side: BackSide });
     const poleRim = new Mesh(poleGeo, poleRimMat);
     poleRim.scale.multiplyScalar(1.3);
     poleRim.position.y = 0.55;
-    group.add(poleRim);
+    root.add(poleRim);
 
-    // Pennant: crimson paper cloth. The FLAT edge sits on the pole (x=0) and
-    // the tip flies outward (+x) — a proper pennant, with gently curved
-    // top/bottom edges so it reads as fluttering cloth. A single slightly
-    // larger dark twin BEHIND the cloth (never in front) gives the paper edge.
-    const shape = new Shape();
-    shape.moveTo(0, 0.12);
-    shape.quadraticCurveTo(0.35, 0.18, 0.7, 0.02);
-    shape.lineTo(0.7, -0.02);
-    shape.quadraticCurveTo(0.35, -0.15, 0, -0.12);
-    shape.closePath();
-    const pennantGeo = new ShapeGeometry(shape);
-    const pennantMat = new MeshBasicMaterial({ color: flag.flagColor, side: DoubleSide });
-    const pennant = new Mesh(pennantGeo, pennantMat);
-    pennant.position.set(0, 0.92, 0); // flat edge overlaps the pole near its top
-    group.add(pennant);
-    const edgeMat = new MeshBasicMaterial({ color: GAME_CONFIG.COLOR_OUTLINE, side: DoubleSide });
-    const edge = new Mesh(pennantGeo, edgeMat);
-    edge.position.set(0, 0.92, 0.015); // behind the cloth (camera sits at -z)
-    edge.scale.setScalar(1.07);
-    group.add(edge);
+    // Cloth assembly: pennant segments, flat edge at the pole (x=0), tip
+    // flying outward (+x). Origin sits at the pole so the billboard yaw (which
+    // happens around this origin) swings the cloth around the pole like a
+    // weathervane — the flat edge always stays on the stick.
+    const cloth = new Group();
+    cloth.position.set(0, 0.9, 0);
+    root.add(cloth);
 
-    // Random facing + slight lean so it reads as planted, not sterile.
-    group.rotation.y = Math.random() * Math.PI * 2;
-    group.rotation.z = (Math.random() - 0.5) * 0.12;
+    // Segmented pennant: N nested quads with a tapered, gently bulged outline.
+    const N = flag.clothSegments;
+    const clothLen = 0.7;
+    const segW = clothLen / N;
+    const hAt = (x: number): number => {
+      const t = x / clothLen;
+      return 0.12 * (1 - 0.83 * t) + 0.05 * Math.sin(t * Math.PI);
+    };
+    const segments: Group[] = [];
+    let parent: Group = cloth;
+    for (let i = 0; i < N; i++) {
+      const a = i * segW;
+      const b = a + segW;
+      const shape = new Shape();
+      shape.moveTo(0, hAt(a));
+      shape.quadraticCurveTo(segW / 2, hAt((a + b) / 2) + 0.015, segW, hAt(b));
+      shape.lineTo(segW, -hAt(b));
+      shape.quadraticCurveTo(segW / 2, -hAt((a + b) / 2) - 0.015, 0, -hAt(a));
+      shape.closePath();
+      const geo = new ShapeGeometry(shape);
+      const mat = new MeshBasicMaterial({ color: flag.flagColor, side: DoubleSide });
+      const segGroup = new Group();
+      segGroup.add(new Mesh(geo, mat));
+      // Nest each segment at the previous one's tip so the wave compounds.
+      parent.add(segGroup);
+      segGroup.position.x = i === 0 ? 0 : segW;
+      segments.push(segGroup);
+      parent = segGroup;
+    }
 
-    group.position.set(x, topY + flag.dropHeight, z);
-    this.scene.add(group);
-    this.failureFlags.push(group);
+    // Plant on the platform (rides sway automatically); drop from the sky.
+    platform.group.add(root);
+    root.position.set(0, topLocalY + flag.dropHeight, 0);
+    this.failureFlags.push({ root, cloth, segments, phase: Math.random() * Math.PI * 2 });
 
     // Drop from the sky, accelerating (gravity feel), plant on the platform.
-    gsap.to(group.position, {
-      y: topY,
+    gsap.to(root.position, {
+      y: topLocalY,
       duration: flag.dropDuration,
       ease: 'power2.in',
       onComplete: () => {
+        // Impact point in world space (the platform may still be swaying).
+        const world = new Vector3();
+        root.getWorldPosition(world);
+        const platformColor = (platform.mesh.material as MeshToonMaterial).color.getHex();
         // Debris: crimson + the platform's own palette color + outline chips.
         const colors = [flag.flagColor, platformColor, GAME_CONFIG.COLOR_OUTLINE];
         for (let i = 0; i < flag.debrisCount; i++) {
@@ -491,7 +536,7 @@ export class EffectsSystem {
           const chip = new Mesh(flagChipGeo, mat);
           const size = 0.5 + Math.random() * 0.7;
           chip.scale.setScalar(size);
-          chip.position.set(x, topY + 0.05, z);
+          chip.position.set(world.x, world.y + 0.05, world.z);
           const ang = Math.random() * Math.PI * 2;
           const speed = 1.5 + Math.random() * 2;
           this.scene.add(chip);
@@ -507,10 +552,10 @@ export class EffectsSystem {
           });
         }
         // Small dust puff at the base.
-        this.spawnJumpDust(x, topY + 0.02, z);
+        this.spawnJumpDust(world.x, world.y + 0.02, world.z);
         // Settle wobble on the pole after planting.
         gsap.fromTo(
-          group.rotation,
+          root.rotation,
           { z: (Math.random() - 0.5) * 0.4 },
           { z: 0.04, duration: 0.35, ease: 'elastic.out(1, 0.4)' }
         );
@@ -519,11 +564,42 @@ export class EffectsSystem {
     });
   }
 
+  /** Per-frame flag update: billboard the cloth toward the camera and run the
+   *  segmented flutter wave. Called from the game loop (no-op when empty). */
+  updateFailureFlags(now: number): void {
+    if (this.failureFlags.length === 0) return;
+    const flag = GAME_CONFIG.FAIL_FLAG;
+    const t = now * 0.001;
+    for (const f of this.failureFlags) {
+      // Billboarding: swing the cloth around the pole so its face (+z) points
+      // at the camera in the horizontal plane (weathervane around the stick).
+      if (this.camera) {
+        const wp = new Vector3();
+        f.cloth.getWorldPosition(wp);
+        const dx = this.camera.position.x - wp.x;
+        const dz = this.camera.position.z - wp.z;
+        if (Math.abs(dx) > 1e-6 || Math.abs(dz) > 1e-6) {
+          f.cloth.rotation.y = Math.atan2(dx, dz);
+        }
+      }
+      // Flutter wave: amplitude + phase grow toward the tip (nested segments
+      // compound, so the tip swings the most — cloth-like physics).
+      const n = f.segments.length;
+      for (let i = 0; i < n; i++) {
+        f.segments[i].rotation.y =
+          Math.sin(t * flag.waveSpeed + f.phase + i * 0.9) * flag.waveAmp * ((i + 1) / n);
+      }
+      // Subtle whole-cloth tilt so it never looks rigid.
+      f.cloth.rotation.z = Math.sin(t * flag.waveSpeed * 0.6 + f.phase) * 0.05;
+    }
+  }
+
   /** Remove + dispose any planted failure flags (run reset). */
   clearFailureFlags(): void {
-    for (const group of this.failureFlags) {
-      this.scene.remove(group);
-      group.traverse((obj) => {
+    for (const f of this.failureFlags) {
+      gsap.killTweensOf(f.root.position);
+      if (f.root.parent) f.root.parent.remove(f.root);
+      f.root.traverse((obj) => {
         const mesh = obj as Mesh;
         if (mesh.geometry) mesh.geometry.dispose();
         if (mesh.material) (mesh.material as MeshBasicMaterial).dispose();

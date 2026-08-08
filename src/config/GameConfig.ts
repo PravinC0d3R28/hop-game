@@ -75,12 +75,20 @@ export interface GameConfig {
   // Failure flag (red marker planted on the missed platform at game over)
   FAIL_FLAG: {
     enabled: boolean;
+    /** Size multiplier for the whole flag (2 = twice as big as the base art). */
+    scale: number;
     dropHeight: number;
     dropDuration: number;
     flagColor: number;
     poleColor: number;
     debrisCount: number;
     impactShake: number;
+    /** Number of cloth segments along the pennant (more = smoother wave). */
+    clothSegments: number;
+    /** Cloth flutter speed (radians/sec of the sine wave). */
+    waveSpeed: number;
+    /** Cloth flutter amplitude (radians) — 0 = stiff cloth. */
+    waveAmp: number;
   };
   // Camera
   CAMERA_OFFSET_Y: number;
@@ -184,12 +192,16 @@ export const GAME_CONFIG: GameConfig = {
 
   FAIL_FLAG: {
     enabled: true,
+    scale: 2,
     dropHeight: 7,
     dropDuration: 0.42,
     flagColor: 0xc0392b,
     poleColor: 0xf0e6d8,
     debrisCount: 12,
-    impactShake: 1.5
+    impactShake: 1.5,
+    clothSegments: 5,
+    waveSpeed: 6,
+    waveAmp: 0.22
   },
 
   CAMERA_OFFSET_Y: 9.5,

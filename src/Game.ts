@@ -1,5 +1,5 @@
 import { gsap } from 'gsap';
-import { Mesh, MeshToonMaterial } from 'three';
+import { Mesh } from 'three';
 import type { Object3D } from 'three';
 import { GAME_CONFIG } from './config/GameConfig';
 import type { ThemeName } from './config/Themes';
@@ -86,7 +86,7 @@ export class Game {
     this.buildUI();
     this.platforms = new PlatformManager(this.renderer.scene, this.state);
     this.platforms.initializePlatforms();
-    this.effects = new EffectsSystem(this.renderer.scene, this.ui.confettiContainerEl());
+    this.effects = new EffectsSystem(this.renderer.scene, this.ui.confettiContainerEl(), this.renderer.camera);
     this.audio = new AudioSystem();
     this.audio.setSoundVolume(this.state.getPlayerData().soundVolume);
 
@@ -367,16 +367,13 @@ export class Game {
     gsap.to(this.ball.group.position, { y: this.ball.group.position.y - 5, duration: 0.6, ease: 'power2.in' });
     gsap.to(this.ball.group.scale, { x: 0.5, y: 0.5, z: 0.5, duration: 0.6 });
 
-    // Red failure flag: drop from the sky onto the missed platform. The flag
-    // plants at the platform's live center (platformX + sway), kicks up mixed
-    // debris + dust, and triggers a stronger camera shake on impact.
+    // Red failure flag: drop from the sky onto the missed platform. The flag is
+    // parented to the platform (rides its sway), kicks up mixed debris + dust,
+    // and triggers a stronger camera shake on impact.
     if (GAME_CONFIG.FAIL_FLAG.enabled) {
       const failed = this.platforms.getPlatformByIndex(st.currentStep);
       if (failed) {
-        const fx = failed.platformX + (failed.swayOffset || 0);
-        const fz = failed.z;
-        const platformColor = (failed.mesh.material as MeshToonMaterial).color.getHex();
-        this.effects.playFailureFlag(fx, fz, platformColor, () =>
+        this.effects.playFailureFlag(failed, () =>
           this.camera.shake(GAME_CONFIG.FAIL_FLAG.impactShake)
         );
       }
@@ -645,6 +642,7 @@ export class Game {
     );
     this.platforms.updateCoins(delta, Date.now());
     this.platforms.updateSway(Date.now());
+    this.effects.updateFailureFlags(Date.now());
     this.background.update(this.renderer.camera.position.z);
     MaterialFactory.updateLightDirection(this.renderer.directional);
   }
