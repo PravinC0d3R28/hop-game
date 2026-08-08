@@ -23,8 +23,9 @@ beforeAll(() => {
 });
 
 afterEach(() => {
-  // Restore the real drop duration after the impact test shortens it.
-  GAME_CONFIG.FAIL_FLAG.dropDuration = 0.42;
+  // Restore the real drop timing after tests shorten it.
+  GAME_CONFIG.FAIL_FLAG.dropDuration = 0.3;
+  GAME_CONFIG.FAIL_FLAG.dropDelay = 0.24;
 });
 
 /** Minimal stand-in platform: a group with a tinted mesh (for color sampling). */
@@ -57,6 +58,18 @@ function setupEffects() {
   cam.position.set(0, 9.5, -8.5);
   const effects = new EffectsSystem(scene, {} as HTMLElement, cam);
   return { scene, effects, cam };
+}
+
+/** Play the flag with near-instant drop timing and wait for it to land. */
+async function plantAndLand(
+  effects: EffectsSystem,
+  platform: PlatformData,
+  onImpact?: () => void
+): Promise<void> {
+  GAME_CONFIG.FAIL_FLAG.dropDuration = 0.001;
+  GAME_CONFIG.FAIL_FLAG.dropDelay = 0.001;
+  effects.playFailureFlag(platform, onImpact);
+  await new Promise((resolve) => setTimeout(resolve, 60));
 }
 
 describe('failure flag (playFailureFlag)', () => {
@@ -115,14 +128,12 @@ describe('failure flag (playFailureFlag)', () => {
   });
 
   it('spawns debris and fires the impact callback once the flag lands', async () => {
-    GAME_CONFIG.FAIL_FLAG.dropDuration = 0.001; // fast landing for the test
     const { effects } = setupEffects();
     const platform = makePlatform();
     let impacted = false;
-    effects.playFailureFlag(platform, () => {
+    await plantAndLand(effects, platform, () => {
       impacted = true;
     });
-    await new Promise((resolve) => setTimeout(resolve, 150));
     expect(impacted).toBe(true);
     // debris chips + the small dust puff (5-6) pushed into the particle pool
     expect(effects.getParticleCount()).toBeGreaterThanOrEqual(GAME_CONFIG.FAIL_FLAG.debrisCount);
@@ -130,10 +141,10 @@ describe('failure flag (playFailureFlag)', () => {
 });
 
 describe('failure flag cloth animation', () => {
-  it('billboards the cloth toward the camera each frame', () => {
+  it('billboards the cloth toward the camera each frame', async () => {
     const { effects, cam } = setupEffects();
     const platform = makePlatform();
-    effects.playFailureFlag(platform);
+    await plantAndLand(effects, platform);
     const flagRoot = platform.group.children.find((c) => c.type === 'Group') as Group;
     const cloth = flagRoot.children.find((c) => c.type === 'Group') as Group;
 
@@ -151,10 +162,10 @@ describe('failure flag cloth animation', () => {
     expect(Math.abs(Math.atan2(dir.x, dir.z) - expected) % Math.PI).toBeLessThan(0.01);
   });
 
-  it('the cloth poly mesh waves over time (vertex displacement)', () => {
+  it('the cloth poly mesh waves over time (vertex displacement)', async () => {
     const { effects } = setupEffects();
     const platform = makePlatform();
-    effects.playFailureFlag(platform);
+    await plantAndLand(effects, platform);
     const flagRoot = platform.group.children.find((c) => c.type === 'Group') as Group;
     const cloth = flagRoot.children.find((c) => c.type === 'Group') as Group;
     const mesh = cloth.children.find((c) => c.type === 'Mesh') as Mesh;

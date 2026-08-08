@@ -18,10 +18,12 @@ Current procedural specs (for scale reference):
 
 | Part | Current procedural value |
 |---|---|
-| Pole height | 1.1 world units (platform is 2.2 wide) |
-| Pole color | cream paper `#f0e6d8` + thin dark rim |
-| Pennant | crimson `#c0392b`, flat edge on pole, wavy tip flying outward, ~0.7 long |
-| Outline | thin `#111111` paper edge, never a thick border |
+| Pole height | 1.1 world units × `FAIL_FLAG.scale` (2) — platform is 2.2 wide |
+| Pole rod | warm dark gray `#3A3430` |
+| Finial (pole top knob) | gold `#FFD166` |
+| Podium (base) | `#51483F` top tier + `#D47A16` bottom tier + `#292522` rim |
+| Pennant | crimson `#c0392b`, uniform straight-taper triangle, flat edge on pole, tip flying outward |
+| Cloth | subdivided polygon mesh + lit Phong (light glints as it sways) |
 
 ---
 
@@ -29,16 +31,17 @@ Current procedural specs (for scale reference):
 
 > A tiny paper-craft pennant flag, flat-shaded 2.5D game asset on a pure
 > transparent background. Deep crimson flag cloth `#c0392b` with a subtle
-> darker crimson fold line near the pole. The flag's straight edge is attached
-> to a thin vertical paper pole; the cloth tips fly outward and slightly up
-> with a gentle flutter curve on the top and bottom edges — like a small
-> pennant waving in a soft breeze. Pole is cream paper `#f0e6d8` with one thin
-> dark `#111111` rim down each side (paper edge, not a thick comic outline).
-> A tiny soft shadow pools under the flag base. Flat cel-shaded lighting, no
-> gradients larger than one subtle fold, no glow, no bloom, no outline around
-> the whole silhouette. Storybook paper-craft diorama style matching a cozy
-> endless-hopper arcade game. Clean vector-like edges, high resolution,
-> readable at small size (about 40 pixels tall on screen).
+> darker crimson fold line near the pole. The flag is a clean straight-edged
+> triangle: its full-width straight edge is attached to a thin vertical pole,
+> and it tapers to a point at the flying tip — a classic pennant, fluttering
+> gently in a soft breeze. Pole is warm dark gray `#3A3430` with a small gold
+> ball finial on top `#FFD166`. At the pole base a small two-tier paper podium:
+> top tier `#51483F`, bottom tier `#D47A16`, with a thin warm-dark outline
+> `#292522`. A tiny soft shadow pools under the flag base. Flat cel-shaded
+> lighting, no gradients larger than one subtle fold, no glow, no bloom, no
+> outline around the whole silhouette. Storybook paper-craft diorama style
+> matching a cozy endless-hopper arcade game. Clean vector-like edges, high
+> resolution, readable at small size (about 40 pixels tall on screen).
 >
 > Orientation: front view, flag facing the camera, pole perfectly vertical,
 > flag base centered at the bottom of the frame.
@@ -51,12 +54,12 @@ Current procedural specs (for scale reference):
 ## If you want per-world palette variants
 
 The flag is crimson in every world (it's a universal fail marker), but the
-**pole** can echo the world for a crafted feel:
+**podium** can echo the world for a crafted feel:
 
-- **Sunrise Peaks:** pole cream `#f0e6d8`, cloth `#c0392b`.
-- **Dusk District:** pole sand `#ffd9a0`, cloth `#c0392b`.
-- **Deep Void:** pole slate `#2a2f52`, cloth `#d63a35` (slightly brighter so it
-  reads against the dark world).
+- **Sunrise Peaks:** podium `#51483F`/`#D47A16`, pole `#3A3430`.
+- **Dusk District:** podium sand `#8a5a3a`/`#5c3a26`, pole `#3A3430`.
+- **Deep Void:** podium slate `#2a2f52`/`#1b1f3a`, pole `#3A3430`, cloth
+  `#d63a35` (slightly brighter so it reads against the dark world).
 
 If you prefer one universal asset, use the Sunrise version.
 

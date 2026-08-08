@@ -78,11 +78,20 @@ export interface GameConfig {
     /** Size multiplier for the whole flag (2 = twice as big as the base art). */
     scale: number;
     dropHeight: number;
+    /** Pause before the drop starts — lets the game-over miss-shake settle. */
+    dropDelay: number;
     dropDuration: number;
     flagColor: number;
+    /** Pole rod color. */
     poleColor: number;
     /** Podium (base) color under the pole. */
     podiumColor: number;
+    /** Gold finial accent (pole-top knob). */
+    highlightColor: number;
+    /** Darker pedestal tier (shadow) under the podium. */
+    shadowColor: number;
+    /** Warm-dark rim for the podium outline. */
+    outlineColor: number;
     debrisCount: number;
     impactShake: number;
     /** Cloth poly-mesh subdivision: columns along the length × rows of height. */
@@ -201,10 +210,14 @@ export const GAME_CONFIG: GameConfig = {
     enabled: true,
     scale: 2,
     dropHeight: 7,
-    dropDuration: 0.42,
+    dropDelay: 0.24,
+    dropDuration: 0.3,
     flagColor: 0xc0392b,
-    poleColor: 0xf0e6d8,
-    podiumColor: 0xd9c6a3,
+    poleColor: 0x3a3430,
+    podiumColor: 0x51483f,
+    highlightColor: 0xffd166,
+    shadowColor: 0xd47a16,
+    outlineColor: 0x292522,
     debrisCount: 12,
     impactShake: 1.5,
     clothColumns: 12,

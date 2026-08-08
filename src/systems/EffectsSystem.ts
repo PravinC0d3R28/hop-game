@@ -58,6 +58,9 @@ interface FailureFlag {
   clothLength: number;
   /** Random phase offset so two flags never wave in sync. */
   phase: number;
+  /** True once the drop has landed — the cloth only billboards/waves after
+   *  this, so the flag falls as a solid object and slams dead-on. */
+  landed: boolean;
 }
 
 const dustGeo = new SphereGeometry(1, 8, 6);
@@ -465,21 +468,37 @@ export class EffectsSystem {
     const bs = Math.max(platform.baseScale || 1, 0.1);
     root.scale.set(flag.scale / bs, flag.scale, flag.scale / bs);
 
-    // Pole: cream paper rod (no dark rim — the old BackSide rim capped the top
-    // in black). Base at local y=0 (platform top).
+    // Pole: warm dark-gray rod (palette "Pole"). Base at local y=0 (platform
+    // top). No dark rim on the rod itself — instead a gold finial knob caps
+    // the top (palette "Highlight"), so the pole reads as crafted paper.
     const poleGeo = new BoxGeometry(0.07, 1.1, 0.07);
     const poleMat = new MeshBasicMaterial({ color: flag.poleColor });
     const pole = new Mesh(poleGeo, poleMat);
     pole.position.y = 0.55; // center of the 1.1 rod → base at y = 0
     root.add(pole);
 
-    // Podium: a small paper base under the pole so it reads as planted, not
-    // floating. Slightly wider than the pole, resting on the platform top.
-    const podiumGeo = new BoxGeometry(0.22, 0.08, 0.22);
-    const podiumMat = new MeshBasicMaterial({ color: flag.podiumColor });
-    const podium = new Mesh(podiumGeo, podiumMat);
-    podium.position.y = 0.04; // centered under the pole base
-    root.add(podium);
+    // Gold finial on the pole top (palette "Highlight").
+    const finialGeo = new SphereGeometry(0.055, 10, 8);
+    const finialMat = new MeshBasicMaterial({ color: flag.highlightColor });
+    const finial = new Mesh(finialGeo, finialMat);
+    finial.position.y = 1.12; // just above the rod top
+    root.add(finial);
+
+    // Podium: two-tier paper base so the flag reads as planted, not floating.
+    // Shadow-colored bottom tier (palette "Shadow") + base-colored top tier
+    // (palette "Base") with a thin outline rim (palette "Outline").
+    const podiumBaseGeo = new BoxGeometry(0.26, 0.05, 0.26);
+    const podiumBase = new Mesh(podiumBaseGeo, new MeshBasicMaterial({ color: flag.shadowColor }));
+    podiumBase.position.y = 0.025; // centered under the pole base
+    root.add(podiumBase);
+    const podiumTopGeo = new BoxGeometry(0.18, 0.05, 0.18);
+    const podiumTop = new Mesh(podiumTopGeo, new MeshBasicMaterial({ color: flag.podiumColor }));
+    podiumTop.position.y = 0.075; // sits on the bottom tier
+    root.add(podiumTop);
+    const podiumRim = new Mesh(podiumTopGeo, new MeshBasicMaterial({ color: flag.outlineColor, side: BackSide }));
+    podiumRim.scale.multiplyScalar(1.12);
+    podiumRim.position.y = 0.075;
+    root.add(podiumRim);
 
     // Cloth assembly: subdivided pennant mesh, flat edge at the pole (x=0),
     // tip flying outward (+x) in a uniform triangle. Origin sits at the pole
@@ -543,65 +562,75 @@ export class EffectsSystem {
       clothMesh,
       baseXY,
       clothLength: clothLen,
-      phase: Math.random() * Math.PI * 2
+      phase: Math.random() * Math.PI * 2,
+      landed: false
     });
 
-    // Drop from the sky, accelerating (gravity feel), plant directly on the
-    // platform — no bounce-back, it slams and stays.
-    gsap.to(root.position, {
-      y: topLocalY,
-      duration: flag.dropDuration,
-      ease: 'power2.in',
-      onComplete: () => {
-        // Impact point in world space (the platform may still be swaying).
-        const world = new Vector3();
-        root.getWorldPosition(world);
-        const platformColor = (platform.mesh.material as MeshToonMaterial).color.getHex();
-        // Debris: crimson + the platform's own palette color + outline chips.
-        const colors = [flag.flagColor, platformColor, GAME_CONFIG.COLOR_OUTLINE];
-        for (let i = 0; i < flag.debrisCount; i++) {
-          const mat = new MeshBasicMaterial({
-            color: colors[Math.floor(Math.random() * colors.length)],
-            transparent: true,
-            opacity: 0.95,
-            depthWrite: false
-          });
-          const chip = new Mesh(flagChipGeo, mat);
-          const size = 0.5 + Math.random() * 0.7;
-          chip.scale.setScalar(size);
-          chip.position.set(world.x, world.y + 0.05, world.z);
-          const ang = Math.random() * Math.PI * 2;
-          const speed = 1.5 + Math.random() * 2;
-          this.scene.add(chip);
-          const life = 0.5 + Math.random() * 0.3;
-          this.particles.push({
-            mesh: chip,
-            vx: Math.cos(ang) * speed,
-            vy: 1.5 + Math.random() * 2,
-            vz: Math.sin(ang) * speed,
-            life,
-            maxLife: life,
-            startSize: size
-          });
+    // Wait for the game-over miss-shake (0.24s of camera shake) to settle
+    // before the flag starts to fall — otherwise the flag appears to jitter in
+    // the air. Then slam it straight down onto the platform (power2.in, no
+    // bounce-back). The cloth stays rigid until impact (landed → waves).
+    gsap.delayedCall(flag.dropDelay, () => {
+      const f = this.failureFlags.find((x) => x.root === root);
+      if (!f) return; // cleared while waiting
+      gsap.to(root.position, {
+        y: topLocalY,
+        duration: flag.dropDuration,
+        ease: 'power2.in',
+        onComplete: () => {
+          f.landed = true; // cloth may now billboard + wave
+          // Impact point in world space (the platform may still be swaying).
+          const world = new Vector3();
+          root.getWorldPosition(world);
+          const platformColor = (platform.mesh.material as MeshToonMaterial).color.getHex();
+          // Debris: crimson + the platform's own palette color + outline chips.
+          const colors = [flag.flagColor, platformColor, GAME_CONFIG.COLOR_OUTLINE];
+          for (let i = 0; i < flag.debrisCount; i++) {
+            const mat = new MeshBasicMaterial({
+              color: colors[Math.floor(Math.random() * colors.length)],
+              transparent: true,
+              opacity: 0.95,
+              depthWrite: false
+            });
+            const chip = new Mesh(flagChipGeo, mat);
+            const size = 0.5 + Math.random() * 0.7;
+            chip.scale.setScalar(size);
+            chip.position.set(world.x, world.y + 0.05, world.z);
+            const ang = Math.random() * Math.PI * 2;
+            const speed = 1.5 + Math.random() * 2;
+            this.scene.add(chip);
+            const life = 0.5 + Math.random() * 0.3;
+            this.particles.push({
+              mesh: chip,
+              vx: Math.cos(ang) * speed,
+              vy: 1.5 + Math.random() * 2,
+              vz: Math.sin(ang) * speed,
+              life,
+              maxLife: life,
+              startSize: size
+            });
+          }
+          // Small dust puff at the base.
+          this.spawnJumpDust(world.x, world.y + 0.02, world.z);
+          onImpact?.();
         }
-        // Small dust puff at the base.
-        this.spawnJumpDust(world.x, world.y + 0.02, world.z);
-        onImpact?.();
-      }
+      });
     });
   }
 
-  /** Per-frame flag update: billboard the cloth toward the camera and run the
-   *  segmented flutter wave. Called from the game loop (no-op when empty). */
   /** Per-frame flag update: billboard the cloth toward the camera and displace
    *  the cloth mesh vertices with a traveling wave. The subdivided polygon mesh
    *  + lit Phong material means the changing normals reflect light as the cloth
-   *  sways. Called from the game loop (no-op when empty). */
+   *  sways. The cloth only animates once the flag has landed — during the drop
+   *  it stays rigid so the flag slams down as a solid object. Called from the
+   *  game loop (no-op when empty). */
   updateFailureFlags(now: number): void {
     if (this.failureFlags.length === 0) return;
     const flag = GAME_CONFIG.FAIL_FLAG;
     const t = now * 0.001;
     for (const f of this.failureFlags) {
+      // Still falling: keep the cloth rigid so the drop reads as a clean slam.
+      if (!f.landed) continue;
       // Billboarding: swing the cloth around the pole so its face (+z) points
       // at the camera in the horizontal plane (weathervane around the stick).
       if (this.camera) {
