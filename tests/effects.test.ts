@@ -200,29 +200,44 @@ describe('failure flag cloth animation', () => {
       .parameters;
     expect(params.radiusTop).toBeCloseTo(params.radiusBottom * 1.2, 10);
 
-    // No podium: the only meshes are the pole + finial (+ crater/dent after
-    // landing) — no podium tiers.
+    // No podium: the only box meshes are the small crater-debris chips — no
+    // podium tiers (which would be wide 0.18-0.26 boxes).
     const meshes = flagRoot.children.filter((c) => c.type === 'Mesh') as Mesh[];
     const boxMeshes = meshes.filter((m) => m.geometry.type === 'BoxGeometry');
-    expect(boxMeshes.length).toBe(0);
+    expect(boxMeshes.length).toBe(GAME_CONFIG.FAIL_FLAG.craterDebrisCount);
+    for (const b of boxMeshes) {
+      expect(b.scale.x).toBeLessThan(1);
+    }
 
     // The pole base is sunk below the tile top (root-local y<0).
     expect(pole.position.y - (pole.geometry as unknown as { parameters: { height: number } }).parameters.height / 2)
       .toBeLessThan(0);
   });
 
-  it('leaves a crater (dark ring + dent) on the platform at impact', async () => {
+  it('throws debris chips in a ring around the pole base at impact (no shadow)', async () => {
     const { effects } = setupEffects();
     const platform = makePlatform();
     await plantAndLand(effects, platform);
     const flagRoot = platform.group.children.find((c) => c.type === 'Group') as Group;
 
-    const craters = flagRoot.children.filter((c) => c.type === 'Mesh' && (c as Mesh).geometry.type === 'RingGeometry');
-    const dents = flagRoot.children.filter((c) => c.type === 'Mesh' && (c as Mesh).geometry.type === 'CircleGeometry');
-    expect(craters.length).toBe(1);
-    expect(dents.length).toBe(1);
-    // The crater lies flat on the platform top (rotated -90° around x).
-    expect((craters[0] as Mesh).rotation.x).toBeCloseTo(-Math.PI / 2, 10);
+    // Crater debris = BoxGeometry chips scattered in a ring around the pole.
+    const chips = flagRoot.children.filter(
+      (c) => c.type === 'Mesh' && (c as Mesh).geometry.type === 'BoxGeometry'
+    ) as Mesh[];
+    expect(chips.length).toBe(GAME_CONFIG.FAIL_FLAG.craterDebrisCount);
+    // They sit on the tile top at roughly the configured radius, flat-ish.
+    for (const chip of chips) {
+      const d = Math.hypot(chip.position.x, chip.position.z);
+      expect(d).toBeGreaterThan(GAME_CONFIG.FAIL_FLAG.craterRadius * 0.6);
+      expect(d).toBeLessThan(GAME_CONFIG.FAIL_FLAG.craterRadius * 1.4);
+      expect(chip.position.y).toBeCloseTo(0.01, 10);
+    }
+    // No flat shadow ring/dent meshes remain.
+    const shadows = flagRoot.children.filter(
+      (c) => c.type === 'Mesh' &&
+        ((c as Mesh).geometry.type === 'RingGeometry' || (c as Mesh).geometry.type === 'CircleGeometry')
+    );
+    expect(shadows.length).toBe(0);
   });
 
   it('applies the active world palette to the cloth color', async () => {

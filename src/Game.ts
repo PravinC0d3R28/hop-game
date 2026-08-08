@@ -364,8 +364,13 @@ export class Game {
     this.ball.setShield(false);
 
     this.camera.shake();
-    gsap.to(this.ball.group.position, { y: this.ball.group.position.y - 5, duration: 0.6, ease: 'power2.in' });
-    gsap.to(this.ball.group.scale, { x: 0.5, y: 0.5, z: 0.5, duration: 0.6 });
+    // Ball falls 10 units below the platform; the flag's dropDelay is matched
+    // to this so the flag only starts falling once the ball has sunk away —
+    // no overlapping motions, no mid-air "jump".
+    const ballFall = GAME_CONFIG.FAIL_FLAG.ballFallDistance;
+    const ballFallT = GAME_CONFIG.FAIL_FLAG.ballFallDuration;
+    gsap.to(this.ball.group.position, { y: this.ball.group.position.y - ballFall, duration: ballFallT, ease: 'power2.in' });
+    gsap.to(this.ball.group.scale, { x: 0.5, y: 0.5, z: 0.5, duration: ballFallT });
 
     // Red failure flag: drop from the sky onto the missed platform. The flag is
     // parented to the platform (rides its sway), takes the active world's color

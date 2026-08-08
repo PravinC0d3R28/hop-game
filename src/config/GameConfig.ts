@@ -89,9 +89,18 @@ export interface GameConfig {
     /** Size multiplier for the whole flag (2 = twice as big as the base art). */
     scale: number;
     dropHeight: number;
-    /** Pause before the drop starts — lets the game-over miss-shake settle. */
+    /** Pause before the drop starts — waits for the ball to fall away (10
+     *  units down) so the flag drops onto a settled platform, no mid-air jump. */
     dropDelay: number;
     dropDuration: number;
+    /** Ball sink distance on game over (the flag waits for this to finish). */
+    ballFallDistance: number;
+    /** Ball fall duration on game over (matches the flag's dropDelay). */
+    ballFallDuration: number;
+    /** Crater debris: chips thrown in a ring around the pole base on impact. */
+    craterDebrisCount: number;
+    /** Radius of the crater debris ring around the pole (root-local units). */
+    craterRadius: number;
     flagColor: number;
     /** Pole rod color. */
     poleColor: number;
@@ -226,8 +235,15 @@ export const GAME_CONFIG: GameConfig = {
     enabled: true,
     scale: 2,
     dropHeight: 7,
-    dropDelay: 0.24,
+    // The ball sinks 10 units over 0.7s on game over; the flag waits that
+    // long before starting its own fall, so it drops onto a settled platform
+    // (no mid-air jump) right as the ball disappears below the world.
+    dropDelay: 0.7,
     dropDuration: 0.3,
+    ballFallDistance: 10,
+    ballFallDuration: 0.7,
+    craterDebrisCount: 14,
+    craterRadius: 0.42,
     flagColor: 0xc0392b,
     poleColor: 0x3a3430,
     woodColor: 0x9a7a52,

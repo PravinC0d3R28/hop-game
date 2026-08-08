@@ -574,36 +574,31 @@ export class EffectsSystem {
           const world = new Vector3();
           root.getWorldPosition(world);
 
-          // Crater: a dark ring pressed into the tile top where the pole
-          // struck, so the impact visibly reads on the platform.
-          const craterGeo = new RingGeometry(0.1, 0.32, 24);
-          const craterMat = new MeshBasicMaterial({
-            color: 0x1a1a22,
-            transparent: true,
-            opacity: 0.55,
-            depthWrite: false,
-            side: DoubleSide
-          });
-          const crater = new Mesh(craterGeo, craterMat);
-          crater.rotation.x = -Math.PI / 2;
-          crater.position.set(0, 0.006, 0); // on the platform top, root-local
-          root.add(crater);
-          // Slight dark center so it reads as a real dent, not a sticker ring.
-          const dentGeo = new CircleGeometry(0.09, 24);
-          const dentMat = new MeshBasicMaterial({
-            color: 0x111116,
-            transparent: true,
-            opacity: 0.35,
-            depthWrite: false
-          });
-          const dent = new Mesh(dentGeo, dentMat);
-          dent.rotation.x = -Math.PI / 2;
-          dent.position.set(0, 0.004, 0);
-          root.add(dent);
-
           const platformColor = (platform.mesh.material as MeshToonMaterial).color.getHex();
           // Debris: world flag color + the platform's own palette color + outline.
           const colors = [pal.flagColor, platformColor, pal.outlineColor];
+
+          // Crater: real debris chips thrown out in a ring around the pole
+          // base (a crater rim — not a flat shadow), resting on the tile top.
+          // Each chip gets its own geometry so root cleanup can dispose safely
+          // (flagChipGeo is a shared module geometry used by flying debris).
+          for (let i = 0; i < flag.craterDebrisCount; i++) {
+            const ang = (i / flag.craterDebrisCount) * Math.PI * 2 + Math.random() * 0.4;
+            const radius = flag.craterRadius * (0.75 + Math.random() * 0.5);
+            const chipMat = new MeshBasicMaterial({
+              color: colors[Math.floor(Math.random() * colors.length)],
+              transparent: true,
+              opacity: 0.95,
+              depthWrite: false
+            });
+            const chip = new Mesh(new BoxGeometry(0.12, 0.12, 0.04), chipMat);
+            const size = 0.35 + Math.random() * 0.45;
+            chip.scale.setScalar(size);
+            chip.rotation.x = -Math.PI / 2 + (Math.random() - 0.5) * 0.35;
+            chip.rotation.z = Math.random() * Math.PI * 2;
+            chip.position.set(Math.cos(ang) * radius, 0.01, Math.sin(ang) * radius);
+            root.add(chip);
+          }
           for (let i = 0; i < flag.debrisCount; i++) {
             const mat = new MeshBasicMaterial({
               color: colors[Math.floor(Math.random() * colors.length)],
