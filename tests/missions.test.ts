@@ -360,6 +360,32 @@ describe('mission evaluation (run-scoped, daily set)', () => {
     expect(gm.claimMissionReward(target.id)?.id).toBe(target.id);
     expect(gm.getPlayerData().totalCoins).toBe(target.reward);
   });
+
+  it('never soft-locks the start screen when the spotlight fired but the gate was never settled', () => {
+    // A save where the missions spotlight was shown (missionsSpotlightSeen) but
+    // the dismiss path that sets missionsUnlockSeen never persisted — e.g. the
+    // tab closed mid-teach. The play button must not stay hidden forever.
+    const gm = new GameStateManager();
+    gm.loadPlayerData({
+      ...DEFAULT_PLAYER_DATA,
+      runsPlayed: GAME_CONFIG.MISSIONS_UNLOCK_RUNS,
+      missionsSpotlightSeen: true,
+      missionsUnlockSeen: false
+    });
+    expect(gm.isMissionsUnlocked()).toBe(true);
+    expect(gm.hasPendingMissionsUnlock()).toBe(false);
+  });
+
+  it('stays pending while the teach has never been shown', () => {
+    const gm = new GameStateManager();
+    gm.loadPlayerData({
+      ...DEFAULT_PLAYER_DATA,
+      runsPlayed: GAME_CONFIG.MISSIONS_UNLOCK_RUNS,
+      missionsSpotlightSeen: false,
+      missionsUnlockSeen: false
+    });
+    expect(gm.hasPendingMissionsUnlock()).toBe(true);
+  });
 });
 
 describe('lifetime missions (persistent counters)', () => {

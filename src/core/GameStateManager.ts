@@ -436,9 +436,16 @@ export class GameStateManager {
   }
 
   /** Missions unlocked but the one-time "missions unlocked!" callout hasn't been
-   *  checked out yet — until it is, the next run stays blocked. */
+   *  checked out yet — until it is, the next run stays blocked. The gate is
+   *  satisfied once the teach has been shown at all (missionsSpotlightSeen):
+   *  a save where the spotlight fired but the dismiss path never persisted
+   *  (e.g. the tab closed mid-teach) must not soft-lock the start screen. */
   hasPendingMissionsUnlock(): boolean {
-    return this.isMissionsUnlocked() && !this.playerData.missionsUnlockSeen;
+    return (
+      this.isMissionsUnlocked() &&
+      !this.playerData.missionsUnlockSeen &&
+      !this.playerData.missionsSpotlightSeen
+    );
   }
 
   /** Whether a completed mission's reward has been claimed already. */
