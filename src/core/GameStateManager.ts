@@ -569,6 +569,10 @@ export class GameStateManager {
  * - default skins list (includes "default")
  * - fills missing fields
  * - coerces theme to a valid value
+ *
+ * The day/night theme toggle was removed in the overhaul (see GAME_MECHANICS.md),
+ * so any persisted `theme` is healed to 'light' — dark saves can no longer be
+ * produced by the UI and must not be honored on load.
  */
 export function sanitizePlayerData(raw: Partial<PlayerData> | null | undefined): PlayerData {
   const purchased = Array.isArray(raw?.purchasedSkins)
@@ -576,8 +580,8 @@ export function sanitizePlayerData(raw: Partial<PlayerData> | null | undefined):
     : [];
   if (!purchased.includes('default')) purchased.unshift('default');
 
-  const theme: ThemeName =
-    raw?.theme === 'dark' || raw?.theme === 'light' ? raw.theme : 'light';
+  // Toggle removed: always light. Ignore any stale `dark` in old saves.
+  const theme: ThemeName = 'light';
 
   return {
     totalCoins: typeof raw?.totalCoins === 'number' && raw.totalCoins >= 0 ? raw.totalCoins : 0,
@@ -766,7 +770,8 @@ export function mergePlayerData(base: PlayerData, incoming: PlayerData): PlayerD
     bestScore: Math.max(base.bestScore, incoming.bestScore),
     purchasedSkins: purchased,
     selectedSkin: purchased.includes(incoming.selectedSkin) ? incoming.selectedSkin : base.selectedSkin,
-    theme: incoming.theme,
+    // Toggle removed: always light, regardless of either save's theme.
+    theme: 'light',
     totalScore: Math.max(base.totalScore, incoming.totalScore),
     bestPerWorld: WORLDS.map((_, i) =>
       Math.max(base.bestPerWorld[i] ?? 0, incoming.bestPerWorld[i] ?? 0)

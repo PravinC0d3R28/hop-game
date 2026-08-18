@@ -64,6 +64,11 @@ describe('sanitizePlayerData (mirrors original QM)', () => {
     expect(out.theme).toBe('light');
   });
 
+  it('heals a stale dark theme to light (day/night toggle removed)', () => {
+    expect(sanitizePlayerData({ theme: 'dark' } as never).theme).toBe('light');
+    expect(sanitizePlayerData({ theme: 'light' } as never).theme).toBe('light');
+  });
+
   it('coerces non-numbers to 0', () => {
     const out = sanitizePlayerData({ totalCoins: 'abc', bestScore: null } as never);
     expect(out.totalCoins).toBe(0);
@@ -126,10 +131,11 @@ describe('mergePlayerData (mirrors original cloud-merge)', () => {
     expect(out.purchasedSkins).toEqual(expect.arrayContaining(['default', 'red', 'green']));
   });
 
-  it('prefers the incoming theme', () => {
+  it('always merges to the light theme (day/night toggle removed)', () => {
     const base = { ...DEFAULT_PLAYER_DATA, theme: 'light' as const };
     const incoming = { ...DEFAULT_PLAYER_DATA, theme: 'dark' as const };
-    expect(mergePlayerData(base, incoming).theme).toBe('dark');
+    expect(mergePlayerData(base, incoming).theme).toBe('light');
+    expect(mergePlayerData(incoming, base).theme).toBe('light');
   });
 
   it('takes max totalScore, never sums', () => {
