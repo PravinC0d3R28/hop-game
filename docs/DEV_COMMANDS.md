@@ -33,18 +33,35 @@ Dev mode is active when **any** of these is true:
 In dev mode:
 
 - **the save is isolated** under the localStorage key `hop_dev_player_data` —
-  your real `hop_player_data` save is never read or written;
-- `window.gameDebug` helpers (below) are always exposed.
+  your real `hop_player_data` save is never read or written.
 
-The `?dev=1` query flag can force dev mode even on a production/preview URL.
+The `?dev=1` query flag can force save isolation even on a production/preview URL.
+
+### 6.4 gate: when is `window.gameDebug` exposed?
+
+`window.gameDebug` is **build-gated** (6.4) — it ships **only** when the build
+itself is a dev build:
+
+| Build | `window.gameDebug` | Why |
+|---|---|---|
+| `npm run dev` (vite dev server) | ✅ exposed | `import.meta.env.DEV` is true |
+| `npm run dev:dev` (port 3001) | ✅ exposed | dev server + `VITE_DEV_MODE=true` |
+| `vite build --mode dev` (QA build) | ✅ exposed | `VITE_DEV_MODE=true` from `.env.dev` |
+| `npm run build` (production) | ❌ **absent** | both flags are false; the whole debug API is dead-code-eliminated from the bundle |
+
+The `?dev=1` query string only isolates the save key — it **never** enables
+debug access on a production build. (Acceptance: helpers work in local dev,
+absent from the ordinary production bundle at runtime, and debug flags default
+to off — `GAME_CONFIG.DEBUG` is all `false`.)
 
 ---
 
 ## 3. `window.gameDebug` Console Helpers
 
 Open the browser DevTools console (`F12` → Console) on the running game and
-call these. **All of them are available in dev mode** (and always defined on
-production builds too — they're the documented debug surface).
+call these. **They exist only in dev builds** (vite dev server, `npm run dev:dev`,
+or `vite build --mode dev`) — see the 6.4 gate above. On a production build
+`window.gameDebug` is `undefined` and these do not exist.
 
 ### Run / score / economy
 

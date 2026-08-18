@@ -483,7 +483,7 @@ to `dist/` root and referenced directly, e.g. `src="Coin.png"`).
 
 ## 18. Debug Tools
 
-### `window.gameDebug` (dev console, always exposed by `main.ts`)
+### `window.gameDebug` (dev console, exposed only in dev builds — 6.4 gate)
 ```js
 window.gameDebug.setScore(100)          // set score immediately
 window.gameDebug.giveCoins(500)         // add coins

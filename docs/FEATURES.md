@@ -235,7 +235,9 @@ On a miss:
 ## 13. Debug / Dev Surface
 
 - **Dev mode** (vite dev server, `npm run dev:dev`, or `?dev=1`): save isolated
-  under `hop_dev_player_data`, `window.gameDebug` always exposed.
+  under `hop_dev_player_data`. **6.4 gate:** `window.gameDebug` is exposed only
+  in dev *builds* (`import.meta.env.DEV` or `VITE_DEV_MODE=true`) — production
+  builds ship without it; `?dev=1` never enables debug on a portal build.
 - **`window.gameDebug` helpers:** `setScore`, `setTotalScore`, `giveCoins`,
   `unlockAllSkins`, `toggleInvincible`, `unlockAllWorlds`, `forceWorld`,
   `straightLane`, `noSway`, `hitboxes`, `reseedRunway`, `completeAllMissions`,

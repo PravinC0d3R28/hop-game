@@ -93,7 +93,11 @@ Everything is data-driven. See `docs/CUSTOMIZATION_GUIDE.md` for details.
 - **The halftone-toon shader** — `MaterialFactory.ts` (dot size, strength, shadow band).
 - **Audio** — `AudioSystem.ts` presets (freqs, envelopes, waveforms).
 
-### Debug helpers (dev console)
+### Debug helpers (dev builds only)
+
+Exposed only when the build is a dev build (vite dev server, `npm run dev:dev`,
+or `vite build --mode dev`). Production builds ship without `window.gameDebug`
+(6.4 gate).
 
 ```js
 window.gameDebug.setScore(100)          // jump to a score

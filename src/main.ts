@@ -17,7 +17,8 @@ function bootstrap(): void {
   // underneath can never be permanently covered.
   // Dev mode (vite dev server, `npm run dev:dev` via VITE_DEV_MODE, or `?dev=1`):
   // the save goes to its own key so the real player's progress is never
-  // touched, and the panel toggles are exposed as window.gameDebug helpers.
+  // touched. NOTE: `?dev=1` only isolates the save — it must NOT expose
+  // window.gameDebug on a production build (see createDebugApi gate below).
   const devMode =
     import.meta.env.DEV ||
     import.meta.env.VITE_DEV_MODE === 'true' ||
@@ -68,32 +69,52 @@ function bootstrap(): void {
   //   window.gameDebug.unlockAllWorlds() / forceWorld(id | null) / setTotalScore(n)
   //   window.gameDebug.straightLane(on) / noSway(on) / hitboxes(on) / reseedRunway()
   //   window.gameDebug.completeAllMissions() / claimAllMissions() / resetProgress()
-  const accessor = game as unknown as {
-    ball: { group: { position: { x: number; y: number; z: number } } };
-    state: {
-      setScore(n: number): void;
-      getMutablePlayerData(): { totalCoins: number; purchasedSkins: string[] };
-      setUnlockAllWorlds(v: boolean): void;
-      setWorldOverride(id: string | null): void;
-      setTotalScore(n: number): void;
-      forceCompleteAllMissions(): void;
-      claimAllMissions(): unknown[];
-    };
-    ui: {
-      setScore(n: number): void;
-      refreshCoins(): void;
-      renderShop(): void;
-      triggerWorldCallout(): void;
-      openMissions(): void;
-    };
-    persistence: { save(d: unknown): Promise<void>; clear(): Promise<void> };
-    platforms: { coinCount(): number };
-    devForceWorld(id: WorldId | null): void;
-    devReseedRunway(): void;
-    devSetHitboxes(on: boolean): void;
-  };
+  //
+  // 6.4 gate: window.gameDebug is exposed ONLY when the build itself is a dev
+  // build (vite dev server, or `npm run dev:dev` which sets VITE_DEV_MODE=true
+  // via .env.dev). Both flags are replaced at build time, so in an ordinary
+  // production build this whole branch — and createDebugApi with it — is
+  // dead-code-eliminated: no debug surface ships, and `?dev=1` on a portal
+  // build only isolates the save key, it never enables debug access.
+  const accessor = game as unknown as DebugAccessor;
+  if (import.meta.env.DEV || import.meta.env.VITE_DEV_MODE === 'true') {
+    (window as unknown as { gameDebug?: Record<string, unknown> }).gameDebug =
+      createDebugApi(accessor);
+  }
+}
 
-  (window as unknown as { gameDebug: Record<string, unknown> }).gameDebug = {
+/** Shape of the Game surface the debug API reaches into (see bootstrap). */
+type DebugAccessor = {
+  ball: { group: { position: { x: number; y: number; z: number } } };
+  state: {
+    setScore(n: number): void;
+    getMutablePlayerData(): { totalCoins: number; purchasedSkins: string[] };
+    setUnlockAllWorlds(v: boolean): void;
+    setWorldOverride(id: string | null): void;
+    setTotalScore(n: number): void;
+    forceCompleteAllMissions(): void;
+    claimAllMissions(): unknown[];
+  };
+  ui: {
+    setScore(n: number): void;
+    refreshCoins(): void;
+    renderShop(): void;
+    triggerWorldCallout(): void;
+    openMissions(): void;
+  };
+  persistence: { save(d: unknown): Promise<void>; clear(): Promise<void> };
+  platforms: { coinCount(): number };
+  devForceWorld(id: WorldId | null): void;
+  devReseedRunway(): void;
+  devSetHitboxes(on: boolean): void;
+};
+
+/**
+ * The window.gameDebug console surface. Only ever wired up by bootstrap when
+ * the build is a dev build (see the 6.4 gate above) — never in production.
+ */
+function createDebugApi(accessor: DebugAccessor): Record<string, unknown> {
+  return {
     setScore: (n: number) => {
       accessor.state.setScore(n);
       accessor.ui.setScore(n);
