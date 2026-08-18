@@ -30,7 +30,10 @@ metrics are recorded as-is for later comparison.
 
 Sourcemaps: **not shipped in production** since `iter14-fix6` (6.5 gate) —
 `vite.config.ts` emits `.map` files only for explicit QA builds
-(`vite build --mode dev`). The ordinary `npm run build` ships none.
+(`vite build --mode dev`) or the private error-analysis build
+(`npm run build:analyze`, which moves hidden maps to the gitignored
+`error-maps/` directory, outside the public package). The ordinary
+`npm run build` ships none.
 
 ### dist/ asset inventory (largest first)
 

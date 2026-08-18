@@ -56,11 +56,17 @@ to off — `GAME_CONFIG.DEBUG` is all `false`.)
 
 ### 6.5 gate: sourcemaps
 
-`vite.config.ts` emits `.map` files **only** for explicit QA builds
-(`vite build --mode dev`). The ordinary production/portal build
-(`npm run build`) ships **no** `.map` files. Local debugging is unaffected —
-the vite dev server always generates source maps in-memory, so stack traces
-stay readable while developing.
+Source-map behavior is defined per build profile:
+
+| Profile | Command | Source maps | Notes |
+|---|---|---|---|
+| Local development | `npm run dev` / `npm run dev:dev` | ✅ in-memory | dev server always generates them; stack traces readable |
+| QA build | `vite build --mode dev` | ✅ full `.map` files in `dist/` | same mode that enables `window.gameDebug` (6.4) |
+| **Public portal package** | `npm run build` | ❌ **none** | no `.map` files, no `sourceMappingURL` refs |
+| **Private error-analysis build** | `npm run build:analyze` | 🔒 **hidden** maps moved to `error-maps/` | `sourcemap: 'hidden'` (no `sourceMappingURL` comment → browsers never auto-fetch); `scripts/collect-maps.mjs` then moves the `.map` files **out of `dist/`** into `error-maps/` (gitignored, outside the public package). Code is identical to the portal build (no `gameDebug`). |
+
+Acceptance: the intended portal build (`npm run build`) contains no accidental
+public `.map` files; local debugging still has readable stack traces.
 
 ---
 
