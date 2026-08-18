@@ -66,8 +66,9 @@ Largest shipped asset: `arrow-left.png` (415 kB). Largest JS: `three.js` chunk
 
 - Initial console errors: **0**
 - Missing network resources: **0** (13 requests, all 200/304)
-- External dependency: Google Fonts (`fonts.googleapis.com` / `fonts.gstatic.com`)
-  — the only network-origin resource; falls back to system fonts if unavailable.
+- External dependency: **none** — Google Fonts (Fredoka) was bundled locally in
+  `iter14-fix4` (`public/fonts/fredoka-latin.woff2` + OFL license); the game
+  makes no third-party requests and renders correctly with the network Offline.
 
 ## 4. Frame rate & draw calls (representative)
 
