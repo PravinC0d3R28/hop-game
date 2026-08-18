@@ -28,18 +28,17 @@ metrics are recorded as-is for later comparison.
 | `assets/three-*.js` | 460.82 kB | 117.53 kB |
 | **HTML + JS total** | **729.34 kB** | **192.53 kB** |
 
-Sourcemaps (dev-only, not shipped to players): 2,574.87 kB total.
+Sourcemaps: **not shipped in production** since `iter14-fix6` (6.5 gate) —
+`vite.config.ts` emits `.map` files only for explicit QA builds
+(`vite build --mode dev`). The ordinary `npm run build` ships none.
 
 ### dist/ asset inventory (largest first)
 
 | Asset | Size |
 |---|---|
-| `assets/three-*.js.map` | 1,789.9 kB |
 | `assets/three-*.js` | 450.0 kB |
-| `assets/index-*.js.map` | 420.0 kB |
 | `arrow-left.png` | 415.4 kB |
 | `arrow-right.png` | 415.3 kB |
-| `assets/gsap-*.js.map` | 365.0 kB |
 | `tap-to-play.gif` | 304.1 kB |
 | `assets/index-*.js` | 128.2 kB |
 | `index.html` | 82.3 kB |
@@ -48,7 +47,7 @@ Sourcemaps (dev-only, not shipped to players): 2,574.87 kB total.
 | `cart.png` | 8.6 kB |
 | `crown.svg` | 1.3 kB |
 
-**Total dist/ size: 4.6 MB** (4,886,685 bytes, including sourcemaps).
+**Total dist/ size: 1.9 MB** (1,978,988 bytes, no sourcemaps).
 Largest shipped asset: `arrow-left.png` (415 kB). Largest JS: `three.js` chunk
 (450 kB / 117.5 kB gzip).
 

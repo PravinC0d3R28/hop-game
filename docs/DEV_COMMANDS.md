@@ -54,6 +54,14 @@ debug access on a production build. (Acceptance: helpers work in local dev,
 absent from the ordinary production bundle at runtime, and debug flags default
 to off — `GAME_CONFIG.DEBUG` is all `false`.)
 
+### 6.5 gate: sourcemaps
+
+`vite.config.ts` emits `.map` files **only** for explicit QA builds
+(`vite build --mode dev`). The ordinary production/portal build
+(`npm run build`) ships **no** `.map` files. Local debugging is unaffected —
+the vite dev server always generates source maps in-memory, so stack traces
+stay readable while developing.
+
 ---
 
 ## 3. `window.gameDebug` Console Helpers
