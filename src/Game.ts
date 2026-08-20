@@ -61,11 +61,13 @@ export class Game {
   /** Guided step the drag-arrow direction was last locked for (-1 = none). */
   private guideDragDirectionStep = -1;
 
-  // ---- normal-run idle "tap to hop" nudge ----
-  /** Seconds the current run has waited for its first tap. */
-  private tapWaitTime = 0;
-  /** Looping idle-hop timeline on the ball while the nudge is up. */
-  private tapNudgeTween: gsap.core.Animation | null = null;
+  // ---- one-action Play (normal runs): automatic first jump after anticipation ----
+  /** True while the automatic first jump is armed (normal runs only). */
+  private firstJumpArmed = false;
+  /** Seconds elapsed since the automatic first jump was armed. */
+  private firstJumpWait = 0;
+  /** Wind-up squash tween during the anticipation beat (killed on first jump). */
+  private anticipationTween: gsap.core.Animation | null = null;
 
   constructor(container: HTMLElement, options: GameOptions = {}) {
     this.gameContainer = container;
@@ -275,8 +277,7 @@ export class Game {
     // (resetEntities applies the guided lesson layout via guidedFirst).
     this.resetEntities();
     this.audio.resume();
-    this.state.getMutableState().isStarted = true;
-    this.state.getMutableState().isWaitingForTap = true;
+    this.state.startGame();
     this.ui.showStartScreen(false);
     this.ui.hideShop();
     this.ui.hideGameOver();
@@ -286,11 +287,45 @@ export class Game {
       this.ui.showFirstRunGuide(true);
       this.ui.setGuideStep(0);
       this.updateFirstRunGuide();
+    } else {
+      // One-action Play: the first jump fires automatically after a short
+      // anticipation beat (the tutorial keeps its explicit tap-to-start — the
+      // guide owns the teaching there). A tap inside the window cancels it and
+      // jumps immediately (see firstJump), so the jump never fires twice.
+      this.armFirstJump();
     }
   }
 
-  /** Original first-tap handler: begins the auto-chain. */
+  /** Arm the automatic first jump for a normal run: a wind-up squash sells the
+   *  "ready… go!" beat while the ball waits out FIRST_JUMP_ANTICIPATION. */
+  private armFirstJump(): void {
+    this.firstJumpArmed = true;
+    this.firstJumpWait = 0;
+    this.anticipationTween = gsap.fromTo(
+      this.ball.group.scale,
+      { y: 0.82, x: 1.1, z: 1.1 },
+      { y: 1, x: 1, z: 1, duration: 0.35, ease: 'power2.out' }
+    );
+  }
+
+  /** Disarm the automatic first jump (tap-cancel or run reset). */
+  private cancelFirstJumpAnticipation(): void {
+    this.firstJumpArmed = false;
+    this.firstJumpWait = 0;
+    if (this.anticipationTween) {
+      this.anticipationTween.kill();
+      this.anticipationTween = null;
+      this.ball.group.scale.set(1, 1, 1);
+    }
+  }
+
+  /** Original first-tap handler: begins the auto-chain. Also the auto-fire
+   *  target for one-action Play (normal runs) once the anticipation elapses. */
   private firstJump(): void {
+    // A tap during the anticipation window cancels the pending auto-jump so it
+    // can never fire twice (the tap IS the first jump).
+    this.cancelFirstJumpAnticipation();
+    this.state.fireFirstJump();
     const st = this.state.getMutableState();
     // The guided-tutorial retry parks the chain behind isJumping for a beat;
     // the player's first tap must ALWAYS be able to start it (a tap inside the
@@ -331,6 +366,7 @@ export class Game {
     this.ui.clearConfetti();
     this.ui.setStreakGlow('off');
     this.ui.showFirstRunGuide(false);
+    this.cancelFirstJumpAnticipation();
     this.guidedFirst = false;
     this.guidedStep = 0;
     this.guideDragDirectionStep = -1;
@@ -411,8 +447,6 @@ export class Game {
   private jump(): void {
     const st = this.state.getMutableState();
     if (st.isJumping || st.isFailed) return;
-    // The idle nudge's ball-bounce must not fight the hop tween on position.y.
-    this.stopTapNudgeBounce();
     st.isJumping = true;
 
     const r = st.currentStep;
@@ -615,19 +649,15 @@ export class Game {
       this.ball.group.position.x = st.ballX;
     }
 
-    // Normal runs only: once the run has been waiting for its first tap for a
-    // beat, nudge the player — bounce the ball and show a "tap to hop" pill.
-    // The tutorial never needs this (the guide owns the teaching there).
-    if (st.isStarted && st.isWaitingForTap) {
-      this.tapWaitTime += delta;
-      if (!this.guidedFirst && this.tapWaitTime >= GAME_CONFIG.TAP_NUDGE_DELAY) {
-        this.ui.showTapNudge(true, this.ball.group.position.x, this.ball.group.position.z);
-        this.startTapNudgeBounce();
+    // One-action Play (normal runs only): once the run is armed, the first jump
+    // fires automatically after the anticipation beat. A tap inside the window
+    // cancels it (firstJump clears the armed flag), so the jump never fires
+    // twice. The tutorial never arms it — the guide owns the first tap there.
+    if (st.isStarted && !st.isFailed && st.isWaitingForTap && this.firstJumpArmed) {
+      this.firstJumpWait += delta;
+      if (this.firstJumpWait >= GAME_CONFIG.FIRST_JUMP_ANTICIPATION) {
+        this.firstJump();
       }
-    } else {
-      this.tapWaitTime = 0;
-      this.ui.showTapNudge(false);
-      this.stopTapNudgeBounce();
     }
 
     // Keep the guided-play ring glued to the target tile while the lessons are
@@ -771,51 +801,6 @@ export class Game {
     // The arrow stays parked on the NEXT tile and points the way the player must
     // drag to land there (direction resolved in screen space by the UI).
     this.ui.positionGuideDrag(this.ball.group.position.x, this.ball.group.position.z, targetX, target.z);
-  }
-
-  // ---- normal-run idle "tap to hop" nudge (ball bounce) ----
-
-  /** Start the idle "tap to hop" nudge loop (only once; no-op if active).
-   *  A real-feel hop: the ball arcs up and lands with a squash, the start
-   *  platform budges like a normal-run landing, then a 2s pause — repeated
-   *  indefinitely until the player taps. */
-  private startTapNudgeBounce(): void {
-    if (this.tapNudgeTween) return;
-    const baseY = GAME_CONFIG.PLATFORM_HEIGHT / 2 + GAME_CONFIG.BALL_RADIUS;
-    const startPlatform = this.platforms.getPlatformByIndex(0);
-    this.tapNudgeTween = gsap
-      .timeline({ repeat: -1, repeatDelay: 2 })
-      .to(this.ball.group.position, { y: baseY + 1.3, duration: 0.3, ease: 'sine.out' })
-      .to(this.ball.group.position, { y: baseY, duration: 0.34, ease: 'sine.in' })
-      .call(() => {
-        gsap.fromTo(
-          this.ball.group.scale,
-          { y: 0.82, x: 1.1, z: 1.1 },
-          { y: 1, x: 1, z: 1, duration: 0.18, ease: 'power2.out' }
-        );
-        if (startPlatform) {
-          BallEntity.squashPlatform(startPlatform.group, startPlatform.baseScale || 1);
-        }
-      });
-  }
-
-  /** Stop the idle nudge loop, restoring the ball's resting height + scale and
-   *  the start platform's shape (no-op unless the loop is up). */
-  private stopTapNudgeBounce(): void {
-    if (!this.tapNudgeTween) return;
-    this.tapNudgeTween.kill();
-    this.tapNudgeTween = null;
-    gsap.killTweensOf(this.ball.group.scale);
-    const st = this.state.getMutableState();
-    if (!st.isJumping) {
-      this.ball.group.position.y = GAME_CONFIG.PLATFORM_HEIGHT / 2 + GAME_CONFIG.BALL_RADIUS;
-      this.ball.group.scale.set(1, 1, 1);
-    }
-    const startPlatform = this.platforms.getPlatformByIndex(0);
-    if (startPlatform) {
-      gsap.killTweensOf(startPlatform.group.scale);
-      startPlatform.group.scale.set(startPlatform.baseScale || 1, 1, startPlatform.baseScale || 1);
-    }
   }
 
   /** One-shot mark so returning players never see the tutorial again. */

@@ -9,13 +9,16 @@ All constants reference `GameConfig.ts` in the HOP implementation.
 
 ```
 BOOT → SPLASH (1.5s fade) → START SCREEN
-START SCREEN → (tap) → WAITING_FOR_TAP (game started, ball idle at platform 0)
-WAITING_FOR_TAP → (tap) → PLAYING (first jump fired)
+START SCREEN → (Play) → ANTICIPATION (game started, ball winds up at platform 0)
+ANTICIPATION → (auto after 0.4s, or a tap) → PLAYING (first jump fired)
 PLAYING → (miss) → GAME OVER (shake, fall, 600ms delay, overlay)
-GAME OVER → (continue) → reset → START SCREEN (auto re-arms waiting-for-tap)
+GAME OVER → (continue) → reset → START SCREEN
 ```
 
-Two distinct taps: **tap #1 starts the run** (hides menu), **tap #2 fires the first jump**.
+One action to play: **Play hides the menu and fires the first jump automatically**
+after a short anticipation beat (`FIRST_JUMP_ANTICIPATION`, 0.4s); a tap inside
+that window cancels the auto-fire and jumps immediately. The first-run tutorial
+keeps its explicit tap-to-start (the guide owns the teaching there).
 
 ### Input rules (pointer events on canvas + overlays)
 - `pointerdown` blocked if: paused, shop open, game-over open, reset cooldown active,

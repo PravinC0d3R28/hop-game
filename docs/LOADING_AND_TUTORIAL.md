@@ -160,7 +160,11 @@ Three candidate formats, evaluated against this specific game (10-second teachab
    - **Handover callout:** after the 10th guided hop, a brief top **"keep hopping!"** pill fades in and out, then the run continues seamlessly — no end screen; the run counts as run 1 like any other. `tutorialDone` is persisted so returning players never see it again (existing saves with prior runs are migrated to skip it).
    - **World-nav callouts stay quiet while the teach is live:** spotlights, the "too easy? can you win here?" bubble, and the unlock reveal are all gated on `tutorialDone` — the tutorial owns the teaching until it hands over.
    - **Guide in/out animations:** the caption card + ring + drag arrow fade/pop in when the guide appears and on every caption change; the whole overlay fades out before hiding, and the handover staggers its own longer fade.
-   - **Normal-run idle nudge (not the tutorial):** when a run has been waiting for its first tap for `GAME_CONFIG.TAP_NUDGE_DELAY` (1.5s), the ball does a real-feel hop (arcs up, lands with a squash; the start platform budges like a normal landing), then **waits 2s and hops again indefinitely**, with a "tap to hop" pill over the ball. It stops the moment the tap lands and never appears during the guided tutorial.
+   - **One-action Play (normal runs, not the tutorial):** pressing Play fires the
+     first jump automatically after `GAME_CONFIG.FIRST_JUMP_ANTICIPATION` (0.4s) —
+     a wind-up squash sells the "ready… go!" beat, and a tap inside that window
+     cancels the auto-fire and jumps immediately. The tutorial never auto-fires:
+     its explicit tap-to-start is the first lesson.
    - The start screen also activates at boot (positioned, pulsing play button) so a first-time player clearly sees where to tap.
 
 ### Optional supplement (small, cheap)

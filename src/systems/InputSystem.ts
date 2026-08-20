@@ -67,9 +67,9 @@ export class InputSystem {
       return;
     }
     if (st.isWaitingForTap) {
-      st.isWaitingForTap = false;
-      // End any drag session that started before the re-arm (e.g. the guided
-      // tutorial retry): a held pointer must not keep steering afterwards.
+      // The state transition (isWaitingForTap → false) is owned by
+      // GameStateManager via Game.firstJump — a tap here IS the first jump
+      // (normal runs) or the tutorial's tap-to-start (guided runs).
       this.dragging = false;
       this.onFirstJump();
       return;

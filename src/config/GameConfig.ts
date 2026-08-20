@@ -58,9 +58,10 @@ export interface GameConfig {
   STREAK_FIRE: number;
   // Total score at which the start-screen world nav arrows are revealed
   WORLD_NAV_REVEAL_SCORE: number;
-  // Normal-run idle nudge: seconds the run waits for its first tap before a
-  // bouncing "tap to hop" hint appears over the ball.
-  TAP_NUDGE_DELAY: number;
+  // One-action Play: seconds between pressing Play and the first jump firing
+  // automatically (normal runs only — the tutorial keeps its explicit
+  // tap-to-start). A tap inside this window cancels it and jumps immediately.
+  FIRST_JUMP_ANTICIPATION: number;
   // First-run tutorial pacing. The 5 teaching hops run at lesson speed
   // (GUIDED_LESSON_TIME_SCALE = 1 / 0.4 → 0.4x), then the next GUIDED_RAMP_HOPS
   // hops ease the time scale down to 1.0x (full speed).
@@ -210,7 +211,7 @@ export const GAME_CONFIG: GameConfig = {
 
   WORLD_NAV_REVEAL_SCORE: 250,
 
-  TAP_NUDGE_DELAY: 1.5,
+  FIRST_JUMP_ANTICIPATION: 0.4,
 
   GUIDED_LESSON_TIME_SCALE: 2.5,
   GUIDED_RAMP_HOPS: 5,

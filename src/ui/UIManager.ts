@@ -71,7 +71,6 @@ export class UIManager {
   private guideDragVisible = false;
   /** Locked drag-arrow direction for the current target tile (true = points left). */
   private guideDragLeft = false;
-  private tapNudge = this.el<HTMLElement>('tap-nudge');
   private keepHoppingCallout = this.el<HTMLElement>('keep-hopping-callout');
   /** Pending "almost! try again" revert timer (guided-tutorial retry). */
   private tutorialRetryTimer: number | null = null;
@@ -917,32 +916,7 @@ export class UIManager {
   }
 
   /**
-   * Normal-run idle nudge: a bouncing hand + "tap to hop" pill over the ball
-   * once a run has been waiting for its first tap for a beat (never during the
-   * guided tutorial). Projected through the live camera, same as the guide ring.
-   */
-  showTapNudge(show: boolean, x = 0, z = 0): void {
-    if (!show) {
-      this.tapNudge.classList.add('hidden');
-      return;
-    }
-    const canvas = this.renderer.renderer.domElement;
-    const rect = canvas.getBoundingClientRect();
-    const cam = this.renderer.camera;
-    cam.updateMatrixWorld(true);
-    cam.updateProjectionMatrix();
-    const vec = new Vector3(x, GAME_CONFIG.PLATFORM_HEIGHT / 2 + GAME_CONFIG.BALL_RADIUS, z);
-    vec.project(cam);
-    if (vec.z > 1 || vec.z < -1) {
-      this.tapNudge.classList.add('hidden');
-      return;
-    }
-    this.tapNudge.style.left = `${(vec.x * 0.5 + 0.5) * rect.width}px`;
-    this.tapNudge.style.top = `${(-vec.y * 0.5 + 0.5) * rect.height - 46}px`;
-    this.tapNudge.classList.remove('hidden');
-  }
-
-  /** Brief top callout when the first-run tutorial fully hands over to normal
+   * Brief top callout when the first-run tutorial fully hands over to normal
    *  play ("keep hopping!") — a positive beat, then the run continues seamlessly. */
   showKeepHoppingCallout(): void {
     gsap.killTweensOf(this.keepHoppingCallout);

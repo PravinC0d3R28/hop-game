@@ -15,8 +15,11 @@
 
 ## 1. Core Loop (faithful to the original BounceTiles)
 
-- **Two-tap start.** Tap #1 starts the run (ball idles on platform 0), tap #2
-  fires the first jump. The auto-chain then runs forever until a miss.
+- **One-action start.** Pressing Play hides the menu and, after a short
+  anticipation beat (`FIRST_JUMP_ANTICIPATION`, 0.4s), fires the first jump
+  automatically — a tap inside that window cancels the auto-fire and jumps
+  immediately. The auto-chain then runs forever until a miss. (The first-run
+  tutorial keeps its explicit tap-to-start — the guide owns the teaching.)
 - **Drag-to-aim.** Drag horizontally while the ball is in the air to steer.
   Sensitivity is **inverted** (`xTarget = startTarget + dx * -0.028`, clamped ±5)
   — faithful to the original, do not "fix".
@@ -142,8 +145,9 @@ Semantics:
     while re-armed. Ramp-hop misses are a real game over.
   - Handover: "keep hopping!" pill after hop 10; the run continues seamlessly
     and counts as run 1.
-- **Tap nudge:** after `TAP_NUDGE_DELAY` (1.5s) waiting for the first tap, the
-  ball does a real-feel idle hop loop with a "tap to hop" pill.
+- **One-action Play anticipation:** normal runs fire their first jump
+  automatically after `FIRST_JUMP_ANTICIPATION` (0.4s) — a wind-up squash sells
+  the "ready… go!" beat, and a tap during the window jumps immediately instead.
 - **Spotlights / callouts** (all gated on `tutorialDone`): world-unlock
   spotlight (dim + ring + card), new-missions spotlight, best-score callout,
   first-dusk "can you win here?" callout, "coming soon" world-far teaser.

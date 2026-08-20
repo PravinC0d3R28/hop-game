@@ -821,38 +821,6 @@
     }
     #frg-drag.left { animation: frgDragGlideLeft 0.9s ease-in-out infinite; }
 
-    /* Normal-run idle nudge: a "tap to hop" pill over the ball once a run has
-       been waiting for its first tap for a beat. Pure CSS animation; positioned
-       per-frame from the world camera. */
-    #tap-nudge {
-      position: absolute;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      transform: translate(-50%, -50%);
-      pointer-events: none;
-      z-index: 29;
-    }
-    #tap-nudge.hidden { display: none; }
-    .tap-nudge-label {
-      background: #ffd23f;
-      border: 3px solid #111;
-      border-radius: 999px;
-      padding: 4px 14px;
-      font-size: clamp(12px, 2.6vmin, 16px);
-      font-weight: 900;
-      letter-spacing: 2px;
-      color: #111;
-      text-transform: uppercase;
-      animation: nudgePulse 1.1s ease-in-out infinite;
-      box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.2);
-    }
-    @keyframes nudgePulse {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.08); }
-    }
-
     /* Tutorial handover callout: brief top-center "keep hopping!" pill. */
     #keep-hopping-callout {
       position: absolute;
@@ -2487,11 +2455,6 @@
           <div id="frg-caption">tap to hop</div>
           <div id="frg-ring"></div>
           <div id="frg-drag"></div>
-        </div>
-        <!-- Normal-run idle nudge: "tap to hop" hint over the ball when a run
-             waits for its first tap (shown once TAP_NUDGE_DELAY elapses). -->
-        <div id="tap-nudge" class="hidden">
-          <span class="tap-nudge-label">tap to hop</span>
         </div>
         <!-- Tutorial handover callout: brief "keep hopping!" beat at the top. -->
         <div id="keep-hopping-callout" class="hidden">keep hopping!</div>

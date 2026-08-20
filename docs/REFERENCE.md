@@ -65,7 +65,10 @@ manual chunks for `three` + `gsap`, es2020 target.
 6. **Continue** — back to start screen, new run.
 
 Two important quirks (faithful to the original):
-- **Two separate taps** to start: tap #1 starts the run, tap #2 fires the first jump.
+- **One-action start**: pressing Play hides the menu and fires the first jump
+  automatically after a short anticipation beat (`FIRST_JUMP_ANTICIPATION`,
+  0.4s); a tap inside that window cancels the auto-fire and jumps immediately.
+  The first-run tutorial keeps its explicit tap-to-start.
 - **Drag direction is inverted**: dragging right moves the ball left
   (`delta * -0.028` — see InputSystem below).
 
@@ -125,9 +128,9 @@ HOP/
 BOOT
  └─ main.ts creates Game → all systems initialized → splash fades out
 START SCREEN            (game state: isStarted=false)
- └─ tap #1 → startGame()            isStarted=true, isWaitingForTap=true
-WAITING_FOR_TAP         (ball idle on platform 0, drag hint visible)
- └─ tap #2 → firstJump() → jump()   isWaitingForTap=false
+ └─ Play → startGame()            isStarted=true, isWaitingForTap=true
+ANTICIPATION            (normal runs: ball winds up on platform 0)
+ └─ auto after 0.4s (or a tap) → firstJump() → jump()   isWaitingForTap=false
 PLAYING                 (auto-chain: each jump calls the next jump)
  └─ miss → gameOver()
 GAME OVER               (isFailed=true: shake, ball falls, 600ms delay, overlay)
@@ -138,8 +141,8 @@ Key flow methods live in `src/Game.ts`:
 
 | Method | Mirrors original | Purpose |
 |--------|------------------|---------|
-| `startGame()` (Game.ts:140) | `Gy` | First tap: hide menus, show score/coins |
-| `firstJump()` (Game.ts:153) | first-tap | Fires the first `jump()` |
+| `startGame()` (Game.ts:140) | `Gy` | Play: hide menus, show score/coins, arm the auto first jump |
+| `firstJump()` (Game.ts:153) | first-tap | Fires the first `jump()` (auto-fire or tap-cancel) |
 | `jump()` (Game.ts:220) | `Qd` | One jump + landing logic + auto-chains next jump |
 | `gameOver()` (Game.ts:198) | `By` | Fail sequence: shake, fall, best-score, overlay |
 | `reset()` (Game.ts:158) | `Vy` | Full reset: state, ball, platforms, camera, effects |
