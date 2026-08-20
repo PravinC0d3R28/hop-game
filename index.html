@@ -1380,7 +1380,7 @@
       padding-top: clamp(16px, 4vh, 40px);
       pointer-events: auto;
       z-index: 50;
-      background: rgba(0, 0, 0, 0.5);
+      background: rgba(0, 0, 0, 1);
     }
     #gameover-screen h1 {
       font-size: clamp(36px, 9vmin, 64px);
@@ -1489,21 +1489,31 @@
       margin-bottom: clamp(6px, 1.2vh, 12px);
       letter-spacing: 1px;
     }
-    /* Continue button — bottom of game over */
+    /* Game-over actions — circular icon buttons with labels below. PLAY AGAIN
+       is the primary CTA (bigger, purple); HOME is secondary (smaller, subdued)
+       per Requirement 9.1. */
     .go-bottom {
       margin-top: auto;
       margin-bottom: clamp(40px, 10vh, 80px);
       display: flex;
+      flex-direction: row;
+      align-items: flex-end;
+      justify-content: center;
+      gap: clamp(28px, 7vmin, 56px);
+    }
+    .go-action {
+      display: flex;
       flex-direction: column;
       align-items: center;
+      gap: clamp(6px, 1.2vh, 10px);
     }
     #go-continue-btn {
-      width: clamp(200px, 46vmin, 320px);
-      height: clamp(50px, 10vmin, 66px);
+      width: clamp(64px, 14vmin, 88px);
+      height: clamp(64px, 14vmin, 88px);
       padding: 0;
       background: #8838c8;
       border: clamp(4px, 1vmin, 6px) solid #111;
-      border-radius: 14px;
+      border-radius: 50%;
       cursor: pointer;
       pointer-events: auto;
       box-shadow: 5px 5px 0 #111;
@@ -1511,25 +1521,23 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-family: 'Arial Black', 'Impact', sans-serif;
-      font-size: clamp(18px, 4.5vmin, 28px);
-      font-weight: 900;
       color: #fff;
-      letter-spacing: 2px;
-      text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25);
+    }
+    #go-continue-btn svg {
+      width: 52%;
+      height: 52%;
     }
     #go-continue-btn:hover { transform: translateY(-2px); box-shadow: 7px 7px 0 #111; }
     #go-continue-btn:active { transform: translateY(1px); box-shadow: 3px 3px 0 #111; }
     /* Home — secondary action on game over: smaller and subdued so PLAY AGAIN
        stays the primary CTA (Requirement 9.1). */
     #go-home-btn {
-      width: clamp(140px, 30vmin, 200px);
-      height: clamp(40px, 8vmin, 52px);
-      margin-top: clamp(10px, 2vh, 16px);
+      width: clamp(52px, 11vmin, 68px);
+      height: clamp(52px, 11vmin, 68px);
       padding: 0;
       background: rgba(255, 255, 255, 0.14);
       border: clamp(3px, 0.8vmin, 4px) solid #111;
-      border-radius: 12px;
+      border-radius: 50%;
       cursor: pointer;
       pointer-events: auto;
       box-shadow: 4px 4px 0 #111;
@@ -1537,15 +1545,65 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-family: 'Arial Black', 'Impact', sans-serif;
-      font-size: clamp(14px, 3.2vmin, 20px);
-      font-weight: 900;
       color: #fff;
-      letter-spacing: 2px;
-      text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25);
+    }
+    #go-home-btn svg {
+      width: 52%;
+      height: 52%;
     }
     #go-home-btn:hover { transform: translateY(-2px); box-shadow: 6px 6px 0 #111; }
     #go-home-btn:active { transform: translateY(1px); box-shadow: 2px 2px 0 #111; }
+    /* Home highlight while a world-unlock callout is up: a pulsing golden ring
+       (non-dimming — PLAY AGAIN stays fully visible). */
+    #go-home-btn.go-home-highlight {
+      animation: goHomePulse 1.2s ease-in-out infinite;
+    }
+    @keyframes goHomePulse {
+      0%, 100% { box-shadow: 4px 4px 0 #111, 0 0 0 4px rgba(255, 215, 0, 0.75); }
+      50% { box-shadow: 4px 4px 0 #111, 0 0 0 14px rgba(255, 215, 0, 0.35); }
+    }
+    .go-action-label {
+      font-family: 'Arial Black', 'Impact', sans-serif;
+      font-size: clamp(12px, 2.6vmin, 16px);
+      font-weight: 900;
+      color: #fff;
+      letter-spacing: 1px;
+      text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25);
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
+      white-space: nowrap;
+    }
+    /* World-unlock callout on the game-over screen: "NEW WORLD UNLOCKED!" +
+       a hint guiding the player to the HOME button. */
+    #go-unlock-callout {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: clamp(10px, 2vh, 16px);
+      animation: goUnlockPop 0.5s ease-out;
+    }
+    .go-unlock-title {
+      font-size: clamp(16px, 3.6vmin, 24px);
+      font-weight: 900;
+      color: #FFD700;
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
+      letter-spacing: 1px;
+      text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25);
+    }
+    .go-unlock-hint {
+      font-size: clamp(12px, 2.6vmin, 16px);
+      font-weight: 900;
+      color: #fff;
+      opacity: 0.85;
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
+    }
+    @keyframes goUnlockPop {
+      0% { transform: scale(0.6); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
     #confetti-container {
       position: absolute;
       top: 0; left: 0;
@@ -2530,9 +2588,23 @@
             <span id="go-total-coins">0</span>
           </div>
           <div id="go-world"></div>
+          <div id="go-unlock-callout" style="display:none">
+            <div class="go-unlock-title">NEW WORLD UNLOCKED!</div>
+            <div class="go-unlock-hint">Tap HOME to explore it</div>
+          </div>
           <div class="go-bottom">
-            <button id="go-continue-btn">PLAY AGAIN</button>
-            <button id="go-home-btn">HOME</button>
+            <div class="go-action">
+              <button id="go-continue-btn" aria-label="Play again">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+              </button>
+              <span class="go-action-label">PLAY AGAIN</span>
+            </div>
+            <div class="go-action">
+              <button id="go-home-btn" aria-label="Home">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+              </button>
+              <span class="go-action-label">HOME</span>
+            </div>
           </div>
           <div id="confetti-container"></div>
         </div>

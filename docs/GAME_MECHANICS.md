@@ -235,6 +235,9 @@ if score > best: best = score; new-best flag; confetti
 PLAY AGAIN → retryRun() (debounced 500ms) → same world, new seed, one-action
   preparation (auto first jump after 0.4s) — no start-screen round trip
 HOME → returnHome() (debounced 500ms) → start screen + attract demo
+if the run crossed a world-unlock gate: "NEW WORLD UNLOCKED!" callout + golden
+  pulse on HOME (persists on every game over until HOME is visited; the unlock
+  dialog then fires on the start screen via checkWorldUnlocks)
 ```
 
 ---

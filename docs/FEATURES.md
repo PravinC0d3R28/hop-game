@@ -173,9 +173,15 @@ On a miss:
    - **Flying debris:** 12 cube chips (0.12³) launched upward in world space,
      also platform-colored.
    - **Impact shake** (stronger than the game-over shake).
-4. **Game-over overlay** (after 600ms): score, per-world best, `NEW BEST!` +
-   confetti, world reached, `PLAY AGAIN` (primary — same-world instant retry,
-   debounced 500ms) + `HOME` (secondary — returns to the start screen).
+4. **Game-over overlay** (after 600ms, opaque black): score, per-world best,
+   `NEW BEST!` + confetti, world reached, `PLAY AGAIN` (primary — circular
+   arrow icon button, same-world instant retry, debounced 500ms) + `HOME`
+   (secondary — circular home-icon button, returns to the start screen); text
+   labels sit below each circular button. When a run's banked score crosses a
+   world-unlock gate, a `NEW WORLD UNLOCKED!` callout appears with a hint
+   guiding the player to HOME (golden pulsing ring on the HOME button) — the
+   unlock dialog fires when they visit the start screen; PLAY AGAIN stays fully
+   usable (guide, not force).
 
 ## 8. Shop
 

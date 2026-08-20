@@ -32,6 +32,7 @@ export class UIManager {
   private goTotalCoins = this.el<HTMLElement>('go-total-coins');
   private continueBtn = this.el<HTMLButtonElement>('go-continue-btn');
   private homeBtn = this.el<HTMLButtonElement>('go-home-btn');
+  private goUnlockCallout = this.el<HTMLElement>('go-unlock-callout');
   private shopOverlay = this.el<HTMLElement>('shop-overlay');
   private shopClose = this.el<HTMLElement>('shop-close');
   private shopScroll = this.el<HTMLElement>('shop-scroll');
@@ -986,7 +987,11 @@ export class UIManager {
 
   // ---- new-world unlock dialog ----
 
-  private checkWorldUnlocks(): void {
+  /** Queue any worlds whose unlock gate the current total score has crossed.
+   *  Runs from the start screen (checkWorldUnlocks) and from the game-over
+   *  screen (maybeShowWorldUnlockCallout), so a run that crosses a gate
+   *  surfaces its reveal the moment the player returns Home. */
+  private queueNewWorldUnlocks(): void {
     // While the first-run tutorial is live, the unlock reveal (dialog +
     // "check this out!" callout) stays quiet — the tutorial owns all teaching
     // until it hands over. The baseline still tracks so nothing is missed.
@@ -1001,7 +1006,29 @@ export class UIManager {
       }
     }
     this.lastUnlockedCount = count;
+  }
+
+  private checkWorldUnlocks(): void {
+    this.queueNewWorldUnlocks();
     this.pumpUnlockQueue();
+  }
+
+  /** Game-over world-unlock reveal: when the run's banked score crossed an
+   *  unlock gate, queue the new world (its intro dialog fires on the start
+   *  screen via checkWorldUnlocks) and surface a "NEW WORLD UNLOCKED" callout
+   *  that guides the player to the HOME button. The callout persists on every
+   *  game-over screen until the player visits Home and the dialog is shown —
+   *  PLAY AGAIN stays fully usable (guide, not force). */
+  private maybeShowWorldUnlockCallout(): void {
+    this.queueNewWorldUnlocks();
+    if (this.unlockQueue.length === 0) return;
+    this.goUnlockCallout.style.display = 'flex';
+    this.homeBtn.classList.add('go-home-highlight');
+  }
+
+  private hideWorldUnlockCallout(): void {
+    this.goUnlockCallout.style.display = 'none';
+    this.homeBtn.classList.remove('go-home-highlight');
   }
 
   /** Show the next queued unlock intro, one world at a time. */
@@ -1968,6 +1995,9 @@ export class UIManager {
     const startCoins = data.totalCoins - roundCoins;
     this.goTotalCoins.textContent = String(startCoins);
     this.gameOverScreen.style.display = 'flex';
+    // A run that crossed a world-unlock gate surfaces its reveal here: the
+    // callout guides the player to HOME, where the unlock dialog fires.
+    this.maybeShowWorldUnlockCallout();
 
     if (roundCoins > 0) {
       const duration = Math.min(0.8 + roundCoins * 0.05, 2);
@@ -1988,6 +2018,7 @@ export class UIManager {
     this.gameOverScreen.style.display = 'none';
     this.goTotalCoins.textContent = '';
     this.goWorld.textContent = '';
+    this.hideWorldUnlockCallout();
   }
 
   setScore(score: number): void {

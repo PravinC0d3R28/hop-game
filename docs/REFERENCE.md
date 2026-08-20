@@ -136,6 +136,8 @@ PLAYING                 (auto-chain: each jump calls the next jump)
 GAME OVER               (isFailed=true: shake, ball falls, 600ms delay, overlay)
   └─ PLAY AGAIN → retryRun()  (500ms debounce) → same world, new seed, one-action prep
   └─ HOME → returnHome()      (500ms debounce) → START SCREEN
+  └─ world-unlock crossed → "NEW WORLD UNLOCKED!" callout + HOME pulse
+     (dialog fires on the start screen via checkWorldUnlocks)
 ```
 
 Key flow methods live in `src/Game.ts`:
