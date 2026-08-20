@@ -1,4 +1,43 @@
+import { GAME_CONFIG } from '../config/GameConfig';
 import type { GameStateManager } from '../core/GameStateManager';
+
+/** Guard window for a duplicate Play press: the anticipation beat plus a small
+ *  buffer for the browser's double-click interval. */
+export const DUPLICATE_PLAY_GUARD_MS = GAME_CONFIG.FIRST_JUMP_ANTICIPATION * 1000 + 100;
+
+/** A play-button rect snapshot (client coordinates). */
+export interface PlayPressRect {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+/**
+ * True when a pointerdown is a leftover Play press: it lands inside the play
+ * button's rect and arrives within the guard window after the press that
+ * started the run. The first jump is already scheduled by Game (one-action
+ * Play) or the guide owns the first tap (tutorial) — this press must not be
+ * treated as a gameplay tap (8.5: ignore duplicate Play events while
+ * preparation is in progress; prevent the Play pointer event from becoming a
+ * second gameplay tap).
+ */
+export function isDuplicatePlayPress(
+  now: number,
+  playPressTime: number,
+  playPressRect: PlayPressRect | null,
+  clientX: number,
+  clientY: number
+): boolean {
+  if (!playPressRect) return false;
+  if (now - playPressTime > DUPLICATE_PLAY_GUARD_MS) return false;
+  return (
+    clientX >= playPressRect.left &&
+    clientX <= playPressRect.right &&
+    clientY >= playPressRect.top &&
+    clientY <= playPressRect.bottom
+  );
+}
 
 /**
  * Pointer input: drag-to-aim, tap-to-jump, with UI guards.
@@ -9,6 +48,10 @@ export class InputSystem {
   private startClientX = 0;
   private startTarget = 0;
   private resetCooldown = false;
+  /** Timestamp of the last Play-button press (duplicate-press guard). */
+  private playPressTime = 0;
+  /** Play-button rect at the last Play press (duplicate-press guard). */
+  private playPressRect: PlayPressRect | null = null;
 
   constructor(
     private canvas: HTMLElement,
@@ -63,10 +106,19 @@ export class InputSystem {
       // Note: the attract demo deliberately ignores menu touches — it runs
       // indefinitely behind the start screen until a run actually starts.
       if (!this.playBtn.contains(e.target as Node)) return;
+      const r = this.playBtn.getBoundingClientRect();
+      this.playPressTime = performance.now();
+      this.playPressRect = { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
       this.onGameStart();
       return;
     }
     if (st.isWaitingForTap) {
+      // A duplicate Play press (rapid double-click on the play button) must not
+      // be treated as a gameplay tap: the first jump is already scheduled by
+      // Game (one-action Play) or the guide owns the first tap (tutorial).
+      if (isDuplicatePlayPress(performance.now(), this.playPressTime, this.playPressRect, e.clientX, e.clientY)) {
+        return;
+      }
       // The state transition (isWaitingForTap → false) is owned by
       // GameStateManager via Game.firstJump — a tap here IS the first jump
       // (normal runs) or the tutorial's tap-to-start (guided runs).

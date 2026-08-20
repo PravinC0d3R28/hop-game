@@ -895,6 +895,10 @@ export class Game {
   }
 
   dispose(): void {
+    // 8.5: clear any scheduled first-jump callback on dispose — the armed
+    // anticipation must never outlive the game instance (kills the wind-up
+    // tween and disarms the loop-driven auto-fire).
+    this.cancelFirstJumpAnticipation();
     this.renderer.dispose();
     this.effects.dispose();
     this.audio.dispose();
