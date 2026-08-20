@@ -39,8 +39,8 @@ HOP is a polished single-page runner game (World 1 → Dusk District → Deep Vo
 
 ## 5. HOP Technical Notes
 
-- Dev server: `npm run dev` → `http://localhost:3000`.
-- CDP page name: `HOP (http://localhost:3000/)`.
+- Dev server: `npm run dev` → `http://localhost:3000`. Preview server: `npm run preview` → `http://localhost:4173` (serves the latest `dist/`).
+- CDP page name: `HOP (http://localhost:3000/)` (dev) or `HOP (http://localhost:4173/)` (preview).
 - The play button has a 0×0 hit rect — interact via dispatched `pointerdown`/`pointerup` events, not clicks.
 - Deterministic lanes for tests: `Math.random = () => 0.5` forces straight lanes.
 - Save key: `hop_player_data` (localStorage). `hop_save` is stale/unused — never rely on it.
@@ -54,3 +54,16 @@ HOP is a polished single-page runner game (World 1 → Dusk District → Deep Vo
 3. Implement; keep changes minimal and idiomatic to the existing code.
 4. Verify: typecheck + tests; live-verify in browser when possible (CDP smoke only).
 5. Commit (per §2) and append the commit-list entry.
+
+## 7. Shell / PowerShell Safety (Windows 5.1)
+
+Commands can hang indefinitely in this environment. Root causes observed and the rules that prevent them:
+
+- **NEVER run a long-lived server process in the foreground.** `npm run dev`, `npm run preview`, and `vite` never exit — the shell tool blocks until timeout (or forever). Before starting any server, check whether the port is already listening:
+  `Get-NetTCPConnection -LocalPort 4173 -State Listen -ErrorAction SilentlyContinue`
+  If it is not running, start it DETACHED and poll until it listens:
+  `Start-Process -FilePath "cmd" -ArgumentList "/c npm run preview" -WindowStyle Hidden; Start-Sleep -Seconds 3; Get-NetTCPConnection -LocalPort 4173 -State Listen`
+  Never leave the foreground blocked on a server. This also applies to subagents: never instruct `@playtest`/`@screens` to "run npm run preview" in the foreground — tell them to check the port first and start it detached.
+- **NEVER truncate native-command output with `Select-Object -First/-Last`** (e.g. `npm test 2>&1 | Select-Object -Last 30`). On Windows PowerShell 5.1, npm/node spawns child processes (vite workers, rollup, esbuild) that inherit the stdout/stderr handles; the pipeline never sees EOF and PowerShell waits forever. The shell tool already captures full output to a file when it exceeds the limit — run commands bare and read the captured file if needed.
+- **Avoid `npx` for anything that may need installing** — it can prompt "Ok to proceed? (y)" and hang on stdin. Prefer local binaries (`node_modules/.bin/...`, or `npm exec --no-install`). If `npx` is unavoidable, pass `--no-install` or `-y`.
+- **Always pass an explicit `timeout`** to the shell tool for anything that could run long (builds, tests, installs).
