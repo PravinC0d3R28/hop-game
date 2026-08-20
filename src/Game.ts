@@ -128,8 +128,14 @@ export class Game {
     this.ui.onMusicVolumeChange = () => {
       // Music channel reserved for a future track — slider persists, plays nothing.
     };
+    // PLAY AGAIN re-runs the same world in place (Workstream B); Home returns
+    // to the start screen. Both finalize the previous run (already done by
+    // gameOver) and only differ in where the next run begins.
     this.ui.onContinue = () => {
-      this.reset();
+      this.retryRun();
+    };
+    this.ui.onHome = () => {
+      this.returnHome();
     };
     this.ui.onThemeChanged = () => {
       void this.persistence.save(this.state.getMutablePlayerData());
@@ -272,6 +278,13 @@ export class Game {
     if (!this.state.getPlayerData().tutorialDone) {
       this.guidedFirst = true;
     }
+    this.beginRun();
+  }
+
+  /** Shared run-preparation: stop the demo, reset the entities, start the state
+   *  machine, show the run UI, and begin the one-action first-jump preparation
+   *  (normal runs) or the guided tutorial's tap-to-start. */
+  private beginRun(): void {
     this.stopAttractDemo();
     // The demo may have left the ball mid-runway — start every run clean
     // (resetEntities applies the guided lesson layout via guidedFirst).
@@ -335,15 +348,57 @@ export class Game {
     this.jump();
   }
 
-  /** Original `Vy()`: reset everything for a new run. */
-  private reset(): void {
+  /** Same-world Play Again (Workstream B): start the selected world again from
+   *  the game-over screen. The previous run was already finalized by gameOver()
+   *  (score banked, run tracked, save persisted) — this only resets run-only
+   *  state, preserves player data + selected world, re-seeds the runway, and
+   *  begins through the same one-action preparation path. Start-screen gates
+   *  (missions unlock, world selection) are skipped: the player is already in
+   *  the world they just played. */
+  private retryRun(): void {
     this.input.beginResetCooldown();
-
     gsap.killTweensOf(this.ball.group.position);
     gsap.killTweensOf(this.ball.group.scale);
     gsap.globalTimeline.clear();
     this.ui.clearTransientFx();
+    this.resetRunState();
+    this.guidedFirst = false;
+    this.guidedStep = 0;
+    this.guideDragDirectionStep = -1;
+    this.beginRun();
+  }
 
+  /** Original `Vy()`: reset everything and return to the start screen (Home). */
+  private returnHome(): void {
+    this.input.beginResetCooldown();
+    gsap.killTweensOf(this.ball.group.position);
+    gsap.killTweensOf(this.ball.group.scale);
+    gsap.globalTimeline.clear();
+    this.ui.clearTransientFx();
+    this.resetRunState();
+    this.guidedFirst = false;
+    this.guidedStep = 0;
+    this.guideDragDirectionStep = -1;
+    // Restore camera/entities BEFORE the start screen positions the play button,
+    // so its projection uses the boot camera (not the end-of-run one).
+    this.resetEntities();
+    this.effects.clearParticles();
+    this.effects.clearSpeedLines();
+    this.ui.renderStartScreen();
+    this.ui.setScore(0);
+    this.ui.showScoreUI(false);
+    this.ui.showCoinCounter(false);
+    this.ui.showStartScreen(true);
+    this.startAttractDemo();
+    this.effects.clearParticles();
+    this.effects.clearSpeedLines();
+    const st = this.state.getMutableState();
+    st.isWaitingForTap = true;
+  }
+
+  /** Reset run-only state (score, streak, round coins, shield, run missions).
+   *  Player data and the selected world are preserved. */
+  private resetRunState(): void {
     const st = this.state.getMutableState();
     st.score = 0;
     st.currentStep = 0;
@@ -361,32 +416,11 @@ export class Game {
     st.runCoins = 0;
     st.maxStreak = 0;
     this.state.clearRunMissions();
-
     this.ui.hideGameOver();
     this.ui.clearConfetti();
     this.ui.setStreakGlow('off');
     this.ui.showFirstRunGuide(false);
     this.cancelFirstJumpAnticipation();
-    this.guidedFirst = false;
-    this.guidedStep = 0;
-    this.guideDragDirectionStep = -1;
-
-    // Restore camera/entities BEFORE the start screen positions the play button,
-    // so its projection uses the boot camera (not the end-of-run one).
-    this.resetEntities();
-    this.effects.clearParticles();
-    this.effects.clearSpeedLines();
-
-    this.ui.renderStartScreen();
-    this.ui.setScore(0);
-    this.ui.showScoreUI(false);
-    this.ui.showCoinCounter(false);
-    this.ui.showStartScreen(true);
-    this.startAttractDemo();
-    this.effects.clearParticles();
-    this.effects.clearSpeedLines();
-
-    st.isWaitingForTap = true;
   }
 
   /** Original `By()`: fail sequence. */

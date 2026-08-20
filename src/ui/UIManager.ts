@@ -31,6 +31,7 @@ export class UIManager {
   private goRoundCoins = this.el<HTMLElement>('go-round-coins');
   private goTotalCoins = this.el<HTMLElement>('go-total-coins');
   private continueBtn = this.el<HTMLButtonElement>('go-continue-btn');
+  private homeBtn = this.el<HTMLButtonElement>('go-home-btn');
   private shopOverlay = this.el<HTMLElement>('shop-overlay');
   private shopClose = this.el<HTMLElement>('shop-close');
   private shopScroll = this.el<HTMLElement>('shop-scroll');
@@ -287,6 +288,13 @@ export class UIManager {
     this.continueBtn.addEventListener('click', () => {
       if (this.gameOverScreen.style.display === 'flex') this.onContinue();
     });
+    this.homeBtn.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+    });
+    this.homeBtn.addEventListener('click', () => {
+      if (this.gameOverScreen.style.display === 'flex') this.onHome();
+    });
     this.worldPrev.addEventListener('pointerdown', (e) => e.stopPropagation());
     this.worldPrev.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -344,6 +352,8 @@ export class UIManager {
   }
 
   onContinue: () => void = () => {};
+  /** Home button on the game-over screen (returns to the start screen). */
+  onHome: () => void = () => {};
   onSkinApplied: () => void = () => {};
   /** Fired when a mission reward is claimed (Game plays the coin jingle). */
   onMissionClaim: () => void = () => {};

@@ -174,7 +174,8 @@ On a miss:
      also platform-colored.
    - **Impact shake** (stronger than the game-over shake).
 4. **Game-over overlay** (after 600ms): score, per-world best, `NEW BEST!` +
-   confetti, world reached, `PLAY AGAIN` button (debounced 500ms).
+   confetti, world reached, `PLAY AGAIN` (primary — same-world instant retry,
+   debounced 500ms) + `HOME` (secondary — returns to the start screen).
 
 ## 8. Shop
 

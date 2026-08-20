@@ -232,7 +232,9 @@ if score > best: best = score; new-best flag; confetti
 600ms → hide score/coin counter, show overlay:
   SCORE, BEST (crown), NEW BEST! (if any), +roundCoins (gold),
   TOTAL coins (counts up if roundCoins>0, dur min(.8+.05*roundCoins,2), delay .4)
-continue button → reset (debounced 500ms) → start screen + request ad (omitted standalone)
+PLAY AGAIN → retryRun() (debounced 500ms) → same world, new seed, one-action
+  preparation (auto first jump after 0.4s) — no start-screen round trip
+HOME → returnHome() (debounced 500ms) → start screen + attract demo
 ```
 
 ---

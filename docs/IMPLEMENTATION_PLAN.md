@@ -282,7 +282,10 @@ runs never change worlds mid-flight.
   game-start trigger (`InputSystem` checks `playBtn.contains(target)`);
   world mission rows get lock tooltips ("Play in <world>…" vs "Unlocks at
   <N>…"); game-over world label = selected world name; `WORLD_CHANGED` handler +
-  `showWorldBanner` removed. `Game.reset()` calls `ui.clearTransientFx()`.
+  `showWorldBanner` removed. `Game.reset()` split into `retryRun()` (PLAY AGAIN —
+  same-world instant retry through the one-action preparation path) and
+  `returnHome()` (HOME — start screen + attract demo); both call
+  `ui.clearTransientFx()`.
 - Tests: selection/unlock/clamp round-trips, per-world curve parity, sway re-roll
   on selection, mission activation per world → 144 total; typecheck + build
   green.

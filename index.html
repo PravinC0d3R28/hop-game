@@ -1520,6 +1520,32 @@
     }
     #go-continue-btn:hover { transform: translateY(-2px); box-shadow: 7px 7px 0 #111; }
     #go-continue-btn:active { transform: translateY(1px); box-shadow: 3px 3px 0 #111; }
+    /* Home — secondary action on game over: smaller and subdued so PLAY AGAIN
+       stays the primary CTA (Requirement 9.1). */
+    #go-home-btn {
+      width: clamp(140px, 30vmin, 200px);
+      height: clamp(40px, 8vmin, 52px);
+      margin-top: clamp(10px, 2vh, 16px);
+      padding: 0;
+      background: rgba(255, 255, 255, 0.14);
+      border: clamp(3px, 0.8vmin, 4px) solid #111;
+      border-radius: 12px;
+      cursor: pointer;
+      pointer-events: auto;
+      box-shadow: 4px 4px 0 #111;
+      transition: transform 0.1s, box-shadow 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Arial Black', 'Impact', sans-serif;
+      font-size: clamp(14px, 3.2vmin, 20px);
+      font-weight: 900;
+      color: #fff;
+      letter-spacing: 2px;
+      text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25);
+    }
+    #go-home-btn:hover { transform: translateY(-2px); box-shadow: 6px 6px 0 #111; }
+    #go-home-btn:active { transform: translateY(1px); box-shadow: 2px 2px 0 #111; }
     #confetti-container {
       position: absolute;
       top: 0; left: 0;
@@ -2506,6 +2532,7 @@
           <div id="go-world"></div>
           <div class="go-bottom">
             <button id="go-continue-btn">PLAY AGAIN</button>
+            <button id="go-home-btn">HOME</button>
           </div>
           <div id="confetti-container"></div>
         </div>

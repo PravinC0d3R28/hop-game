@@ -134,7 +134,8 @@ ANTICIPATION            (normal runs: ball winds up on platform 0)
 PLAYING                 (auto-chain: each jump calls the next jump)
  └─ miss → gameOver()
 GAME OVER               (isFailed=true: shake, ball falls, 600ms delay, overlay)
- └─ Continue → reset()  (500ms debounce) → START SCREEN
+  └─ PLAY AGAIN → retryRun()  (500ms debounce) → same world, new seed, one-action prep
+  └─ HOME → returnHome()      (500ms debounce) → START SCREEN
 ```
 
 Key flow methods live in `src/Game.ts`:
@@ -142,10 +143,13 @@ Key flow methods live in `src/Game.ts`:
 | Method | Mirrors original | Purpose |
 |--------|------------------|---------|
 | `startGame()` (Game.ts:140) | `Gy` | Play: hide menus, show score/coins, arm the auto first jump |
+| `beginRun()` (Game.ts:287) | — | Shared run-prep: stop demo, reset entities, start state, arm first jump |
+| `retryRun()` (Game.ts:358) | — | PLAY AGAIN: same-world instant retry (skips start-screen gates) |
+| `returnHome()` (Game.ts:372) | `Vy` | HOME: full reset → start screen + attract demo |
 | `firstJump()` (Game.ts:153) | first-tap | Fires the first `jump()` (auto-fire or tap-cancel) |
 | `jump()` (Game.ts:220) | `Qd` | One jump + landing logic + auto-chains next jump |
 | `gameOver()` (Game.ts:198) | `By` | Fail sequence: shake, fall, best-score, overlay |
-| `reset()` (Game.ts:158) | `Vy` | Full reset: state, ball, platforms, camera, effects |
+| `resetRunState()` (Game.ts:401) | — | Run-only state reset (score, streak, coins, shield, run missions) |
 | `perfectHit()` (Game.ts:283) | `Py` | Perfect visuals + score elastic |
 | `collectCoin()` (Game.ts:306) | `Dy` | Coin + score, coin shrink animation |
 | `gameLoop()` (Game.ts:329) | `ip` | Per-frame: aim lerp, shadow, camera, effects, coins, background |
