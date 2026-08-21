@@ -369,7 +369,16 @@ export class GameStateManager {
     for (const mission of getActiveMissions(this.getActiveWorld().id, dateKey)) {
       if (this.playerData.completedMissions.includes(mission.id)) continue;
       if (mission.kind === 'lifetime') {
-        if (getMetricValue(mission.metric, this.playerData, run) >= mission.target) {
+        const cur = getMetricValue(mission.metric, this.playerData, run);
+        const base = this.getLifetimeBaseline(mission.metric);
+        let achieved = false;
+        if (mission.metric === 'bestStreak') {
+          // bestStreak is a max, not a sum — complete only if the threshold was crossed after unlock
+          achieved = cur >= mission.target && base < mission.target;
+        } else {
+          achieved = cur - base >= mission.target;
+        }
+        if (achieved) {
           this.playerData.completedMissions.push(mission.id);
           this.completeMission(mission, completed);
         }
@@ -446,6 +455,18 @@ export class GameStateManager {
       !this.playerData.missionsUnlockSeen &&
       !this.playerData.missionsSpotlightSeen
     );
+  }
+
+  private getLifetimeBaseline(metric: string): number {
+    const b = this.playerData.missionsBaseline;
+    if (!b) return 0;
+    switch (metric) {
+      case 'totalScore': return b.totalScore;
+      case 'totalCoinsCollected': return b.totalCoinsCollected;
+      case 'totalPerfects': return b.totalPerfects;
+      case 'bestStreak': return b.bestStreak;
+      default: return 0;
+    }
   }
 
   /** Whether a completed mission's reward has been claimed already. */
@@ -561,6 +582,16 @@ export class GameStateManager {
   /** Record a completed run (all-time runs played). Call once per game over. */
   trackRunPlayed(): void {
     this.playerData.runsPlayed++;
+    // Capture lifetime baseline the moment missions unlock (run 3) so lifetime
+    // missions only count progress after the feature exists (fix for pre-unlock retroactive completes).
+    if (this.playerData.runsPlayed === GAME_CONFIG.MISSIONS_UNLOCK_RUNS && !this.playerData.missionsBaseline) {
+      this.playerData.missionsBaseline = {
+        totalScore: this.playerData.totalScore,
+        totalCoinsCollected: this.playerData.totalCoinsCollected,
+        totalPerfects: this.playerData.totalPerfects,
+        bestStreak: this.playerData.bestStreak,
+      };
+    }
   }
 }
 
@@ -617,8 +648,45 @@ export function sanitizePlayerData(raw: Partial<PlayerData> | null | undefined):
   worldSpotlightSeen: sanitizeWorldSpotlights(raw?.worldSpotlightSeen),
   missionsSpotlightSeen: raw?.missionsSpotlightSeen === true,
   firstDuskCalloutSeen: raw?.firstDuskCalloutSeen === true,
-  selectedWorld: sanitizeWorldId(raw?.selectedWorld)
+  selectedWorld: sanitizeWorldId(raw?.selectedWorld),
+  missionsBaseline: sanitizeMissionsBaseline(raw?.missionsBaseline, raw)
   };
+}
+
+function sanitizeMissionsBaseline(
+  raw: unknown,
+  playerRaw: Partial<PlayerData> | null | undefined
+): PlayerData['missionsBaseline'] {
+  if (
+    raw &&
+    typeof raw === 'object' &&
+    typeof (raw as Record<string, unknown>).totalScore === 'number' &&
+    typeof (raw as Record<string, unknown>).totalCoinsCollected === 'number' &&
+    typeof (raw as Record<string, unknown>).totalPerfects === 'number' &&
+    typeof (raw as Record<string, unknown>).bestStreak === 'number'
+  ) {
+    const r = raw as Record<string, number>;
+    return {
+      totalScore: Math.max(0, r.totalScore),
+      totalCoinsCollected: Math.max(0, r.totalCoinsCollected),
+      totalPerfects: Math.max(0, r.totalPerfects),
+      bestStreak: Math.max(0, r.bestStreak)
+    };
+  }
+  // Migration: existing saves that already unlocked missions but have no baseline
+  // get a baseline pinned to their current totals so lifetime missions start from now.
+  if (
+    typeof playerRaw?.runsPlayed === 'number' &&
+    playerRaw.runsPlayed >= 3
+  ) {
+    return {
+      totalScore: typeof playerRaw.totalScore === 'number' ? Math.max(0, playerRaw.totalScore) : 0,
+      totalCoinsCollected: typeof (playerRaw as Record<string, unknown>).totalCoinsCollected === 'number' ? Math.max(0, (playerRaw as Record<string, unknown>).totalCoinsCollected as number) : 0,
+      totalPerfects: typeof playerRaw.totalPerfects === 'number' ? Math.max(0, playerRaw.totalPerfects) : 0,
+      bestStreak: typeof playerRaw.bestStreak === 'number' ? Math.max(0, playerRaw.bestStreak) : 0
+    };
+  }
+  return undefined;
 }
 
 /**

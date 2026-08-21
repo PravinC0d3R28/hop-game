@@ -141,7 +141,7 @@
     }
     .streak-banner .world-banner-title { color: #ffd54d; }
     .streak-banner .world-banner-tag { color: #ffe9a8; }
-    .streak-banner { z-index: 21; top: 18% !important; } /* moved up from 30% to avoid blocking next tile — tweak here if still overlaps */
+    .streak-banner { z-index: 21; top: 18% !important; } /* moved up from 30% to avoid blocking next tile ï¿½ tweak here if still overlaps */
     /* Screen-space "ON FIRE" streak overlay: a 2D canvas drawn by FireOverlay
        (additive fire band + embers + heat vignette + burst flash). */
     .fire-overlay {
@@ -640,8 +640,46 @@
       transform: translate(-50%, -50%);
       z-index: -1;
     }
-
-    /* Coin counter - top right */
+    /* Perfect xN pop-ups â€” tiered gold/orange/fire palette, near ball, single instance */
+    #perfect-popup-container {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 24;
+      overflow: hidden;
+    }
+    .perfect-popup {
+      position: absolute;
+      left: 50%; top: 42%;
+      transform: translate(-50%, -50%) scale(0.4);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      pointer-events: none;
+      text-align: center;
+      line-height: 1;
+      opacity: 0;
+    }
+    .perfect-popup-title {
+      font-size: clamp(14px, 3vmin, 20px);
+      font-weight: 900;
+      letter-spacing: 2px;
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
+      text-shadow: 2px 2px 0 rgba(17,17,17,0.25);
+      color: #fff;
+    }
+    .perfect-popup-streak {
+      font-size: clamp(26px, 6vmin, 38px);
+      font-weight: 900;
+      letter-spacing: 2px;
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
+      text-shadow: 3px 3px 0 rgba(17,17,17,0.25);
+      line-height: 1;
+      margin-top: 2px;
+    }
     #coin-counter {
       position: absolute;
       top: clamp(12px, 4vh, 40px);
@@ -2523,6 +2561,7 @@
       <div id="ui-overlay">
         <div id="score">0</div>
         <div id="coin-counter"><span class="coin-icon"><img src="Coin.png" alt="coin"></span><span id="coin-amount">0</span></div>
+        <div id="perfect-popup-container"></div>
         <div id="start-screen">
           <h1 id="world-title">SUNRISE PEAKS</h1>
           <div id="unlock-dialog" class="hidden">

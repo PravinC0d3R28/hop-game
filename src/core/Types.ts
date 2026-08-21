@@ -43,6 +43,14 @@ export interface PlayerData {
   /** True once the one-time first-run tutorial (guided slow-mo first jump) has
    *  been shown; returning players skip it. */
   tutorialDone: boolean;
+  /** Snapshot of lifetime counters at missions unlock (runsPlayed 3) — lifetime
+   *  missions count only the delta after this, so pre-unlock totals don't retroactively complete them. */
+  missionsBaseline?: {
+    totalScore: number;
+    totalCoinsCollected: number;
+    totalPerfects: number;
+    bestStreak: number;
+  };
   completedMissions: string[];
   /** Mission rewards already claimed (completed but unclaimed = claimable). */
   claimedMissions: string[];

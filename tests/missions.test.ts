@@ -398,7 +398,8 @@ describe('lifetime missions (persistent counters)', () => {
       totalCoinsCollected: 120,
       totalPerfects: 500,
       bestStreak: 20,
-      selectedWorld: 'sunrise'
+      selectedWorld: 'sunrise',
+      missionsBaseline: { totalScore: 0, totalCoinsCollected: 0, totalPerfects: 0, bestStreak: 0 }
     });
     gm.startGame();
     const done = gm.evaluateMissions(KEY);
@@ -448,7 +449,8 @@ describe('lifetime missions (persistent counters)', () => {
       ...DEFAULT_PLAYER_DATA,
       runsPlayed: GAME_CONFIG.MISSIONS_UNLOCK_RUNS,
       totalScore: 5200,
-      selectedWorld: 'sunrise'
+      selectedWorld: 'sunrise',
+      missionsBaseline: { totalScore: 0, totalCoinsCollected: 0, totalPerfects: 0, bestStreak: 0 }
     });
     gm.startGame();
     gm.evaluateMissions(KEY);

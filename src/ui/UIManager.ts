@@ -34,6 +34,8 @@ export class UIManager {
   private homeBtn = this.el<HTMLButtonElement>('go-home-btn');
   private goUnlockCallout = this.el<HTMLElement>('go-unlock-callout');
   private goMissionsCallout = this.el<HTMLElement>('go-missions-callout');
+  private perfectPopupContainer = this.el<HTMLElement>('perfect-popup-container');
+  private perfectPopupActive: HTMLElement | null = null;
   private shopOverlay = this.el<HTMLElement>('shop-overlay');
   private shopClose = this.el<HTMLElement>('shop-close');
   private shopScroll = this.el<HTMLElement>('shop-scroll');
@@ -2117,6 +2119,64 @@ export class UIManager {
     this.goWorld.textContent = '';
     this.hideWorldUnlockCallout();
     this.hideMissionsUnlockCallout();
+  }
+
+  /** Perfect xN pop-up — research decision: hidden during tutorial (guidedFirst / !tutorialDone)
+   *  to avoid clutter with keep-hopping, and fire at 10+ is separate (top 18%) so no overlap.
+   *  Tiered gold/orange/fire palette, single instance, auto-fades. */
+  showPerfectPopup(streak: number): void {
+    if (!this.state.getPlayerData().tutorialDone) return;
+    if (this.perfectPopupActive) {
+      gsap.killTweensOf(this.perfectPopupActive);
+      this.perfectPopupActive.remove();
+      this.perfectPopupActive = null;
+    }
+    const el = document.createElement('div');
+    el.className = 'perfect-popup';
+    const title = document.createElement('div');
+    title.className = 'perfect-popup-title';
+    title.textContent = 'PERFECT';
+    const value = document.createElement('div');
+    value.className = 'perfect-popup-streak';
+    value.textContent = `×${streak}`;
+    // Tiered color scheme
+    let color = '#fff';
+    let glow = 'none';
+    if (streak >= 10) {
+      color = '#ff4d4d';
+      glow = '0 0 14px rgba(255,77,61,0.7)';
+    } else if (streak >= 7) {
+      color = '#ff6b35';
+      glow = '0 0 12px rgba(255,107,53,0.55)';
+    } else if (streak >= 5) {
+      color = '#ffb020';
+      glow = '0 0 10px rgba(255,176,32,0.5)';
+    } else if (streak >= 3) {
+      color = '#ffd700';
+      glow = '0 0 8px rgba(255,215,0,0.5)';
+    }
+    value.style.color = color;
+    title.style.color = streak >= 3 ? color : '#fff';
+    if (glow !== 'none') {
+      value.style.filter = `drop-shadow(${glow})`;
+      title.style.filter = `drop-shadow(${glow})`;
+    }
+    el.append(title, value);
+    this.perfectPopupContainer.appendChild(el);
+    this.perfectPopupActive = el;
+    gsap.fromTo(el, { scale: 0.4, opacity: 0, y: 0 }, { scale: 1.25, opacity: 1, duration: 0.22, ease: 'back.out(2.2)' });
+    gsap.to(el, { scale: 1, duration: 0.15, delay: 0.22, ease: 'power2.out' });
+    gsap.to(el, {
+      y: -40,
+      opacity: 0,
+      duration: 0.4,
+      delay: 0.57,
+      ease: 'power2.in',
+      onComplete: () => {
+        if (el.parentNode) el.remove();
+        if (this.perfectPopupActive === el) this.perfectPopupActive = null;
+      }
+    });
   }
 
   setScore(score: number): void {

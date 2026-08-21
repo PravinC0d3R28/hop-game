@@ -610,6 +610,11 @@ export class Game {
       this.state.getState().perfectStreak,
       this.ui.scoreElement
     );
+    // Perfect xN pop-up — hidden during tutorial (research: tutorial already has
+    // keep-hopping + drag hints; perfect + fire would overlap and clutter)
+    if (this.state.getPlayerData().tutorialDone && !this.guidedFirst) {
+      this.ui.showPerfectPopup(this.state.getState().perfectStreak);
+    }
   }
 
   /** Original `Dy(r,t)`: collect a coin. */
@@ -637,6 +642,10 @@ export class Game {
    *  grant once per run. The flame glow is live: it stays only while the streak
    *  holds and drops the moment a non-perfect breaks it. */
   private totalStreakReward(): void {
+    // Research decision: hide fire (and perfect pop-ups) during tutorial — the
+    // tutorial already shows keep-hopping + drag hints at the same screen area;
+    // fire at 10 perfects during the 10-hop tutorial would overlap and confuse.
+    if (!this.state.getPlayerData().tutorialDone || this.guidedFirst) return;
     const milestone = this.state.checkStreakMilestone();
     if (milestone !== 'fire') return;
     const shieldGranted = this.state.isShieldUnlocked() ? this.state.grantShield() : false;
