@@ -252,7 +252,7 @@
     }
     @media (max-width: 420px) {
       .lock-card { padding: 16px 14px; gap: 8px; }
-      .lock-svg { width: clamp(72px, 18vmin, 120px); }
+      .lock-svg { width: clamp(88px, 20vmin, 135px); }
     }
 
     /* World nav: next arrow pinned to the right edge, back arrow to the left,
@@ -406,9 +406,12 @@
       text-align: center;
     }
     .lock-svg {
-      width: clamp(96px, 22vmin, 170px);
+      width: clamp(108px, 24vmin, 185px);
       height: auto;
       filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
+      /* TWEAK HERE: lock icon size — change the clamp() values above.
+         First 108px = min on tiny phones, 24vmin = fluid, 185px = max on laptop.
+         Smaller → 88px, larger → 200px. */
     }
     #lock-close {
       position: absolute;
@@ -1627,14 +1630,20 @@
     }
     .go-sparkle {
       position: absolute;
-      width: clamp(14px, 3vmin, 20px);
-      height: clamp(14px, 3vmin, 20px);
+      width: clamp(18px, 4.2vmin, 28px);
+      height: clamp(18px, 4.2vmin, 28px);
       object-fit: contain;
       pointer-events: none;
-      filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2));
+      filter: drop-shadow(0 2px 3px rgba(0,0,0,0.25));
+      transform-origin: 50% 20%;
+      /* TWEAK HERE: sparkle size — clamp(min, fluid, max). Larger → 22px/32px, smaller → 14px/20px */
     }
-    .go-sparkle--left { top: -8px; left: -6px; animation: goUnlockTwinkle 1.2s ease-in-out infinite alternate; }
-    .go-sparkle--right { top: -8px; right: -6px; animation: goUnlockTwinkle 1.2s ease-in-out 0.6s infinite alternate; }
+    .go-sparkle--left { top: -10px; left: -8px; animation: goUnlockTwinkle 1.0s ease-in-out infinite alternate; }
+    .go-sparkle--right { top: -10px; right: -8px; animation: goUnlockTwinkle 1.0s ease-in-out 0.6s infinite alternate; }
+    @keyframes goUnlockTwinkle {
+      0% { transform: scale(0.88) rotate(-14deg); opacity: 0.85; }
+      100% { transform: scale(1.18) rotate(14deg); opacity: 1; }
+    }
     /* Decorative sparkles are generated art — see docs/ICON_PROMPTS.md (#go-unlock) */
     .go-unlock-title {
       font-size: clamp(15px, 3.4vmin, 22px);
@@ -1655,10 +1664,6 @@
       60% { transform: scale(1.08) rotate(1deg); opacity: 1; }
       80% { transform: scale(0.97) rotate(-0.5deg); }
       100% { transform: scale(1) rotate(0); opacity: 1; }
-    }
-    @keyframes goUnlockTwinkle {
-      0% { transform: scale(0.85) rotate(-8deg); opacity: 0.7; }
-      100% { transform: scale(1.15) rotate(8deg); opacity: 1; }
     }
     /* Mini confetti burst spawned inside #go-unlock-callout */
     .go-unlock-confetti {
@@ -2089,6 +2094,21 @@
       box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25);
       transform: translateY(1px);
     }
+    #settings-btn img,
+    #stats-btn img {
+      width: 76%;
+      height: 76%;
+      object-fit: contain;
+      display: block;
+      transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+      /* TWEAK HERE: icon fill inside button — 60% = small padding, 88% = edge-to-edge.
+         76% is balanced for 38-62px buttons. Try 72% (smaller) or 82% (bolder). */
+    }
+    /* Settings hover: subtle rewarding spin — not too much, 180deg with ease */
+    #settings-btn:hover img {
+      transform: rotate(180deg);
+    }
+    /* Keep SVG fallback if you swap back from <img> */
     #settings-btn svg,
     #stats-btn svg {
       width: 60%;
@@ -2606,12 +2626,12 @@
           <div id="top-right-btns">
             <div class="top-btn-wrap">
               <button id="settings-btn" title="Settings">
-                <img src="settings-gear.png" alt="" style="width:70%;height:70%;object-fit:contain;display:block;">
+                <img src="settings-gear.png" alt="">
               </button>
             </div>
             <div class="top-btn-wrap">
               <button id="stats-btn" title="Stats">
-                <img src="stats-icon.png" alt="" style="width:70%;height:70%;object-fit:contain;display:block;">
+                <img src="stats-icon.png" alt="">
               </button>
             </div>
             <div id="coin-card" class="coin-card" title="Coins">
