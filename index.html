@@ -210,9 +210,12 @@
 
     /* Progression: world title (replaces the logo on the start screen) */
     #world-title {
-      font-size: clamp(34px, 9vmin, 64px);
+      box-sizing: border-box;
+      width: 100%;
+      padding: 0 88px;
+      font-size: clamp(28px, 8vmin, 64px);
       font-weight: 900;
-      letter-spacing: 4px;
+      letter-spacing: clamp(2px, 1vmin, 4px);
       line-height: 1.1;
       margin-bottom: clamp(4px, 1vh, 10px);
       text-align: center;
@@ -222,6 +225,16 @@
       user-select: none;
       pointer-events: none;
     }
+    @media (max-width: 380px) {
+      #world-title { padding: 0 78px; font-size: clamp(26px, 7.5vmin, 36px); letter-spacing: 2px; }
+      #top-right-btns { top: 8px; right: 8px; gap: 6px; }
+      #settings-btn, #stats-btn { width: 38px; height: 38px; border-width: 3px; }
+    }
+    /* Hide world nav while the lock card is open — prevents the arrows
+       overlapping the card (Image 2) and stops the bubble anchoring behind it. */
+    #start-screen.lock-open #world-prev,
+    #start-screen.lock-open #world-nav,
+    #start-screen.lock-open #world-bubble { display: none !important; }
 
     /* World nav: next arrow pinned to the right edge, back arrow to the left,
        both vertically centered on their edge (World labels float above). */
@@ -1574,35 +1587,119 @@
       white-space: nowrap;
     }
     /* World-unlock callout on the game-over screen: "NEW WORLD UNLOCKED!" +
-       a hint guiding the player to the HOME button. */
+       a hint guiding the player to the HOME button. Made rewarding with a
+       white-card pop, golden glow, and confetti burst — not sidelined by PLAY AGAIN. */
     #go-unlock-callout {
+      position: relative;
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 4px;
-      margin-bottom: clamp(10px, 2vh, 16px);
-      animation: goUnlockPop 0.5s ease-out;
+      margin-bottom: clamp(12px, 2.2vh, 18px);
+      background: #fff;
+      border: 3px solid #111;
+      border-radius: 14px;
+      padding: 10px 18px 8px;
+      box-shadow: 5px 5px 0 rgba(0,0,0,0.25), 0 0 20px rgba(255,215,0,0.45);
+      animation: goUnlockPop 0.65s cubic-bezier(0.34,1.56,0.64,1) both;
+      overflow: visible;
+    }
+    #go-unlock-callout::before {
+      content: '✨';
+      position: absolute;
+      top: -10px; left: -6px;
+      font-size: 18px;
+      animation: goUnlockTwinkle 1.2s ease-in-out infinite alternate;
+    }
+    #go-unlock-callout::after {
+      content: '✨';
+      position: absolute;
+      top: -10px; right: -6px;
+      font-size: 18px;
+      animation: goUnlockTwinkle 1.2s ease-in-out 0.6s infinite alternate;
     }
     .go-unlock-title {
-      font-size: clamp(16px, 3.6vmin, 24px);
+      font-size: clamp(15px, 3.4vmin, 22px);
       font-weight: 900;
-      color: #FFD700;
-      -webkit-text-stroke: var(--stroke-width) #111;
-      paint-order: stroke fill;
+      color: #b8860b;
       letter-spacing: 1px;
-      text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25);
+      text-transform: uppercase;
+      line-height: 1.1;
     }
     .go-unlock-hint {
-      font-size: clamp(12px, 2.6vmin, 16px);
-      font-weight: 900;
-      color: #fff;
-      opacity: 0.85;
-      -webkit-text-stroke: var(--stroke-width) #111;
-      paint-order: stroke fill;
+      font-size: clamp(11px, 2.4vmin, 14px);
+      font-weight: 800;
+      color: #444;
+      line-height: 1.2;
     }
     @keyframes goUnlockPop {
-      0% { transform: scale(0.6); opacity: 0; }
-      100% { transform: scale(1); opacity: 1; }
+      0% { transform: scale(0.45) rotate(-2deg); opacity: 0; }
+      60% { transform: scale(1.08) rotate(1deg); opacity: 1; }
+      80% { transform: scale(0.97) rotate(-0.5deg); }
+      100% { transform: scale(1) rotate(0); opacity: 1; }
+    }
+    @keyframes goUnlockTwinkle {
+      0% { transform: scale(0.85) rotate(-8deg); opacity: 0.7; }
+      100% { transform: scale(1.15) rotate(8deg); opacity: 1; }
+    }
+    /* Mini confetti burst spawned inside #go-unlock-callout */
+    .go-unlock-confetti {
+      position: absolute;
+      width: 7px; height: 7px;
+      border-radius: 1px;
+      pointer-events: none;
+      top: 50%; left: 50%;
+    }
+    /* Missions-unlock callout on game-over: same card style but purple accent */
+    #go-missions-callout {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: clamp(12px, 2.2vh, 18px);
+      background: #fff;
+      border: 3px solid #111;
+      border-radius: 14px;
+      padding: 10px 18px 8px;
+      box-shadow: 5px 5px 0 rgba(0,0,0,0.25), 0 0 18px rgba(136,56,200,0.35);
+      animation: goUnlockPop 0.65s cubic-bezier(0.34,1.56,0.64,1) both;
+      overflow: visible;
+    }
+    #go-missions-callout::before {
+      content: '🎯';
+      position: absolute;
+      top: -10px; left: -6px;
+      font-size: 16px;
+      animation: goUnlockTwinkle 1.2s ease-in-out infinite alternate;
+    }
+    #go-missions-callout::after {
+      content: '✨';
+      position: absolute;
+      top: -10px; right: -6px;
+      font-size: 16px;
+      animation: goUnlockTwinkle 1.2s ease-in-out 0.6s infinite alternate;
+    }
+    .go-missions-title {
+      font-size: clamp(15px, 3.4vmin, 22px);
+      font-weight: 900;
+      color: #8838c8;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      line-height: 1.1;
+    }
+    .go-missions-hint {
+      font-size: clamp(11px, 2.4vmin, 14px);
+      font-weight: 800;
+      color: #444;
+      line-height: 1.2;
+    }
+    .go-missions-confetti {
+      position: absolute;
+      width: 7px; height: 7px;
+      border-radius: 1px;
+      pointer-events: none;
+      top: 50%; left: 50%;
     }
     #confetti-container {
       position: absolute;
@@ -2505,26 +2602,21 @@
             <div class="top-btn-wrap">
               <button id="settings-btn" title="Settings">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <g fill="#111">
-                    <circle cx="12" cy="12" r="6.1"/>
-                    <rect x="10.75" y="2.2" width="2.5" height="3.7" rx="1.1" transform="rotate(0 12 12)"/>
-                    <rect x="10.75" y="2.2" width="2.5" height="3.7" rx="1.1" transform="rotate(45 12 12)"/>
-                    <rect x="10.75" y="2.2" width="2.5" height="3.7" rx="1.1" transform="rotate(90 12 12)"/>
-                    <rect x="10.75" y="2.2" width="2.5" height="3.7" rx="1.1" transform="rotate(135 12 12)"/>
-                    <rect x="10.75" y="2.2" width="2.5" height="3.7" rx="1.1" transform="rotate(180 12 12)"/>
-                    <rect x="10.75" y="2.2" width="2.5" height="3.7" rx="1.1" transform="rotate(225 12 12)"/>
-                    <rect x="10.75" y="2.2" width="2.5" height="3.7" rx="1.1" transform="rotate(270 12 12)"/>
-                    <rect x="10.75" y="2.2" width="2.5" height="3.7" rx="1.1" transform="rotate(315 12 12)"/>
-                  </g>
+                  <path fill="#fff" stroke="#111" stroke-width="1.7" stroke-linejoin="round" d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7ZM19.2 12.8l-1.2.35a7 7 0 0 0-.42 1.05l.77.95a1 1 0 0 1-.22 1.45l-.72.72a1 1 0 0 1-1.45.22l-.95-.77a7 7 0 0 0-1.05.42L13.2 19.2a1 1 0 0 1-1 .6 1 1 0 0 1-1-.6l-.35-1.2a7 7 0 0 0-1.05-.42l-.95.77a1 1 0 0 1-1.45-.22l-.72-.72a1 1 0 0 1-.22-1.45l.77-.95a7 7 0 0 0-.42-1.05L4.8 13.2a1 1 0 0 1-.6-1 1 1 0 0 1 .6-1l1.2-.35a7 7 0 0 0 .42-1.05l-.77-.95a1 1 0 0 1 .22-1.45l.72-.72a1 1 0 0 1 1.45-.22l.95.77a7 7 0 0 0 1.05-.42L10.8 4.8a1 1 0 0 1 1-.6 1 1 0 0 1 1 .6l.35 1.2a7 7 0 0 0 1.05.42l.95-.77a1 1 0 0 1 1.45.22l.72.72a1 1 0 0 1 .22 1.45l-.77.95c.17.33.3.68.42 1.05l1.2.35a1 1 0 0 1 .6 1 1 1 0 0 1-.6 1Z"/>
+                  <circle cx="12" cy="12" r="1.7" fill="#111"/>
                 </svg>
               </button>
             </div>
             <div class="top-btn-wrap">
               <button id="stats-btn" title="Stats">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <rect x="4" y="12" width="3.5" height="8" rx="1" fill="#111"/>
-                  <rect x="10.25" y="7" width="3.5" height="13" rx="1" fill="#111"/>
-                  <rect x="16.5" y="3" width="3.5" height="17" rx="1" fill="#111"/>
+                  <rect x="3.5" y="13" width="3.8" height="7.5" rx="1.2" fill="#111"/>
+                  <rect x="10.1" y="9" width="3.8" height="11.5" rx="1.2" fill="#111"/>
+                  <rect x="16.7" y="4.5" width="3.8" height="16" rx="1.2" fill="#111"/>
+                  <path d="M4.2 11.2 10 6.8 13.8 10 20 3.2" fill="none" stroke="#ffd700" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="20" cy="3.2" r="1.7" fill="#ffd700" stroke="#111" stroke-width="1.1"/>
+                  <circle cx="10" cy="6.8" r="1.2" fill="#fff" stroke="#111" stroke-width="1"/>
+                  <circle cx="13.8" cy="10" r="1.2" fill="#fff" stroke="#111" stroke-width="1"/>
                 </svg>
               </button>
             </div>
@@ -2546,24 +2638,13 @@
           <div class="lock-card">
             <button id="lock-close" title="Close">&#x2715;</button>
             <svg class="lock-svg" viewBox="0 0 100 100" aria-hidden="true">
-              <defs>
-                <linearGradient id="lockGold" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%" stop-color="#fff0b8"/>
-                  <stop offset="45%" stop-color="#f5c044"/>
-                  <stop offset="100%" stop-color="#c77e1b"/>
-                </linearGradient>
-                <linearGradient id="lockBody" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%" stop-color="#ffe9a8"/>
-                  <stop offset="50%" stop-color="#f0b53c"/>
-                  <stop offset="100%" stop-color="#b06a10"/>
-                </linearGradient>
-              </defs>
-              <path d="M50 8a18 18 0 0 1 18 18v13H32V26a18 18 0 0 1 18-18z" fill="url(#lockGold)" stroke="#7a4b0d" stroke-width="3"/>
-              <ellipse cx="50" cy="21" rx="8" ry="5" fill="rgba(255,255,255,0.55)"/>
-              <rect x="16" y="39" width="68" height="47" rx="11" fill="url(#lockBody)" stroke="#7a4b0d" stroke-width="3.5"/>
-              <ellipse cx="31" cy="50" rx="7" ry="11" fill="rgba(255,255,255,0.35)"/>
-              <circle cx="50" cy="58" r="8.5" fill="#fff" stroke="#7a4b0d" stroke-width="3"/>
-              <rect x="46.5" y="62" width="7" height="13" rx="3.5" fill="#fff" stroke="#7a4b0d" stroke-width="2.5"/>
+              <rect x="22" y="44" width="56" height="40" rx="12" fill="#fff" stroke="#111" stroke-width="4"/>
+              <path d="M38 44 V30 a12 12 0 0 1 24 0 V44" fill="none" stroke="#111" stroke-width="6" stroke-linecap="round"/>
+              <circle cx="50" cy="60" r="7.5" fill="#ffd700" stroke="#111" stroke-width="2.6"/>
+              <rect x="47.2" y="66.5" width="5.6" height="9.5" rx="2.8" fill="#111"/>
+              <ellipse cx="31" cy="54" rx="6.5" ry="9.5" fill="rgba(255,255,255,0.45)"/>
+              <ellipse cx="50" cy="24" rx="6.5" ry="3.5" fill="rgba(255,255,255,0.55)"/>
+              <circle cx="50" cy="60" r="2.2" fill="#fff" opacity="0.9"/>
             </svg>
             <div id="lock-world-name">????</div>
             <div id="lock-desc"></div>
@@ -2591,6 +2672,10 @@
           <div id="go-unlock-callout" style="display:none">
             <div class="go-unlock-title">NEW WORLD UNLOCKED!</div>
             <div class="go-unlock-hint">Tap HOME to explore it</div>
+          </div>
+          <div id="go-missions-callout" style="display:none">
+            <div class="go-missions-title">MISSIONS UNLOCKED!</div>
+            <div class="go-missions-hint">Visit HOME to check them out</div>
           </div>
           <div class="go-bottom">
             <div class="go-action">

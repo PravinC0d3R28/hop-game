@@ -33,6 +33,7 @@ export class UIManager {
   private continueBtn = this.el<HTMLButtonElement>('go-continue-btn');
   private homeBtn = this.el<HTMLButtonElement>('go-home-btn');
   private goUnlockCallout = this.el<HTMLElement>('go-unlock-callout');
+  private goMissionsCallout = this.el<HTMLElement>('go-missions-callout');
   private shopOverlay = this.el<HTMLElement>('shop-overlay');
   private shopClose = this.el<HTMLElement>('shop-close');
   private shopScroll = this.el<HTMLElement>('shop-scroll');
@@ -591,6 +592,8 @@ export class UIManager {
   }
 
   private scheduleBubble(worldId?: string, locked = true): void {
+    // Don't tease when the lock card is open — the card already explains the lock.
+    if (this.lockOverlay.style.display === 'flex') return;
     this.stopBubble();
     this.bubbleTimer = window.setTimeout(() => {
       this.bubbleTimer = null;
@@ -605,6 +608,7 @@ export class UIManager {
     worldId?: string,
     locked = true
   ): void {
+    if (this.lockOverlay.style.display === 'flex') return;
     // Drop any pending hide/schedule timer so a stale timeout can't fire early
     // and cut this bubble's display short (overlapping cycles would show
     // bubbles back-to-back instead of one at a time).
@@ -1024,11 +1028,81 @@ export class UIManager {
     if (this.unlockQueue.length === 0) return;
     this.goUnlockCallout.style.display = 'flex';
     this.homeBtn.classList.add('go-home-highlight');
+    // Rewarding burst: pop confetti from the callout center so the unlock
+    // feels celebratory even though PLAY AGAIN stays usable underneath.
+    this.spawnGoUnlockConfetti();
   }
 
   private hideWorldUnlockCallout(): void {
     this.goUnlockCallout.style.display = 'none';
     this.homeBtn.classList.remove('go-home-highlight');
+    this.goUnlockCallout.querySelectorAll('.go-unlock-confetti').forEach((n) => n.remove());
+  }
+
+  /** Missions unlock at game-over: same card style as world unlock but purple.
+   *  Non-blocking — PLAY AGAIN stays usable, the spotlight teach (maybeShowMissionsSpotlight)
+   *  fires only when the player visits HOME. World unlock takes precedence if both
+   *  fire on the same run. */
+  private maybeShowMissionsUnlockCallout(): boolean {
+    if (this.unlockQueue.length > 0) return false;
+    if (!this.state.hasPendingMissionsUnlock()) return false;
+    this.goMissionsCallout.style.display = 'flex';
+    this.homeBtn.classList.add('go-home-highlight');
+    this.spawnGoMissionsConfetti();
+    return true;
+  }
+
+  private hideMissionsUnlockCallout(): void {
+    this.goMissionsCallout.style.display = 'none';
+    // Only drop highlight if world callout isn't also showing.
+    if (this.goUnlockCallout.style.display === 'none') {
+      this.homeBtn.classList.remove('go-home-highlight');
+    }
+    this.goMissionsCallout.querySelectorAll('.go-missions-confetti').forEach((n) => n.remove());
+  }
+
+  private spawnGoMissionsConfetti(): void {
+    const colors = ['#8838c8', '#ffd700', '#4a9bd8', '#ff4d4d', '#28a858'];
+    for (let i = 0; i < 12; i++) {
+      const p = document.createElement('div');
+      p.className = 'go-missions-confetti';
+      p.style.background = colors[i % colors.length];
+      p.style.transform = 'translate(-50%, -50%)';
+      this.goMissionsCallout.appendChild(p);
+      const angle = (Math.PI * 2 * i) / 12 + (Math.random() - 0.5) * 0.5;
+      const dist = 38 + Math.random() * 32;
+      gsap.to(p, {
+        x: Math.cos(angle) * dist,
+        y: Math.sin(angle) * dist - 12,
+        rotation: Math.random() * 600 - 300,
+        opacity: 0,
+        duration: 0.65 + Math.random() * 0.3,
+        ease: 'power2.out',
+        onComplete: () => p.remove(),
+      });
+    }
+  }
+
+  private spawnGoUnlockConfetti(): void {
+    const colors = ['#ffd700', '#ffb020', '#ff4d4d', '#4a9bd8', '#28a858', '#8838c8'];
+    for (let i = 0; i < 14; i++) {
+      const p = document.createElement('div');
+      p.className = 'go-unlock-confetti';
+      p.style.background = colors[i % colors.length];
+      p.style.transform = 'translate(-50%, -50%)';
+      this.goUnlockCallout.appendChild(p);
+      const angle = (Math.PI * 2 * i) / 14 + (Math.random() - 0.5) * 0.6;
+      const dist = 42 + Math.random() * 38;
+      gsap.to(p, {
+        x: Math.cos(angle) * dist,
+        y: Math.sin(angle) * dist - 14,
+        rotation: Math.random() * 720 - 360,
+        opacity: 0,
+        duration: 0.7 + Math.random() * 0.35,
+        ease: 'power2.out',
+        onComplete: () => p.remove(),
+      });
+    }
   }
 
   /** Show the next queued unlock intro, one world at a time. */
@@ -1152,6 +1226,11 @@ export class UIManager {
     // World 3's lock gets the lighter touch: a one-time bubble after the first
     // dusk run, never a blocking spotlight teach.
     if (next.id === 'void') return false;
+    // Feature 4 / Requirement 9.4: if Dusk (1000) was already unlocked before the
+    // 250-point nav reveal ever fired, the 250 teach is obsolete — the unlock
+    // dialog + SHOW ME already introduced the nav with full context, so never
+    // retroactively show the generic world-nav spotlight for Dusk.
+    if (next.id === 'dusk' && data.totalScore >= WORLDS[1].unlockScore) return false;
     if (this.state.canSelectWorld(next)) return false;
     if (data.worldSpotlightSeen.includes(next.id)) return false;
     if (data.totalScore < GAME_CONFIG.WORLD_NAV_REVEAL_SCORE) return false;
@@ -1390,12 +1469,15 @@ export class UIManager {
     const remaining = Math.max(0, world.unlockScore - data.totalScore);
     this.lockRemaining.textContent = `${remaining.toLocaleString()} more points to go`;
     this.menuBtns.classList.add('menu-hidden');
+    this.startScreen.classList.add('lock-open');
+    this.stopBubble();
     this.lockOverlay.style.display = 'flex';
   }
 
   private closeLockOverlay(): void {
     if (this.state.isPreviewLocked()) this.revertPreview();
     this.menuBtns.classList.remove('menu-hidden');
+    this.startScreen.classList.remove('lock-open');
     this.lockOverlay.style.display = 'none';
   }
 
@@ -1997,7 +2079,11 @@ export class UIManager {
     this.gameOverScreen.style.display = 'flex';
     // A run that crossed a world-unlock gate surfaces its reveal here: the
     // callout guides the player to HOME, where the unlock dialog fires.
+    // Missions unlock is second priority and non-blocking.
     this.maybeShowWorldUnlockCallout();
+    if (this.goUnlockCallout.style.display === 'none') {
+      this.maybeShowMissionsUnlockCallout();
+    }
 
     if (roundCoins > 0) {
       const duration = Math.min(0.8 + roundCoins * 0.05, 2);
@@ -2019,6 +2105,7 @@ export class UIManager {
     this.goTotalCoins.textContent = '';
     this.goWorld.textContent = '';
     this.hideWorldUnlockCallout();
+    this.hideMissionsUnlockCallout();
   }
 
   setScore(score: number): void {
