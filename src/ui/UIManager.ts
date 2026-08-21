@@ -1211,8 +1211,9 @@ export class UIManager {
   /** Two teach spots, world first: the locked-next-world spotlight, then (once
    *  dismissed) the new-missions spotlight. Runs from renderStartScreen. */
   private maybeShowSpotlights(): void {
+    // Missions first when both are pending (user crossed 250 then 3 runs on same run) — missions is the newer feature
+    if (this.maybeShowMissionsSpotlight()) return;
     if (this.maybeShowWorldSpotlight()) return;
-    this.maybeShowMissionsSpotlight();
   }
 
   /** One-time locked-world spotlight: dims everything except the next-arrow
@@ -2125,7 +2126,8 @@ export class UIManager {
    *  to avoid clutter with keep-hopping, and fire at 10+ is separate (top 18%) so no overlap.
    *  Tiered gold/orange/fire palette, single instance, auto-fades. */
   showPerfectPopup(streak: number): void {
-    if (!this.state.getPlayerData().tutorialDone) return;
+    // At 10, FIRE banner takes the same spot (top 18%) — suppress Perfect x10, counter resumes at 11
+    if (streak === 10) return;
     if (this.perfectPopupActive) {
       gsap.killTweensOf(this.perfectPopupActive);
       this.perfectPopupActive.remove();

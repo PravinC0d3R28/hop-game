@@ -559,15 +559,32 @@ export class Game {
             st.score++;
             const h = target ? target.swayOffset || 0 : 0;
             const f = target ? target.platformX + h : 0;
-            if (Math.abs(st.ballX - f) < GAME_CONFIG.PERFECT_THRESHOLD) {
-              st.perfectStreak++;
-              st.score += st.perfectStreak;
-              this.audio.playPerfect(st.perfectStreak);
-              this.perfectHit(target);
-              this.state.trackPerfectLanding();
-              this.totalStreakReward();
+            const isPerfect = Math.abs(st.ballX - f) < GAME_CONFIG.PERFECT_THRESHOLD;
+            const inTutorial = !this.state.getPlayerData().tutorialDone || this.guidedFirst;
+            if (isPerfect) {
+              if (inTutorial) {
+                // Tutorial one-off: show simple PERFECT x1 feedback without counting streak
+                // (prevents keep-hopping + fire overlap and keeps streak start clean at tile 11)
+                this.audio.playPerfect(1);
+                this.effects.playPerfectEffect(
+                  this.ball.group.position.x,
+                  this.ball.group.position.y,
+                  this.ball.group.position.z,
+                  1,
+                  this.ui.scoreElement
+                );
+                this.ui.showPerfectPopup(1);
+                this.state.trackPerfectLanding();
+              } else {
+                st.perfectStreak++;
+                st.score += st.perfectStreak;
+                this.audio.playPerfect(st.perfectStreak);
+                this.perfectHit(target);
+                this.state.trackPerfectLanding();
+                this.totalStreakReward();
+              }
             } else {
-              st.perfectStreak = 0;
+              if (!inTutorial) st.perfectStreak = 0;
               this.audio.playJump(st.score);
             }
             this.checkMissions();
