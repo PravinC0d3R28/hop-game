@@ -117,6 +117,8 @@ export class UIManager {
    *  so re-renders don't stack multiple schedules). */
   private spotlightTimer: number | null = null;
   private spotlightOpen = false;
+  /** Auto-dismiss timer for an open spotlight — 5s then it closes itself. */
+  private spotlightAutoTimer: number | null = null;
   /** One-shot reveal timers that make the play button disappear the moment a
    *  spotlight becomes eligible, so the teach is actually seen before running. */
   private spotlightBlockTimer: number | null = null;
@@ -1374,6 +1376,13 @@ export class UIManager {
       delay: 0.15,
       ease: 'back.out(2)'
     });
+    // Non-blocking: auto-dismiss after 5s, mistouch is prevented by the overlay
+    // itself (covers screen) until it closes — click anywhere dismisses early.
+    if (this.spotlightAutoTimer !== null) window.clearTimeout(this.spotlightAutoTimer);
+    this.spotlightAutoTimer = window.setTimeout(() => {
+      this.spotlightAutoTimer = null;
+      this.closeSpotlight();
+    }, 5000);
   }
 
   /** Center the spotlight hole on a target button (next-arrow / missions). */
@@ -1392,6 +1401,10 @@ export class UIManager {
     if (!this.spotlightOpen) return;
     this.spotlightOpen = false;
     this.spotlightTarget = null;
+    if (this.spotlightAutoTimer !== null) {
+      window.clearTimeout(this.spotlightAutoTimer);
+      this.spotlightAutoTimer = null;
+    }
     // Dismissing the missions teach counts as finding the missions feature —
     // any tap anywhere re-enables play (no need to open the overlay itself).
     if (this.spotlightKind === 'missions') this.settleMissionsTeach();
@@ -1469,7 +1482,6 @@ export class UIManager {
     const remaining = Math.max(0, world.unlockScore - data.totalScore);
     this.lockRemaining.textContent = `${remaining.toLocaleString()} more points to go`;
     this.menuBtns.classList.add('menu-hidden');
-    this.startScreen.classList.add('lock-open');
     this.stopBubble();
     this.lockOverlay.style.display = 'flex';
   }
@@ -1477,7 +1489,6 @@ export class UIManager {
   private closeLockOverlay(): void {
     if (this.state.isPreviewLocked()) this.revertPreview();
     this.menuBtns.classList.remove('menu-hidden');
-    this.startScreen.classList.remove('lock-open');
     this.lockOverlay.style.display = 'none';
   }
 
