@@ -141,6 +141,17 @@ export class Game {
     };
     this.ui.onPause = () => this.pauseGame();
     this.ui.onResume = () => this.resumeWithCountdown();
+    this.ui.onPauseHome = () => {
+      this.isPaused = false;
+      document.body.classList.remove('game-paused');
+      gsap.globalTimeline.resume();
+      this.ui.hidePauseOverlay();
+      if (this.pauseCountdownTimer !== null) {
+        window.clearTimeout(this.pauseCountdownTimer);
+        this.pauseCountdownTimer = null;
+      }
+      this.returnHome();
+    };
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) this.autoPause();
     });
@@ -447,6 +458,7 @@ export class Game {
     if (!st.isStarted || st.isFailed || this.isPaused) return;
     this.isPaused = true;
     document.body.classList.add('game-paused');
+    gsap.globalTimeline.pause();
     this.ui.hidePauseButton();
     this.ui.showPauseOverlay();
   }
@@ -467,7 +479,6 @@ export class Game {
     const tick = () => {
       if (count > 0) {
         this.ui.showPauseCountdown(count);
-        // pop animation for each number
         gsap.fromTo(this.ui.pauseCountdown, { scale: 0.5, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.25, ease: 'back.out(1.7)' });
         count--;
         this.pauseCountdownTimer = window.setTimeout(tick, 700);
@@ -475,6 +486,7 @@ export class Game {
         this.ui.hidePauseOverlay();
         this.isPaused = false;
         document.body.classList.remove('game-paused');
+        gsap.globalTimeline.resume();
         this.ui.showPauseButton();
         if (this.pauseCountdownTimer !== null) {
           window.clearTimeout(this.pauseCountdownTimer);

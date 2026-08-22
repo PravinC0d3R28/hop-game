@@ -651,7 +651,7 @@
     }
     .perfect-popup {
       position: absolute;
-      left: 50%; top: 18%;
+      left: 50%; top: 28%;
       transform: translate(-50%, -50%) scale(0.4);
       display: flex;
       flex-direction: column;
@@ -731,7 +731,6 @@
       color: #111;
     }
     #pause-resume-btn {
-      margin-top: 12px;
       padding: 10px 24px;
       font-size: clamp(14px,3vmin,18px);
       font-weight: 900;
@@ -740,6 +739,24 @@
       border-radius: 999px;
       background: #8838c8;
       color: #fff;
+      cursor: pointer;
+      box-shadow: 3px 3px 0 #111;
+    }
+    .pause-card-btns {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 16px;
+    }
+    #pause-home-btn {
+      padding: 10px 24px;
+      font-size: clamp(14px,3vmin,18px);
+      font-weight: 900;
+      letter-spacing: 2px;
+      border: 3px solid #111;
+      border-radius: 999px;
+      background: #fff;
+      color: #111;
       cursor: pointer;
       box-shadow: 3px 3px 0 #111;
     }
@@ -2633,12 +2650,15 @@
         <div id="coin-counter"><span class="coin-icon"><img src="Coin.png" alt="coin"></span><span id="coin-amount">0</span></div>
         <div id="perfect-popup-container"></div>
         <button id="pause-btn" title="Pause" aria-label="Pause">⏸</button>
-        <div id="pause-overlay" style="display:none">
+        <div id="pause-overlay">
           <div class="pause-card">
             <h2>PAUSED</h2>
-            <button id="pause-resume-btn">RESUME</button>
+            <div class="pause-card-btns">
+              <button id="pause-resume-btn">RESUME</button>
+              <button id="pause-home-btn">HOME</button>
+            </div>
           </div>
-          <div id="pause-countdown" style="display:none"></div>
+          <div id="pause-countdown"></div>
         </div>
         <div id="start-screen">
           <h1 id="world-title">SUNRISE PEAKS</h1>

@@ -39,6 +39,7 @@ export class UIManager {
   private pauseBtn = this.el<HTMLButtonElement>('pause-btn');
   private pauseOverlay = this.el<HTMLElement>('pause-overlay');
   private pauseResumeBtn = this.el<HTMLButtonElement>('pause-resume-btn');
+  private pauseHomeBtn = this.el<HTMLButtonElement>('pause-home-btn');
   pauseCountdown = this.el<HTMLElement>('pause-countdown');
   private pauseCardEl = this.pauseOverlay.querySelector<HTMLElement>('.pause-card')!;
   private shopOverlay = this.el<HTMLElement>('shop-overlay');
@@ -126,6 +127,7 @@ export class UIManager {
   private spotlightOpen = false;
   /** Auto-dismiss timer for an open spotlight — 5s then it closes itself. */
   private spotlightAutoTimer: number | null = null;
+  private lastFireTime = 0;
   /** One-shot reveal timers that make the play button disappear the moment a
    *  spotlight becomes eligible, so the teach is actually seen before running. */
   private spotlightBlockTimer: number | null = null;
@@ -308,6 +310,7 @@ export class UIManager {
     });
     this.pauseBtn.addEventListener('click', () => this.onPause());
     this.pauseResumeBtn.addEventListener('click', () => this.onResume());
+    this.pauseHomeBtn.addEventListener('click', () => this.onPauseHome());
     this.pauseOverlay.addEventListener('click', (e) => {
       if (e.target === this.pauseOverlay) this.onResume();
     });
@@ -372,6 +375,7 @@ export class UIManager {
   onHome: () => void = () => {};
   onPause: () => void = () => {};
   onResume: () => void = () => {};
+  onPauseHome: () => void = () => {};
   onSkinApplied: () => void = () => {};
   /** Fired when a mission reward is claimed (Game plays the coin jingle). */
   onMissionClaim: () => void = () => {};
@@ -2138,8 +2142,9 @@ export class UIManager {
    *  to avoid clutter with keep-hopping, and fire at 10+ is separate (top 18%) so no overlap.
    *  Tiered gold/orange/fire palette, single instance, auto-fades. */
   showPerfectPopup(streak: number): void {
-    // At 10, FIRE banner takes the same spot (top 18%) — suppress Perfect x10, counter resumes at 11
+    // At 10, FIRE banner takes the same spot — suppress Perfect x10, counter resumes at 11
     if (streak === 10) return;
+    if (Date.now() - this.lastFireTime < 1500) return;
     if (this.perfectPopupActive) {
       gsap.killTweensOf(this.perfectPopupActive);
       this.perfectPopupActive.remove();
@@ -2299,12 +2304,14 @@ export class UIManager {
 
   /** Screen-level fire burst (flash + ember spray) when the 10-streak fires. */
   fireBurst(): void {
+    this.lastFireTime = Date.now();
     this.ensureFireOverlay().burst();
   }
 
   /** FIRE banner on every fresh 10-perfect streak; the shield tagline only on the one-time grant. */
   private showStreakBanner(payload: { milestone: 'fire'; shield: boolean }): void {
     if (payload.milestone !== 'fire') return;
+    this.lastFireTime = Date.now();
     const tagline = payload.shield ? 'Shield raised — one free miss' : '10 in a row — on fire!';
     this.showBanner('FIRE!', tagline, 'streak-banner fire', 2.4, true);
   }
