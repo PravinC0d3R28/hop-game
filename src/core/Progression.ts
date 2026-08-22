@@ -143,9 +143,24 @@ export function getMissionProgressList(
 ): MissionProgressRow[] {
   const deck = [...getDailyMissions(dateKey), ...MISSIONS.filter((m) => m.kind !== 'general')];
   return deck.map((m: MissionConfig) => {
-    const current = m.kind === 'lifetime'
-      ? getMetricValue(m.metric, playerData, run)
-      : (playerData.missionProgress[m.id] ?? 0);
+    let current: number;
+    if (m.kind === 'lifetime') {
+      const raw = getMetricValue(m.metric, playerData, run);
+      const base = (() => {
+        const b = playerData.missionsBaseline;
+        if (!b) return 0;
+        switch (m.metric) {
+          case 'totalScore': return b.totalScore;
+          case 'totalCoinsCollected': return b.totalCoinsCollected;
+          case 'totalPerfects': return b.totalPerfects;
+          case 'bestStreak': return 0; // bestStreak is a max — show raw for progress, gating is done via completed flag
+          default: return 0;
+        }
+      })();
+      current = m.metric === 'bestStreak' ? raw : Math.max(0, raw - base);
+    } else {
+      current = playerData.missionProgress[m.id] ?? 0;
+    }
     const done = playerData.completedMissions.includes(m.id);
     // A world mission is locked only while its OWN world is still locked
     // (unlock score not met) — never merely because another world is selected.

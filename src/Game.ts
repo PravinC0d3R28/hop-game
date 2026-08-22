@@ -68,6 +68,8 @@ export class Game {
   private firstJumpWait = 0;
   /** Wind-up squash tween during the anticipation beat (killed on first jump). */
   private anticipationTween: gsap.core.Animation | null = null;
+  private isPaused = false;
+  private pauseCountdownTimer: number | null = null;
 
   constructor(container: HTMLElement, options: GameOptions = {}) {
     this.gameContainer = container;
@@ -137,6 +139,12 @@ export class Game {
     this.ui.onHome = () => {
       this.returnHome();
     };
+    this.ui.onPause = () => this.pauseGame();
+    this.ui.onResume = () => this.resumeWithCountdown();
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) this.autoPause();
+    });
+    window.addEventListener('blur', () => this.autoPause());
     this.ui.onThemeChanged = () => {
       void this.persistence.save(this.state.getMutablePlayerData());
     };
@@ -296,6 +304,7 @@ export class Game {
     this.ui.hideGameOver();
     this.ui.showScoreUI(true);
     this.ui.showCoinCounter(true);
+    this.ui.showPauseButton();
     if (this.guidedFirst) {
       this.ui.showFirstRunGuide(true);
       this.ui.setGuideStep(0);
@@ -421,12 +430,75 @@ export class Game {
     this.ui.setStreakGlow('off');
     this.ui.showFirstRunGuide(false);
     this.cancelFirstJumpAnticipation();
+    this.ui.hidePauseButton();
+    if (this.isPaused) {
+      this.isPaused = false;
+      document.body.classList.remove('game-paused');
+      this.ui.hidePauseOverlay();
+      if (this.pauseCountdownTimer !== null) {
+        window.clearTimeout(this.pauseCountdownTimer);
+        this.pauseCountdownTimer = null;
+      }
+    }
+  }
+
+  private pauseGame(): void {
+    const st = this.state.getState();
+    if (!st.isStarted || st.isFailed || this.isPaused) return;
+    this.isPaused = true;
+    document.body.classList.add('game-paused');
+    this.ui.hidePauseButton();
+    this.ui.showPauseOverlay();
+  }
+
+  private autoPause(): void {
+    const st = this.state.getState();
+    if (!st.isStarted || st.isFailed || this.isPaused) return;
+    this.pauseGame();
+  }
+
+  private resumeWithCountdown(): void {
+    if (!this.isPaused) return;
+    if (this.pauseCountdownTimer !== null) {
+      window.clearTimeout(this.pauseCountdownTimer);
+      this.pauseCountdownTimer = null;
+    }
+    let count = 3;
+    const tick = () => {
+      if (count > 0) {
+        this.ui.showPauseCountdown(count);
+        // pop animation for each number
+        gsap.fromTo(this.ui.pauseCountdown, { scale: 0.5, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.25, ease: 'back.out(1.7)' });
+        count--;
+        this.pauseCountdownTimer = window.setTimeout(tick, 700);
+      } else {
+        this.ui.hidePauseOverlay();
+        this.isPaused = false;
+        document.body.classList.remove('game-paused');
+        this.ui.showPauseButton();
+        if (this.pauseCountdownTimer !== null) {
+          window.clearTimeout(this.pauseCountdownTimer);
+          this.pauseCountdownTimer = null;
+        }
+      }
+    };
+    tick();
   }
 
   /** Original `By()`: fail sequence. */
   private gameOver(): void {
     const st = this.state.getMutableState();
     st.isFailed = true;
+    this.ui.hidePauseButton();
+    if (this.isPaused) {
+      this.isPaused = false;
+      document.body.classList.remove('game-paused');
+      this.ui.hidePauseOverlay();
+      if (this.pauseCountdownTimer !== null) {
+        window.clearTimeout(this.pauseCountdownTimer);
+        this.pauseCountdownTimer = null;
+      }
+    }
     this.ui.showFirstRunGuide(false);
     this.audio.playGameOver();
     this.effects.clearSpeedLines();
@@ -563,8 +635,8 @@ export class Game {
             const inTutorial = !this.state.getPlayerData().tutorialDone || this.guidedFirst;
             if (isPerfect) {
               if (inTutorial) {
-                // Tutorial one-off: show simple PERFECT x1 feedback without counting streak
-                // (prevents keep-hopping + fire overlap and keeps streak start clean at tile 11)
+                // No streak / no popup during tutorial — prevents spam (every perfect showed x1) and keeps
+                // the tutorial focused on movement; streak starts at tile 11. Only play the subtle dot effect.
                 this.audio.playPerfect(1);
                 this.effects.playPerfectEffect(
                   this.ball.group.position.x,
@@ -573,7 +645,7 @@ export class Game {
                   1,
                   this.ui.scoreElement
                 );
-                this.ui.showPerfectPopup(1);
+                // No showPerfectPopup here — removed to avoid confusing x1 spam; only the dot scales
                 this.state.trackPerfectLanding();
               } else {
                 st.perfectStreak++;

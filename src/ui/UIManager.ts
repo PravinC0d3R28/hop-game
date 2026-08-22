@@ -36,6 +36,11 @@ export class UIManager {
   private goMissionsCallout = this.el<HTMLElement>('go-missions-callout');
   private perfectPopupContainer = this.el<HTMLElement>('perfect-popup-container');
   private perfectPopupActive: HTMLElement | null = null;
+  private pauseBtn = this.el<HTMLButtonElement>('pause-btn');
+  private pauseOverlay = this.el<HTMLElement>('pause-overlay');
+  private pauseResumeBtn = this.el<HTMLButtonElement>('pause-resume-btn');
+  pauseCountdown = this.el<HTMLElement>('pause-countdown');
+  private pauseCardEl = this.pauseOverlay.querySelector<HTMLElement>('.pause-card')!;
   private shopOverlay = this.el<HTMLElement>('shop-overlay');
   private shopClose = this.el<HTMLElement>('shop-close');
   private shopScroll = this.el<HTMLElement>('shop-scroll');
@@ -301,6 +306,11 @@ export class UIManager {
     this.homeBtn.addEventListener('click', () => {
       if (this.gameOverScreen.style.display === 'flex') this.onHome();
     });
+    this.pauseBtn.addEventListener('click', () => this.onPause());
+    this.pauseResumeBtn.addEventListener('click', () => this.onResume());
+    this.pauseOverlay.addEventListener('click', (e) => {
+      if (e.target === this.pauseOverlay) this.onResume();
+    });
     this.worldPrev.addEventListener('pointerdown', (e) => e.stopPropagation());
     this.worldPrev.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -360,6 +370,8 @@ export class UIManager {
   onContinue: () => void = () => {};
   /** Home button on the game-over screen (returns to the start screen). */
   onHome: () => void = () => {};
+  onPause: () => void = () => {};
+  onResume: () => void = () => {};
   onSkinApplied: () => void = () => {};
   /** Fired when a mission reward is claimed (Game plays the coin jingle). */
   onMissionClaim: () => void = () => {};
@@ -2179,6 +2191,32 @@ export class UIManager {
         if (this.perfectPopupActive === el) this.perfectPopupActive = null;
       }
     });
+  }
+
+  showPauseButton(): void {
+    this.pauseBtn.classList.add('visible');
+  }
+  hidePauseButton(): void {
+    this.pauseBtn.classList.remove('visible');
+  }
+  showPauseOverlay(): void {
+    this.pauseOverlay.classList.add('visible');
+    this.pauseCardEl.style.display = '';
+    this.pauseCountdown.style.display = 'none';
+  }
+  hidePauseOverlay(): void {
+    this.pauseOverlay.classList.remove('visible');
+    this.pauseCardEl.style.display = '';
+    this.pauseCountdown.style.display = 'none';
+  }
+  showPauseCountdown(n: number): void {
+    this.pauseCardEl.style.display = 'none';
+    this.pauseCountdown.textContent = String(n);
+    this.pauseCountdown.style.display = 'block';
+    this.pauseOverlay.classList.add('visible');
+  }
+  hidePauseCountdown(): void {
+    this.pauseCountdown.style.display = 'none';
   }
 
   setScore(score: number): void {

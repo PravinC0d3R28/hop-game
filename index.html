@@ -680,6 +680,78 @@
       line-height: 1;
       margin-top: 2px;
     }
+    /* Pause button — top-left during gameplay, manual + auto (tab/notification) */
+    #pause-btn {
+      position: absolute;
+      top: clamp(12px, 2.5vmin, 22px);
+      left: clamp(12px, 2.5vmin, 22px);
+      width: clamp(42px, 8vmin, 56px);
+      height: clamp(42px, 8vmin, 56px);
+      background: rgba(255,255,255,0.92);
+      border: 3px solid #111;
+      border-radius: 50%;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(18px, 3.5vmin, 24px);
+      font-weight: 900;
+      cursor: pointer;
+      z-index: 50;
+      box-shadow: 3px 3px 0 rgba(0,0,0,0.25);
+      pointer-events: auto;
+    }
+    #pause-btn.visible { display: flex; }
+    #pause-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 16px;
+      z-index: 100;
+      pointer-events: auto;
+    }
+    #pause-overlay.visible { display: flex; }
+    .pause-card {
+      background: #fff;
+      border: 4px solid #111;
+      border-radius: 16px;
+      padding: 24px 32px;
+      box-shadow: 6px 6px 0 rgba(0,0,0,0.3);
+      text-align: center;
+    }
+    .pause-card h2 {
+      font-size: clamp(24px,5vmin,36px);
+      font-weight: 900;
+      letter-spacing: 3px;
+      color: #111;
+    }
+    #pause-resume-btn {
+      margin-top: 12px;
+      padding: 10px 24px;
+      font-size: clamp(14px,3vmin,18px);
+      font-weight: 900;
+      letter-spacing: 2px;
+      border: 3px solid #111;
+      border-radius: 999px;
+      background: #8838c8;
+      color: #fff;
+      cursor: pointer;
+      box-shadow: 3px 3px 0 #111;
+    }
+    #pause-countdown {
+      font-size: clamp(48px,12vmin,80px);
+      font-weight: 900;
+      color: #fff;
+      -webkit-text-stroke: 6px #111;
+      paint-order: stroke fill;
+      text-shadow: 4px 4px 0 rgba(0,0,0,0.25);
+    }
+
     #coin-counter {
       position: absolute;
       top: clamp(12px, 4vh, 40px);
@@ -892,7 +964,7 @@
     #frg-drag.left { animation: frgDragGlideLeft 0.9s ease-in-out infinite; }
 
     /* Tutorial handover callout: brief top-center "keep hopping!" pill. */
-    #keep-hopping-callout { position: absolute; top: clamp(10%, 12vh, 14%);
+    #keep-hopping-callout { position: absolute; top: clamp(20%, 22vh, 26%);
       left: 50%;
       transform: translateX(-50%);
       background: #ffd23f;
@@ -2560,6 +2632,14 @@
         <div id="score">0</div>
         <div id="coin-counter"><span class="coin-icon"><img src="Coin.png" alt="coin"></span><span id="coin-amount">0</span></div>
         <div id="perfect-popup-container"></div>
+        <button id="pause-btn" title="Pause" aria-label="Pause">⏸</button>
+        <div id="pause-overlay" style="display:none">
+          <div class="pause-card">
+            <h2>PAUSED</h2>
+            <button id="pause-resume-btn">RESUME</button>
+          </div>
+          <div id="pause-countdown" style="display:none"></div>
+        </div>
         <div id="start-screen">
           <h1 id="world-title">SUNRISE PEAKS</h1>
           <div id="unlock-dialog" class="hidden">
