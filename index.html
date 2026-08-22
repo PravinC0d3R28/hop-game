@@ -71,6 +71,8 @@
     .hidden { display: none !important; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #2a2a2a; }
     body.game-paused * { pointer-events: none !important; }
+    body.game-paused #pause-overlay,
+    body.game-paused #pause-overlay * { pointer-events: auto !important; }
 
     #layout {
       display: flex;
@@ -680,6 +682,9 @@
       line-height: 1;
       margin-top: 2px;
     }
+    @media (min-width: 1024px) {
+      .perfect-popup { top: calc(28% - 5px); }
+    }
     /* Pause button — top-left during gameplay, manual + auto (tab/notification) */
     #pause-btn {
       position: absolute;
@@ -730,35 +735,49 @@
       letter-spacing: 3px;
       color: #111;
     }
-    #pause-resume-btn {
-      padding: 10px 24px;
-      font-size: clamp(14px,3vmin,18px);
-      font-weight: 900;
-      letter-spacing: 2px;
-      border: 3px solid #111;
-      border-radius: 999px;
-      background: #8838c8;
-      color: #fff;
-      cursor: pointer;
-      box-shadow: 3px 3px 0 #111;
-    }
     .pause-card-btns {
       display: flex;
-      gap: 12px;
+      gap: clamp(28px, 7vmin, 56px);
       justify-content: center;
       margin-top: 16px;
     }
+    .pause-action {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(6px, 1.2vh, 10px);
+    }
+    #pause-resume-btn,
     #pause-home-btn {
-      padding: 10px 24px;
-      font-size: clamp(14px,3vmin,18px);
-      font-weight: 900;
-      letter-spacing: 2px;
-      border: 3px solid #111;
-      border-radius: 999px;
-      background: #fff;
-      color: #111;
+      width: clamp(64px, 14vmin, 88px);
+      height: clamp(64px, 14vmin, 88px);
+      padding: 0;
+      background: #8838c8;
+      border: clamp(4px, 1vmin, 6px) solid #111;
+      border-radius: 50%;
       cursor: pointer;
-      box-shadow: 3px 3px 0 #111;
+      box-shadow: 5px 5px 0 rgba(0,0,0,0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    #pause-resume-btn svg,
+    #pause-home-btn svg {
+      width: 52%;
+      height: 52%;
+    }
+    #pause-resume-btn:hover,
+    #pause-home-btn:hover { transform: translateY(-2px); box-shadow: 7px 7px 0 rgba(0,0,0,0.25); }
+    #pause-resume-btn:active,
+    #pause-home-btn:active { transform: translateY(1px); box-shadow: 3px 3px 0 rgba(0,0,0,0.25); }
+    .pause-action-label {
+      font-size: clamp(12px, 2.6vmin, 16px);
+      font-weight: 700;
+      color: #111;
+      letter-spacing: 1px;
+      white-space: nowrap;
     }
     #pause-countdown {
       font-size: clamp(48px,12vmin,80px);
@@ -2654,8 +2673,14 @@
           <div class="pause-card">
             <h2>PAUSED</h2>
             <div class="pause-card-btns">
-              <button id="pause-resume-btn">RESUME</button>
-              <button id="pause-home-btn">HOME</button>
+              <div class="pause-action">
+                <button id="pause-resume-btn" aria-label="Resume"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.14v14l11-7z"/></svg></button>
+                <span class="pause-action-label">RESUME</span>
+              </div>
+              <div class="pause-action">
+                <button id="pause-home-btn" aria-label="Home"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg></button>
+                <span class="pause-action-label">HOME</span>
+              </div>
             </div>
           </div>
           <div id="pause-countdown"></div>

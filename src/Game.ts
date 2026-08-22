@@ -315,6 +315,7 @@ export class Game {
     this.ui.hideGameOver();
     this.ui.showScoreUI(true);
     this.ui.showCoinCounter(true);
+    this.ui.setScore(0);
     this.ui.showPauseButton();
     if (this.guidedFirst) {
       this.ui.showFirstRunGuide(true);

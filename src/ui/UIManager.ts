@@ -2144,7 +2144,7 @@ export class UIManager {
   showPerfectPopup(streak: number): void {
     // At 10, FIRE banner takes the same spot — suppress Perfect x10, counter resumes at 11
     if (streak === 10) return;
-    if (Date.now() - this.lastFireTime < 1500) return;
+    if (Date.now() - this.lastFireTime < 2600) return;
     if (this.perfectPopupActive) {
       gsap.killTweensOf(this.perfectPopupActive);
       this.perfectPopupActive.remove();
@@ -2158,10 +2158,16 @@ export class UIManager {
     const value = document.createElement('div');
     value.className = 'perfect-popup-streak';
     value.textContent = `×${streak}`;
-    // Tiered color scheme
+    // Tiered color scheme — green 20+, purple 30+ added per request
     let color = '#fff';
     let glow = 'none';
-    if (streak >= 10) {
+    if (streak >= 30) {
+      color = '#a855f7';
+      glow = '0 0 14px rgba(168,85,247,0.7)';
+    } else if (streak >= 20) {
+      color = '#22c55e';
+      glow = '0 0 14px rgba(34,197,94,0.7)';
+    } else if (streak >= 10) {
       color = '#ff4d4d';
       glow = '0 0 14px rgba(255,77,61,0.7)';
     } else if (streak >= 7) {
