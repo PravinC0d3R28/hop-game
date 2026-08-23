@@ -2204,6 +2204,15 @@ export class UIManager {
     });
   }
 
+  clearPerfectPopups(): void {
+    if (this.perfectPopupActive) {
+      gsap.killTweensOf(this.perfectPopupActive);
+      this.perfectPopupActive.remove();
+      this.perfectPopupActive = null;
+    }
+    this.perfectPopupContainer.innerHTML = '';
+  }
+
   showPauseButton(): void {
     this.pauseBtn.classList.add('visible');
   }

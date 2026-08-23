@@ -443,9 +443,11 @@ export class Game {
     this.ui.showFirstRunGuide(false);
     this.cancelFirstJumpAnticipation();
     this.ui.hidePauseButton();
+    this.ui.clearPerfectPopups();
     if (this.isPaused) {
       this.isPaused = false;
       document.body.classList.remove('game-paused');
+      gsap.globalTimeline.resume();
       this.ui.hidePauseOverlay();
       if (this.pauseCountdownTimer !== null) {
         window.clearTimeout(this.pauseCountdownTimer);

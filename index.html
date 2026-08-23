@@ -752,7 +752,6 @@
       width: clamp(64px, 14vmin, 88px);
       height: clamp(64px, 14vmin, 88px);
       padding: 0;
-      background: #8838c8;
       border: clamp(4px, 1vmin, 6px) solid #111;
       border-radius: 50%;
       cursor: pointer;
@@ -760,9 +759,10 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #fff;
       transition: transform 0.1s, box-shadow 0.1s;
     }
+    #pause-resume-btn { background: #ffd700; color: #111; }
+    #pause-home-btn { background: #22c55e; color: #fff; }
     #pause-resume-btn svg,
     #pause-home-btn svg {
       width: 52%;
@@ -2668,7 +2668,7 @@
         <div id="score">0</div>
         <div id="coin-counter"><span class="coin-icon"><img src="Coin.png" alt="coin"></span><span id="coin-amount">0</span></div>
         <div id="perfect-popup-container"></div>
-        <button id="pause-btn" title="Pause" aria-label="Pause">⏸</button>
+        <button id="pause-btn" title="Pause" aria-label="Pause"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="7" y="5" width="4.5" height="14" rx="1.5"/><rect x="12.5" y="5" width="4.5" height="14" rx="1.5"/></svg></button>
         <div id="pause-overlay">
           <div class="pause-card">
             <h2>PAUSED</h2>
