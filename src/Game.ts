@@ -70,6 +70,15 @@ export class Game {
   private anticipationTween: gsap.core.Animation | null = null;
   private isPaused = false;
   private pauseCountdownTimer: number | null = null;
+  /** Workstream D: snapshot taken before each teaching hop so a miss retries
+   *  the SAME lesson in place instead of restarting the tutorial. */
+  private guidedCheckpoint: {
+    lessonIndex: number;
+    sourcePlatformIndex: number;
+    sourceX: number;
+    scoreBeforeAttempt: number;
+    coinsBeforeAttempt: number;
+  } | null = null;
 
   constructor(container: HTMLElement, options: GameOptions = {}) {
     this.gameContainer = container;
@@ -474,9 +483,9 @@ export class Game {
     this.pauseGame();
   }
 
-  /** Clear the paused state and restart the gsap timeline. Callers that are
-   *  ending the run anyway (home / game over) kill the ball tweens first so
-   *  nothing stale fights the reset/fall animations. */
+  /** Clear the paused state and restart the gsap timeline. Deliberately does
+   *  NOT re-show the pause button — callers that are ending the run (game
+   *  over / home) must stay button-free; only resume + beginRun re-show it. */
   private unpause(): void {
     this.isPaused = false;
     document.body.classList.remove('game-paused');
@@ -485,7 +494,6 @@ export class Game {
       window.clearTimeout(this.pauseCountdownTimer);
       this.pauseCountdownTimer = null;
     }
-    this.ui.showPauseButton();
   }
 
   /** Resume through a 3-2-1 countdown (blur overlay stays up, card swaps to the
@@ -503,6 +511,7 @@ export class Game {
       } else {
         this.ui.hidePauseOverlay();
         this.unpause();
+        this.ui.showPauseButton();
       }
     };
     tick();
@@ -590,6 +599,18 @@ export class Game {
     const y = GAME_CONFIG.PLATFORM_HEIGHT / 2 + GAME_CONFIG.BALL_RADIUS;
     const startZ = current ? current.z : r * GAME_CONFIG.PLATFORM_SPACING_Z;
     const endZ = target ? target.z : this.platforms.getNextZ();
+
+    // Workstream D (11.3): checkpoint the teaching hop so a miss can restore
+    // THIS lesson instead of restarting the whole tutorial.
+    if (this.guidedFirst && this.guidedStep < this.GUIDE_LESSONS) {
+      this.guidedCheckpoint = {
+        lessonIndex: this.guidedStep,
+        sourcePlatformIndex: r,
+        sourceX: current ? current.platformX : 0,
+        scoreBeforeAttempt: st.score,
+        coinsBeforeAttempt: st.roundCoins
+      };
+    }
 
     this.ball.performJump(
       { startZ, endZ, startY: y, endY: y, bounceHeight: bounce, duration },
@@ -967,35 +988,56 @@ export class Game {
   }
 
   /**
-   * Tutorial fallback: the player missed during the guided segment. Instead of
-   * a real game over, respawn the guided run from the start tile and let them
-   * retry in a loop — the tutorial only hands over after the teaching hops.
+   * Tutorial fallback (Workstream D): the player missed a teaching hop. Retry
+   * the SAME lesson in place — restore the pre-attempt checkpoint (score,
+   * coins, ball on the source platform), clear transient flags, keep the
+   * lesson index and the guided geometry. No game over, no runsPlayed.
    */
   private guidedRetry(): void {
     const st = this.state.getMutableState();
-    // Block the auto-jump chain from continuing into the void: the finally in
-    // jump() calls jump() again, which must no-op while we re-arm the first tap.
-    st.isJumping = true;
+    const cp = this.guidedCheckpoint;
+    // Cancel any active ball tweens (11.4: cancel active ball/failure tweens).
+    gsap.killTweensOf(this.ball.group.position);
+    gsap.killTweensOf(this.ball.group.scale);
+    // Transient jump/failure flags (11.4).
     st.isFailed = false;
-    this.resetEntities();
-    st.score = 0;
-    st.roundCoins = 0;
+    // Restore the checkpoint: lesson progress, score and coins as they were
+    // before the failed attempt — farming by intentional misses is impossible
+    // because nothing was banked (11.4/11.5).
+    if (cp) {
+      st.currentStep = cp.sourcePlatformIndex;
+      st.score = cp.scoreBeforeAttempt;
+      st.roundCoins = cp.coinsBeforeAttempt;
+    }
     st.perfectStreak = 0;
     st.shieldActive = false;
     st.shieldAwarded = false;
     st.runPerfects = 0;
     st.runCoins = 0;
     st.maxStreak = 0;
-    st.isWaitingForTap = true;
-    this.guidedStep = 0;
+    // Ball back onto the source platform, centered, at rest height (11.4).
+    const src = this.platforms.getPlatformByIndex(st.currentStep);
+    const restY = GAME_CONFIG.PLATFORM_HEIGHT / 2 + GAME_CONFIG.BALL_RADIUS;
+    const sx = cp ? cp.sourceX : 0;
+    const sz = src ? src.z : st.currentStep * GAME_CONFIG.PLATFORM_SPACING_Z;
+    this.ball.group.position.set(sx, restY, sz);
+    this.ball.group.scale.set(1, 1, 1);
+    st.xTarget = sx;
+    st.ballX = sx;
+    // Keep the course seed and guided geometry — NO resetEntities here, the
+    // failed target keeps its planned layout (11.2/11.4).
+    // Re-display the same lesson cue (11.2/11.4).
     this.guideDragDirectionStep = -1;
-    this.ui.setScore(0);
+    this.ui.setScore(st.score);
     this.ui.showFirstRunGuide(true);
-    this.ui.showTutorialRetry();
+    this.ui.setGuideStep(this.guidedStep);
     this.updateFirstRunGuide();
-    // The chain stays parked behind isJumping until the player's first tap:
-    // firstJump() clears the flag and starts the hop. Nothing else unblocks
+    this.ui.showTutorialRetry();
+    // Park the chain and wait for the retry tap (same flow as lesson 1):
+    // firstJump() clears isJumping and starts the hop. Nothing else unblocks
     // it, so the ball cannot move (or be steered) while it waits.
+    st.isJumping = true;
+    st.isWaitingForTap = true;
   }
 
   // ---- dev panel helpers (dev-only server builds) ----

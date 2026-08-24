@@ -143,25 +143,34 @@ export function getMissionProgressList(
 ): MissionProgressRow[] {
   const deck = [...getDailyMissions(dateKey), ...MISSIONS.filter((m) => m.kind !== 'general')];
   return deck.map((m: MissionConfig) => {
+    const done = playerData.completedMissions.includes(m.id);
     let current: number;
     if (m.kind === 'lifetime') {
       const raw = getMetricValue(m.metric, playerData, run);
-      const base = (() => {
+      if (m.metric === 'bestStreak') {
+        // A personal best is a MAX, not a counter — it cannot be re-earned, so
+        // the unlock baseline does not apply (pre-unlock bests are
+        // grandfathered). Display caps at the target: never "23/15".
+        current = Math.min(m.target, raw);
+      } else {
         const b = playerData.missionsBaseline;
-        if (!b) return 0;
-        switch (m.metric) {
-          case 'totalScore': return b.totalScore;
-          case 'totalCoinsCollected': return b.totalCoinsCollected;
-          case 'totalPerfects': return b.totalPerfects;
-          case 'bestStreak': return 0; // bestStreak is a max — show raw for progress, gating is done via completed flag
-          default: return 0;
-        }
-      })();
-      current = m.metric === 'bestStreak' ? raw : Math.max(0, raw - base);
+        const base = (() => {
+          if (!b) return 0;
+          switch (m.metric) {
+            case 'totalScore': return b.totalScore;
+            case 'totalCoinsCollected': return b.totalCoinsCollected;
+            case 'totalPerfects': return b.totalPerfects;
+            default: return 0;
+          }
+        })();
+        // Done rows always show a full bar (a debug total reset could
+        // otherwise leave a done mission reading partial); live rows cap at
+        // the target so the bar/text can never overflow it.
+        current = done ? m.target : Math.min(m.target, Math.max(0, raw - base));
+      }
     } else {
       current = playerData.missionProgress[m.id] ?? 0;
     }
-    const done = playerData.completedMissions.includes(m.id);
     // A world mission is locked only while its OWN world is still locked
     // (unlock score not met) — never merely because another world is selected.
     // Done missions always read as done (checkmark) wherever they are.

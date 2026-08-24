@@ -373,8 +373,10 @@ export class GameStateManager {
         const base = this.getLifetimeBaseline(mission.metric);
         let achieved = false;
         if (mission.metric === 'bestStreak') {
-          // bestStreak is a max, not a sum — complete only if the threshold was crossed after unlock
-          achieved = cur >= mission.target && base < mission.target;
+          // Max metric: a personal best already at/above the target counts even
+          // if it was set before missions unlocked — a max cannot be re-earned,
+          // so a baseline gate here would make the mission permanently dead.
+          achieved = cur >= mission.target;
         } else {
           achieved = cur - base >= mission.target;
         }

@@ -2089,6 +2089,8 @@ export class UIManager {
 
   /** Mirror `zy(r)`: game-over overlay, coins count-up, confetti flag. */
   showGameOver(isNewBest: boolean): void {
+    // The pause button belongs to an active run only — never on this screen.
+    this.hidePauseButton();
     const data = this.state.getPlayerData();
     const score = this.state.getState().score;
     const roundCoins = this.state.getState().roundCoins;
