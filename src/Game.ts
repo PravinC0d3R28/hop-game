@@ -142,14 +142,12 @@ export class Game {
     this.ui.onPause = () => this.pauseGame();
     this.ui.onResume = () => this.resumeWithCountdown();
     this.ui.onPauseHome = () => {
-      this.isPaused = false;
-      document.body.classList.remove('game-paused');
-      gsap.globalTimeline.resume();
+      // Abandon the run: drop the frozen ball tweens (returnHome kills and
+      // resets everything), clear pause state, go to the start screen.
+      gsap.killTweensOf(this.ball.group.position);
+      gsap.killTweensOf(this.ball.group.scale);
+      this.unpause();
       this.ui.hidePauseOverlay();
-      if (this.pauseCountdownTimer !== null) {
-        window.clearTimeout(this.pauseCountdownTimer);
-        this.pauseCountdownTimer = null;
-      }
       this.returnHome();
     };
     document.addEventListener('visibilitychange', () => {
@@ -445,17 +443,20 @@ export class Game {
     this.ui.hidePauseButton();
     this.ui.clearPerfectPopups();
     if (this.isPaused) {
-      this.isPaused = false;
-      document.body.classList.remove('game-paused');
-      gsap.globalTimeline.resume();
+      this.unpause();
       this.ui.hidePauseOverlay();
-      if (this.pauseCountdownTimer !== null) {
-        window.clearTimeout(this.pauseCountdownTimer);
-        this.pauseCountdownTimer = null;
-      }
     }
   }
 
+  /** Freeze gameplay motion. ONLY the ball's tweens are paused — never
+   *  gsap.globalTimeline, which would also freeze UI animations (the resume
+   *  countdown pop, banners) and broke the 3-2-1 (only "3" ever rendered).
+   *  Everything else is already frozen by body.game-paused: gameLoop
+   *  early-returns (steering, sway, camera, guide) and InputSystem ignores
+   *  pointers. Pausing the ball's tweens stops it mid-jump-arc, and because
+   *  the auto-chain continues from each tween's onComplete, a paused timeline
+   *  means the chain cannot advance either. UI that must animate while paused
+   *  (the 3-2-1 countdown pop) uses CSS animations, which gsap cannot freeze. */
   private pauseGame(): void {
     const st = this.state.getState();
     if (!st.isStarted || st.isFailed || this.isPaused) return;
@@ -466,35 +467,42 @@ export class Game {
     this.ui.showPauseOverlay();
   }
 
+  /** Auto-pause on tab hide / window blur (manual button routes here too). */
   private autoPause(): void {
     const st = this.state.getState();
     if (!st.isStarted || st.isFailed || this.isPaused) return;
     this.pauseGame();
   }
 
-  private resumeWithCountdown(): void {
-    if (!this.isPaused) return;
+  /** Clear the paused state and restart the gsap timeline. Callers that are
+   *  ending the run anyway (home / game over) kill the ball tweens first so
+   *  nothing stale fights the reset/fall animations. */
+  private unpause(): void {
+    this.isPaused = false;
+    document.body.classList.remove('game-paused');
+    gsap.globalTimeline.resume();
     if (this.pauseCountdownTimer !== null) {
       window.clearTimeout(this.pauseCountdownTimer);
       this.pauseCountdownTimer = null;
     }
+    this.ui.showPauseButton();
+  }
+
+  /** Resume through a 3-2-1 countdown (blur overlay stays up, card swaps to the
+   *  number) so the player can re-orient before the ball un-freezes. The pop
+   *  is a CSS animation — a paused gsap timeline can't suppress it (that was
+   *  the "only 3 renders" bug). */
+  private resumeWithCountdown(): void {
+    if (!this.isPaused || this.pauseCountdownTimer !== null) return;
     let count = 3;
     const tick = () => {
       if (count > 0) {
         this.ui.showPauseCountdown(count);
-        gsap.fromTo(this.ui.pauseCountdown, { scale: 0.5, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.25, ease: 'back.out(1.7)' });
         count--;
         this.pauseCountdownTimer = window.setTimeout(tick, 700);
       } else {
         this.ui.hidePauseOverlay();
-        this.isPaused = false;
-        document.body.classList.remove('game-paused');
-        gsap.globalTimeline.resume();
-        this.ui.showPauseButton();
-        if (this.pauseCountdownTimer !== null) {
-          window.clearTimeout(this.pauseCountdownTimer);
-          this.pauseCountdownTimer = null;
-        }
+        this.unpause();
       }
     };
     tick();
@@ -506,14 +514,13 @@ export class Game {
     st.isFailed = true;
     this.ui.hidePauseButton();
     if (this.isPaused) {
-      this.isPaused = false;
-      document.body.classList.remove('game-paused');
+      this.unpause();
       this.ui.hidePauseOverlay();
-      if (this.pauseCountdownTimer !== null) {
-        window.clearTimeout(this.pauseCountdownTimer);
-        this.pauseCountdownTimer = null;
-      }
     }
+    // Kill any lingering jump tweens (e.g. frozen by a just-cleared pause) so
+    // they can't fight the fall animation on the same targets.
+    gsap.killTweensOf(this.ball.group.position);
+    gsap.killTweensOf(this.ball.group.scale);
     this.ui.showFirstRunGuide(false);
     this.audio.playGameOver();
     this.effects.clearSpeedLines();

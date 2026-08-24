@@ -2234,6 +2234,10 @@ export class UIManager {
     this.pauseCountdown.textContent = String(n);
     this.pauseCountdown.style.display = 'block';
     this.pauseOverlay.classList.add('visible');
+    // Re-trigger the CSS pop for each number (class toggle + reflow restart)
+    this.pauseCountdown.classList.remove('pop');
+    void this.pauseCountdown.offsetWidth;
+    this.pauseCountdown.classList.add('pop');
   }
   hidePauseCountdown(): void {
     this.pauseCountdown.style.display = 'none';
