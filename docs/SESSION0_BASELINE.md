@@ -63,6 +63,10 @@ Largest shipped asset: `arrow-left.png` (415 kB). Largest JS: `three.js` chunk
 > `Coin.png`, `crown.svg`, `arrow-left.png`, `arrow-right.png`,
 > `tap-to-play.gif`, `cart.png`. A favicon was also declared (`crown.svg`) so the
 > browser no longer 404s on `/favicon.ico`.
+>
+> **Update (2026-08-21):** the favicon is now `favicon.png` (256×256 pixel-art
+> ball-over-platform, 13 kB) — the tab icon no longer uses `crown.svg`, which
+> remains in use as the in-game crown image. Shipped static assets are now 7.
 
 ## 3. Browser load (production build via `vite preview`, localhost:4173)
 
