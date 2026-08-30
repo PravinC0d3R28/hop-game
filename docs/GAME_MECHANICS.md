@@ -1,6 +1,7 @@
 # HOP — Verified Game Mechanics
 
-Behavioral spec extracted from the original `BounceTiles` minified source.
+Behavioral spec extracted from the original `BounceTiles` minified source and
+Week 1 polish (one-action Play, Play Again, pause, perfect popups, checkpoint tutorial).
 All constants reference `GameConfig.ts` in the HOP implementation.
 
 ---
@@ -11,6 +12,9 @@ All constants reference `GameConfig.ts` in the HOP implementation.
 BOOT → SPLASH (1.5s fade) → START SCREEN
 START SCREEN → (Play) → ANTICIPATION (game started, ball winds up at platform 0)
 ANTICIPATION → (auto after 0.4s, or a tap) → PLAYING (first jump fired)
+PLAYING → (pause btn / visibility hidden / window blur) → PAUSED (blur + PAUSED card, ball frozen via globalTimeline pause + gameLoop guard)
+PAUSED → (Resume + 3-2-1) → PLAYING
+PAUSED → (Home) → START SCREEN (perfect popups cleared, pause state reset)
 PLAYING → (miss) → GAME OVER (shake, fall, 600ms delay, overlay)
 GAME OVER → (continue) → reset → START SCREEN
 ```

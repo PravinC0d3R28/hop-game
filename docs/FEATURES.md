@@ -3,13 +3,13 @@
 > **What this is:** the complete, accurate list of everything implemented in HOP
 > right now. Unlike `docs/REFERENCE.md` (which describes the pre-overhaul base
 > game), this file is maintained against the live code. If a feature is listed
-> here, it exists in `src/` today. Verify with `npm run typecheck` +
-> `npm run test` (172 tests across 12 files).
+> here, it exists in `src/` today.
 >
 > Related docs: `GAME_MECHANICS.md` (exact formulas), `REQUIREMENTS.md` (overhaul
 > spec), `IMPLEMENTATION_PLAN.md` (iteration history), `DEV_COMMANDS.md`
 > (debug helpers), `CUSTOMIZATION_GUIDE.md` (tuning surface), `LOADING_AND_TUTORIAL.md`
 > (onboarding design).
+> Verify with `npm run typecheck` + `npm run test` (181 tests across 13 files).
 
 ---
 
@@ -259,24 +259,31 @@ On a miss:
   `showFPS`, `showHitboxes`.
 - **Test tip:** `Math.random = () => 0.5` forces straight deterministic lanes.
 
-## 14. Test Suite (12 files, 172 tests)
+## 14. Test Suite (13 files, 181 tests)
 
 | File | Tests | Covers |
 |---|---|---|
 | config.test.ts | 9 | verified constants |
 | mechanics.test.ts | 11 | difficulty curves + scoring |
-| state.test.ts | 22 | sanitize/merge/economy/missions state |
+| state.test.ts | 23 | sanitize/merge/economy/missions state + baseline |
 | difficulty.test.ts | 15 | sawtooth ramps per world |
 | worlds.test.ts | 12 | unlock thresholds, selection, tier math |
 | platforms.test.ts | 15 | sway, recycling, hitboxes |
 | streak.test.ts | 10 | streak tiers + shield |
-| missions.test.ts | 35 | daily pool, banking, claims, semantics |
+| missions.test.ts | 37 | daily pool, banking, claims, semantics, baseline |
 | progression.test.ts | 18 | ledger, mission rows, countdown |
 | persistence.test.ts | 11 | save/load/merge round-trips |
 | effects.test.ts | 11 | perfect fx, speed lines, failure flag, debris |
 | audio.test.ts | 3 | procedural presets |
+| input.test.ts | 6 | duplicate-press guard, first-jump anticipation |
 
 ---
+
+## 15. Pause & Flow Polish
+
+- **Pause:** Top-left `⏸` button visible only during a run; manual tap or auto `visibilitychange`/`blur` freezes `gameLoop` + `gsap.globalTimeline` (ball mid-jump frozen), shows `PAUSED` card (`Resume` yellow + `Home` green, circular) + `3-2-1` CSS pop countdown with blur overlay. Resume re-shows pause button; Home clears perfect popups and returns to start screen.
+- **Perfect ×N pop-ups:** Tiered colors (`×1-2` white, `×3-4` gold, `×5-6` orange, `×7-9` orange-red, `×10+` fire red, `20+` green, `30+` purple) at `28%` (laptop `28%-5px`), `FIRE!` at `30%`, `keep-hopping` at `20-26%` — mutually exclusive via `lastFireTime` 2.6s suppression. Hidden during tutorial (streak starts at tile 11).
+- **Tutorial checkpoint retries:** Miss on lessons 1–5 restores same lesson in place (`GuidedCheckpoint`: source platform, score/coins before attempt, ball reset) — no game over, no farming. Ramp misses (6–10) are normal game over. `tutorialDone` persisted.
 
 ## Key files (quick map)
 
