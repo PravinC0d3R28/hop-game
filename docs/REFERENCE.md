@@ -132,6 +132,8 @@ START SCREEN            (game state: isStarted=false)
 ANTICIPATION            (normal runs: ball winds up on platform 0)
  └─ auto after 0.4s (or a tap) → firstJump() → jump()   isWaitingForTap=false
 PLAYING                 (auto-chain: each jump calls the next jump)
+ ├─ pause → PAUSED      (auto or manual; freezes GSAP global timeline)
+ ├─ resume → 3-2-1 countdown → unpause → PLAYING
  └─ miss → gameOver()
 GAME OVER               (isFailed=true: shake, ball falls, 600ms delay, overlay)
   └─ PLAY AGAIN → retryRun()  (500ms debounce) → same world, new seed, one-action prep
@@ -148,6 +150,10 @@ Key flow methods live in `src/Game.ts`:
 | `beginRun()` (Game.ts:287) | — | Shared run-prep: stop demo, reset entities, start state, arm first jump |
 | `retryRun()` (Game.ts:358) | — | PLAY AGAIN: same-world instant retry (skips start-screen gates) |
 | `returnHome()` (Game.ts:372) | `Vy` | HOME: full reset → start screen + attract demo |
+| `pauseGame()` / `autoPause()` | — | Pauses GSAP timeline + sets `body.game-paused`; triggers on button or visibility loss |
+| `unpause()` | — | Resumes GSAP timeline + clears pause state |
+| `resumeWithCountdown()` | — | 3-2-1 CSS pop animation before `unpause()` |
+| `guidedRetry()` | — | Tutorial checkpoint restore (re-arms lesson without resetting run) |
 | `firstJump()` (Game.ts:153) | first-tap | Fires the first `jump()` (auto-fire or tap-cancel) |
 | `jump()` (Game.ts:220) | `Qd` | One jump + landing logic + auto-chains next jump |
 | `gameOver()` (Game.ts:198) | `By` | Fail sequence: shake, fall, best-score, overlay |
@@ -453,7 +459,8 @@ suspended when tab hidden.
 - **Perfect hit** — diamond pulse (opacity yoyo + scale 1.8 yoyo), expanding
   gold ring (`6 + streak×0.5`), gold screen flash
   (`rgba(255,215,0, min(0.15+streak×0.03, 0.35))`), 8-gold-burst (streak ≥ 3),
-  score elastic pop.
+  score elastic pop. Perfect ×N popups are gated on tutorial end (streak tracked from hop 11).
+  Popups use tiered styling: white → gold → orange → fire-red → green (20+) → purple (30+).
 - **Speed lines** — spawn when intensity > 0, batch `1 + floor(intensity×3)`,
   interval `0.03 / max(0.1, intensity)`, max 30.
 - **Fire streak (10)** — `FireOverlay` (screen-space additive 2D canvas:

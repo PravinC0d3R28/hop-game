@@ -262,6 +262,8 @@ Procedural textures:
 | `ky` | confetti (60 pieces, 7 colors) |
 | `Gy` | start game (hide menus, show score) |
 | `Vy` | full reset (re-init pools) |
+| — | `guidedRetry()` (added for Workstream D checkpoint retries) |
+| — | `pauseGame()` / `resumeWithCountdown()` (added for Workstream B pause system) |
 | `uc` | rebuild shop UI |
 | `Hy` | rotate/bob coins |
 | `ip` | **main loop** |
