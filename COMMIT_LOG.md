@@ -43,4 +43,4 @@
 | 2026-08-08 | `6b4b3be` | docs: restructure AGENT_RULES.md (vision, working agreement, playtesting policy, model/agent routing, HOP technical notes) + init COMMIT_LOG.md | AGENT_RULES.md rewritten from rough notes into structured sections aligned with current vision; COMMIT_LOG.md created per the commit-list rule. |
 
 b 2 3 d 0 1 0   d o c s :   u p d a t e   R E F E R E N C E   a n d   A R C H I T E C T U R E   w i t h   p a u s e   a n d   c h e c k p o i n t   s y s t e m s  
- 
+ 310bf03 docs: record week 2 size and frame baseline (181 tests, 4.67MB dist, 60fps both viewports; icon PNGs flagged as P1 size finding)
