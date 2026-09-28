@@ -1,8 +1,9 @@
-// Week 2 §10-11: world-local platform/coin palettes. The override is plain
-// data over pure math (no WebGL needed), so it is pinned here: the Day 2/3
-// passes must keep platformColor/addCoin honoring the active look.
+// Week 2 §8: look-data guards. These pin the data contract the Day 1-3
+// paint passes must keep: complete looks per world, an honest Dusk cue, a
+// Void contrast tripwire, and no silent fallback for unknown world ids.
 import { describe, it, expect } from 'vitest';
-import { PlatformEntity } from '../src/entities/PlatformEntity';
+import { PlatformEntity, deriveSideColor } from '../src/entities/PlatformEntity';
+import { luminance } from '../src/config/WorldLooks';
 
 describe('PlatformEntity world palettes', () => {
   it('cycles the world-local face list when set', () => {
@@ -32,5 +33,11 @@ describe('PlatformEntity world palettes', () => {
     PlatformEntity.setFacePalette([]);
     expect(PlatformEntity.facePalette).toBeNull();
     PlatformEntity.setFacePalette(null);
+  });
+
+  it('derives sides visibly darker than tops (palette doc §6)', () => {
+    for (const top of [0xfff5d8, 0xffe9af, 0xffd84f, 0xf6b83f, 0xf29a2e, 0xf59a7c]) {
+      expect(luminance(deriveSideColor(top))).toBeLessThan(luminance(top));
+    }
   });
 });

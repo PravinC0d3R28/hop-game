@@ -1,11 +1,17 @@
 import {
+  BackSide,
+  BufferAttribute,
+  Color,
+  Mesh,
+  MeshBasicMaterial,
+  SphereGeometry,
+  Vector3,
   WebGLRenderer,
   Scene,
   PerspectiveCamera,
   Fog,
   AmbientLight,
-  DirectionalLight,
-  Color
+  DirectionalLight
 } from 'three';
 import { GAME_CONFIG } from '../config/GameConfig';
 import { MaterialFactory } from './MaterialFactory';
@@ -22,6 +28,8 @@ export class RendererSystem {
   private updateCallback: ((delta: number) => void) | null = null;
   private rafId = 0;
   private lastTime = 0;
+  /** Gradient sky dome (palette doc §11): follows the camera, fog-exempt. */
+  private dome: Mesh | null = null;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -69,9 +77,48 @@ export class RendererSystem {
     this.ambient.intensity = look.ambient.intensity;
     this.directional.color.setHex(look.directional.color);
     this.directional.intensity = look.directional.intensity;
+    // Upper-left key per look (absent = keep position — Dusk/Void pre-pass).
+    if (look.directionalPos) this.directional.position.set(...look.directionalPos);
+    this.updateDome(look);
     const css = `#${look.skyBottom.toString(16).padStart(6, '0')}`;
     this.container.style.background = css;
     document.body.style.background = css;
+  }
+
+  /**
+   * Sky dome: BackSide sphere with a baked vertical gradient (skyBottom at
+   * the horizon → skyTop above). One dome per renderer; colors rewritten per
+   * look. The dome trails the camera every frame so the runway never leaves it.
+   */
+  private updateDome(look: WorldLook): void {
+    if (!this.dome) {
+      const geo = new SphereGeometry(60, 24, 16);
+      geo.setAttribute('color', new BufferAttribute(new Float32Array(geo.getAttribute('position').count * 3), 3));
+      const mat = new MeshBasicMaterial({ vertexColors: true, side: BackSide, fog: false, depthWrite: false });
+      this.dome = new Mesh(geo, mat);
+      this.dome.renderOrder = -1;
+      this.dome.frustumCulled = false;
+      this.scene.add(this.dome);
+    }
+    const geo = this.dome.geometry as SphereGeometry;
+    const pos = geo.getAttribute('position') as BufferAttribute;
+    const col = geo.getAttribute('color') as BufferAttribute;
+    const top = new Color(look.skyTop);
+    const bottom = new Color(look.skyBottom);
+    const v = new Vector3();
+    const c = new Color();
+    for (let i = 0; i < pos.count; i++) {
+      // Visible-band gradient: the gameplay camera looks steeply down, so
+      // the frame's sky spans dome-local y ≈ -25 (horizon cream) to -10
+      // (dawn color at frame top). Mapping the full hemisphere hid the whole
+      // gradient above the frame (the "flat sky" bug).
+      v.fromBufferAttribute(pos, i);
+      const t = Math.min(1, Math.max(0, (v.y / 60 + 0.417) / 0.25));
+      const s = t * t * (3 - 2 * t);
+      c.copy(bottom).lerp(top, s);
+      col.setXYZ(i, c.r, c.g, c.b);
+    }
+    col.needsUpdate = true;
   }
 
   setUpdateCallback(cb: (delta: number) => void): void {
@@ -97,6 +144,7 @@ export class RendererSystem {
       this.lastTime = now;
       MaterialFactory.updateLightDirection(this.directional);
       this.updateCallback?.(delta);
+      if (this.dome) this.dome.position.copy(this.camera.position);
       this.renderer.render(this.scene, this.camera);
     };
     this.rafId = requestAnimationFrame(loop);
@@ -108,6 +156,12 @@ export class RendererSystem {
 
   dispose(): void {
     this.stop();
+    if (this.dome) {
+      this.scene.remove(this.dome);
+      this.dome.geometry.dispose();
+      (this.dome.material as MeshBasicMaterial).dispose();
+      this.dome = null;
+    }
     this.resizeObserver.disconnect();
     window.removeEventListener('resize', this.handleResize);
     this.renderer.dispose();

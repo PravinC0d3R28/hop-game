@@ -17,6 +17,8 @@ import type { WorldId } from './Worlds';
 export type PropFamily =
   | 'ridge'
   | 'cloud'
+  | 'crystal'
+  | 'cloudbank'
   | 'city'
   | 'lantern'
   | 'crescent'
@@ -51,6 +53,9 @@ export interface WorldLook {
   fogFar: number;
   ambient: { color: number; intensity: number };
   directional: { color: number; intensity: number };
+  /** Key-light position. Absent = keep the current position (Dusk/Void until
+   *  their passes). Sunrise uses upper-left per the palette doc. */
+  directionalPos?: [number, number, number];
   /** World-local platform face cycle (§11.5) + locked edge color. */
   platformFaces: number[];
   platformEdge: number;
@@ -68,28 +73,32 @@ const NO_CUE = { color: 0x38f0e8, strength: 0 };
 const FULL_CUE = { color: 0x38f0e8, strength: 1 };
 
 export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
-  // ---- Sunrise Peaks: complete (spike-proven 2026-09-02) ----
+  // ---- Sunrise Peaks: locked 2026-09-02 (docs/ART concept + palette) ----
   sunrise: {
     id: 'sunrise',
-    skyTop: 0xf9efdb,
-    skyBottom: 0xf6e7ce,
-    fogColor: 0xf6e7ce,
+    skyTop: 0xf5d9df,
+    skyBottom: 0xfff0d5,
+    fogColor: 0xffe8c7,
     fogNear: 14,
-    fogFar: 40,
-    ambient: { color: 0xfff2e2, intensity: 0.38 },
-    directional: { color: 0xfff1dd, intensity: 2 },
-    platformFaces: [0xf7ead2, 0xf3d3a0, 0xe9b96f],
-    platformEdge: BLACK_HULL,
+    fogFar: 52,
+    ambient: { color: 0xf6d7c5, intensity: 0.42 },
+    directional: { color: 0xffd39a, intensity: 2 },
+    directionalPos: [-4, 10, 7],
+    // Warm tile tops (coral last = occasional 1-in-6). Sides derive darker.
+    platformFaces: [0xfff5d8, 0xffe9af, 0xffd84f, 0xf6b83f, 0xf29a2e, 0xf59a7c],
+    // Spike lock warmed per owner pick: charcoal reads black, sits in dawn.
+    platformEdge: 0x3b302d,
     shadow: 0xb8a898,
     coin: 0xf0c020,
-    // White on cream validated in the spike stills; re-check on the full
-    // pass if faces get lighter.
+    // White on ivory reads via outlines + side shade (concept-confirmed).
     perfect: { fill: 0xffffff, ring: 0xffffff },
     motionCue: NO_CUE,
     props: [
-      { family: 'ridge', colors: [0xa9c2df], count: 4, scaleMin: 0.8, scaleMax: 1.3, side: 'both', parallax: 0.2 },
-      { family: 'ridge', colors: [0xf0a988], count: 3, scaleMin: 0.7, scaleMax: 1.1, side: 'both', parallax: 0.35 },
-      { family: 'cloud', colors: [0xfff8ea], count: 3, scaleMin: 0.8, scaleMax: 1.4, side: 'sky', parallax: 0.1 }
+      { family: 'crystal', colors: [0xff6f70, 0xffb07a, 0xffc27e, 0xff9c38], count: 5, scaleMin: 1.2, scaleMax: 1.8, side: 'both', parallax: 0.2 },
+      { family: 'crystal', colors: [0x8de3b0, 0x52d8c8, 0x55cfe6], count: 6, scaleMin: 0.8, scaleMax: 1.2, side: 'both', parallax: 0.3 },
+      { family: 'crystal', colors: [0xffd95a, 0xffc27e, 0xfff0be], count: 8, scaleMin: 0.4, scaleMax: 0.8, side: 'both', parallax: 0.4 },
+      { family: 'cloudbank', colors: [0xfff7e8, 0xfffbef, 0xf4dccb], count: 4, scaleMin: 0.7, scaleMax: 1.1, side: 'both', parallax: 0.15 },
+      { family: 'cloud', colors: [0xfffbef], count: 2, scaleMin: 0.8, scaleMax: 1.2, side: 'sky', parallax: 0.08 }
     ]
   },
   // ---- Dusk District: provisional (Day 2 completes + validates) ----

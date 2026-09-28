@@ -1,5 +1,5 @@
 import { gsap } from 'gsap';
-import { Mesh } from 'three';
+import { BackSide, Mesh } from 'three';
 import type { Object3D } from 'three';
 import { GAME_CONFIG } from './config/GameConfig';
 import type { WorldConfig, WorldId } from './config/Worlds';
@@ -1062,11 +1062,30 @@ export class Game {
     this.shadow.setThemeColor(look.shadow);
     PlatformEntity.setFacePalette(look.platformFaces);
     PlatformEntity.setCoinColor(look.coin);
+    PlatformEntity.setEdgeColor(look.platformEdge);
+    // Recolor live hulls (new outlines use the edge from birth): any BackSide
+    // mesh in the old blacks is one of ours (rings/dots/shells are not BackSide).
+    const hullRoots: Object3D[] = [
+      ...this.platforms.getPlatforms().map((p) => p.group),
+      this.ball.group,
+      ...this.background.getGroups()
+    ];
+    for (const root of hullRoots) {
+      root.traverse((obj) => {
+        const mesh = obj as Mesh;
+        if (!mesh.isMesh || Array.isArray(mesh.material)) return;
+        const mat = mesh.material as unknown as {
+          side?: number;
+          color?: { getHex(): number; setHex(n: number): void };
+        };
+        if (mat.side === BackSide && mat.color && (mat.color.getHex() === 0x111111 || mat.color.getHex() === 0x3b302d)) {
+          mat.color.setHex(look.platformEdge);
+        }
+      });
+    }
     // Repaint the live pool (reset()/recycle() pick the override up alone).
     for (const p of this.platforms.getPlatforms()) {
-      (p.mesh.material as unknown as { color: { setHex(n: number): void } }).color.setHex(
-        PlatformEntity.platformColor(p.index)
-      );
+      PlatformEntity.setFaceColors(p, PlatformEntity.platformColor(p.index));
       for (const coin of p.coins) {
         coin.group.traverse((obj) => {
           const mesh = obj as Mesh;

@@ -574,7 +574,7 @@ export class EffectsSystem {
           const world = new Vector3();
           root.getWorldPosition(world);
 
-          const platformColor = (platform.mesh.material as MeshToonMaterial).color.getHex();
+          const platformColor = platform.topMat.color.getHex();
           // Debris cubes are all the platform's own color (dynamic — sampled
           // live from the missed platform's material), so the broken tile
           // pieces read as chunks of that exact platform.

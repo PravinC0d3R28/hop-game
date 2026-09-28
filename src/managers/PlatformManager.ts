@@ -1,5 +1,4 @@
 import type { Scene } from 'three';
-import { MeshToonMaterial } from 'three';
 import { GAME_CONFIG } from '../config/GameConfig';
 import { PlatformEntity, type PlatformData } from '../entities/PlatformEntity';
 import type { GameStateManager } from '../core/GameStateManager';
@@ -181,7 +180,7 @@ export class PlatformManager {
       platform.platformX = this.randomPlatformX(i);
       platform.swayOffset = 0;
       PlatformEntity.resetPosition(platform, platform.platformX, platform.z);
-      (platform.mesh.material as MeshToonMaterial).color.setHex(PlatformEntity.platformColor(i));
+      PlatformEntity.setFaceColors(platform, PlatformEntity.platformColor(i));
       if (i > 2 || this.guidedCoins(i)) PlatformEntity.addCoin(platform, this.scene, this.guidedCoins(i));
     }
   }
@@ -192,8 +191,12 @@ export class PlatformManager {
       gsap.killTweensOf(platform.group.position);
       this.scene.remove(platform.group);
       platform.group.traverse((obj) => {
-        const m = obj as { material?: { dispose?: () => void }; geometry?: { dispose?: () => void } };
-        m.material?.dispose?.();
+        const m = obj as { material?: { dispose?: () => void } | { dispose?: () => void }[]; geometry?: { dispose?: () => void } };
+        if (Array.isArray(m.material)) {
+          for (const mm of m.material) mm.dispose?.();
+        } else {
+          m.material?.dispose?.();
+        }
       });
     }
     this.platforms = [];

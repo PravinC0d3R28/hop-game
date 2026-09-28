@@ -120,11 +120,11 @@ export class SpikeLab {
     this.buildRidges(handles.ballZ);
     this.buildClouds(handles.ballZ);
 
-    // Warm platform faces (cream / sand / gold).
+    // Warm spike faces: swap the pipeline multi-material for one flat toon
+    // fill (throwaway scene — reload restores the real materials).
     handles.platformGroups.forEach((g, i) => {
       const face = g.children[0] as Mesh;
-      const mat = face.material as unknown as { color: { setHex(n: number): void } };
-      mat?.color?.setHex?.(SPIKE.faces[i % SPIKE.faces.length]);
+      face.material = MaterialFactory.createMaterial(SPIKE.faces[i % SPIKE.faces.length]);
     });
 
     this.buildDuskTile(handles);
@@ -212,7 +212,7 @@ export class SpikeLab {
     this.duskTile = best;
 
     const face = best.children[0] as Mesh;
-    (face.material as unknown as { color: { setHex(n: number): void } }).color.setHex(SPIKE.duskFace);
+    face.material = MaterialFactory.createMaterial(SPIKE.duskFace);
 
     // Candidate motion tell: cyan glow strip under the bottom edge
     // (Dusk prompt: "single streak of cool cyan neon glow on bottom edges").

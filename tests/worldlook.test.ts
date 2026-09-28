@@ -36,10 +36,12 @@ describe('WorldLook completeness', () => {
     expect(() => getWorldLook('')).toThrow(/unknown world id/);
   });
 
-  it('all three worlds keep the locked black-hull edge (spike lock)', () => {
-    for (const world of WORLDS) {
-      expect(WORLD_LOOKS[world.id].platformEdge).toBe(0x111111);
-    }
+  it('edges follow the locked decisions (charcoal Sunrise, black elsewhere)', () => {
+    // Owner pick 2026-09-02: Sunrise hulls warmed to charcoal (reads black,
+    // sits in dawn). Dusk/Void keep spike-lock black until their passes.
+    expect(WORLD_LOOKS.sunrise.platformEdge).toBe(0x3b302d);
+    expect(WORLD_LOOKS.dusk.platformEdge).toBe(0x111111);
+    expect(WORLD_LOOKS.void.platformEdge).toBe(0x111111);
   });
 
   it('every look carries a blob-shadow tint (world-owned, not theme-owned)', () => {

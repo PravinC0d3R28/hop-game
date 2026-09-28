@@ -26,6 +26,8 @@ export interface PlatformData {
   group: Group;
   mesh: Mesh;
   outlineMesh: Mesh;
+  topMat: MeshToonMaterial;
+  sideMat: MeshToonMaterial;
   perfectDot: Mesh;
   perfectRing: Mesh;
   index: number;
@@ -54,6 +56,12 @@ const ringGeo = new RingGeometry(
   24
 );
 
+// Tile sides read visibly darker than tops, beyond what lighting alone does
+// (palette doc §6). One derivation keeps WorldLook to top colors only.
+export function deriveSideColor(top: number): number {
+  return new Color(top).offsetHSL(0.005, 0.03, -0.12).getHex();
+}
+
 // Diamond shape (from the original `os` path)
 function createDiamondGeo(): ShapeGeometry {
   const ro = 0.15;
@@ -69,10 +77,14 @@ const diamondGeo = createDiamondGeo();
 
 export class PlatformEntity {
   static create(index: number, platformX: number, z: number, baseScale: number, startY: number, scene: Scene): PlatformData {
-    const material = MaterialFactory.createMaterial(this.platformColor(index));
-    const mesh = new Mesh(platformGeo, material);
+    const topColor = this.platformColor(index);
+    // Box groups: [+x, -x, +y, -y, +z, -z] — bright top, darker sides
+    // (palette doc: sides visibly darker than tops, beyond lighting alone).
+    const topMat = MaterialFactory.createMaterial(topColor);
+    const sideMat = MaterialFactory.createMaterial(deriveSideColor(topColor));
+    const mesh = new Mesh(platformGeo, [sideMat, sideMat, topMat, sideMat, sideMat, sideMat]);
 
-    const outlineMat = new MeshBasicMaterial({ color: GAME_CONFIG.COLOR_OUTLINE, side: BackSide });
+    const outlineMat = new MeshBasicMaterial({ color: this.edgeColor, side: BackSide });
     const outlineMesh = new Mesh(platformGeo, outlineMat);
     outlineMesh.scale.multiplyScalar(1.02);
 
@@ -112,6 +124,8 @@ export class PlatformEntity {
       group,
       mesh,
       outlineMesh,
+      topMat,
+      sideMat,
       perfectDot,
       perfectRing,
       index,
@@ -141,7 +155,7 @@ export class PlatformEntity {
     const coinMesh = new Mesh(coinGeo, coinMat);
     coinMesh.rotation.z = Math.PI / 2;
 
-    const outlineMat = new MeshBasicMaterial({ color: GAME_CONFIG.COLOR_OUTLINE, side: BackSide });
+    const outlineMat = new MeshBasicMaterial({ color: this.edgeColor, side: BackSide });
     const outlineMesh = new Mesh(coinGeo, outlineMat);
     outlineMesh.scale.multiplyScalar(1.08);
     outlineMesh.rotation.z = Math.PI / 2;
@@ -193,7 +207,7 @@ export class PlatformEntity {
     platform.group.scale.set(baseScale, 1, baseScale);
     platform.group.position.set(platformX, -5, z);
     platform.hasRisen = false;
-    (platform.mesh.material as MeshToonMaterial).color.setHex(this.platformColor(newIndex));
+    this.setFaceColors(platform, this.platformColor(newIndex));
     this.addCoin(platform, scene);
     gsap.to(platform.group.position, {
       y: 0,
@@ -254,6 +268,19 @@ export class PlatformEntity {
 
   static setCoinColor(color: number | null): void {
     this.coinColorOverride = color;
+  }
+
+  /** Hull color for newly built outlines (set by Game.applyWorldLook). */
+  static edgeColor: number = GAME_CONFIG.COLOR_OUTLINE;
+
+  static setEdgeColor(color: number): void {
+    this.edgeColor = color;
+  }
+
+  /** Paint a platform's top + derived side. Pure color math — unit-tested. */
+  static setFaceColors(platform: PlatformData, top: number): void {
+    platform.topMat.color.setHex(top);
+    platform.sideMat.color.setHex(deriveSideColor(top));
   }
 
   static randomizePaletteStart(): void {

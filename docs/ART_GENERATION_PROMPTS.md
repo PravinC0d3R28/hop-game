@@ -115,7 +115,7 @@ Paper-craft diorama game art, 16:9, slightly elevated view following a track of 
 
 ## 7. Picks log (owner fills in)
 
-- [ ] Sunrise winner: ___ (image: ___)
+- [x] Sunrise winner: **custom docs/ART concept** (`Sunrise_Peaks_art_direction_concept_20260928224813.jpg` + palette + implementation docs — picked over S1–S3, 2026-09-02)
 - [ ] Dusk winner: ___ (image: ___)
 - [ ] Void winner: ___ (image: ___)
 

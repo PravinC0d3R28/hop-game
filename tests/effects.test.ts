@@ -36,10 +36,14 @@ function makePlatform(x = 0.5, z = 2, baseScale = 1): PlatformData {
     new MeshToonMaterial({ color: 0x3b9dff })
   );
   group.add(mesh);
+  const topMat = new MeshToonMaterial({ color: 0x3b9dff });
+  const sideMat = new MeshToonMaterial({ color: 0x2a6fc0 });
   return {
     group,
     mesh,
     outlineMesh: mesh,
+    topMat,
+    sideMat,
     perfectDot: mesh,
     perfectRing: mesh,
     index: 5,
