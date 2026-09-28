@@ -54,6 +54,8 @@ export interface WorldLook {
   /** World-local platform face cycle (§11.5) + locked edge color. */
   platformFaces: number[];
   platformEdge: number;
+  /** Blob-shadow tint (follows the world, not the removed light/dark toggle). */
+  shadow: number;
   coin: number;
   perfect: { fill: number; ring: number };
   /** Motion tell. `strength: 0` = this world never shows the cue (Sunrise). */
@@ -78,6 +80,7 @@ export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
     directional: { color: 0xfff1dd, intensity: 2 },
     platformFaces: [0xf7ead2, 0xf3d3a0, 0xe9b96f],
     platformEdge: BLACK_HULL,
+    shadow: 0xb8a898,
     coin: 0xf0c020,
     // White on cream validated in the spike stills; re-check on the full
     // pass if faces get lighter.
@@ -102,6 +105,7 @@ export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
     // Warm paper faces for static tiles; movers carry the cyan cue.
     platformFaces: [0xffd9a0, 0xffb98a, 0xe08a6b],
     platformEdge: BLACK_HULL,
+    shadow: 0x9a6a70,
     coin: 0xffb347,
     // Provisional: validated against peach in the Day 2 contrast check.
     perfect: { fill: 0xffffff, ring: 0xffffff },
@@ -125,6 +129,7 @@ export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
     // owns this list (lightest face vs sky stays above VOID_CONTRAST_FLOOR).
     platformFaces: [0x2a2f52, 0x3d4470, 0x4a5180],
     platformEdge: BLACK_HULL,
+    shadow: 0x141428,
     coin: 0xfff3c8,
     // Provisional: star-cream coin + white perfect must not compete on one
     // landing — Day 3 decides the final split.

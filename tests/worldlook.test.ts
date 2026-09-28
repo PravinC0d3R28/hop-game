@@ -41,6 +41,14 @@ describe('WorldLook completeness', () => {
       expect(WORLD_LOOKS[world.id].platformEdge).toBe(0x111111);
     }
   });
+
+  it('every look carries a blob-shadow tint (world-owned, not theme-owned)', () => {
+    for (const world of WORLDS) {
+      expect(typeof WORLD_LOOKS[world.id].shadow).toBe('number');
+    }
+    // Sunrise keeps the exact legacy light-theme shadow: zero behavior change.
+    expect(WORLD_LOOKS.sunrise.shadow).toBe(0xb8a898);
+  });
 });
 
 describe('Dusk motion cue', () => {

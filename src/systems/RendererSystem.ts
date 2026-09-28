@@ -9,7 +9,7 @@ import {
 } from 'three';
 import { GAME_CONFIG } from '../config/GameConfig';
 import { MaterialFactory } from './MaterialFactory';
-import { THEMES, type ThemeName } from '../config/Themes';
+import type { WorldLook } from '../config/WorldLooks';
 
 export class RendererSystem {
   renderer: WebGLRenderer;
@@ -51,13 +51,27 @@ export class RendererSystem {
     window.addEventListener('resize', this.handleResize);
   }
 
-  setTheme(theme: ThemeName): void {
-    const t = THEMES[theme];
-    this.scene.background = new Color(t.bg);
+  /**
+   * Week 2 (§10): apply the active world's look — sky, fog, lights and page
+   * chrome. The world owns the 3D scene; the removed light/dark toggle never
+   * touches this (it persists a HUD-only preference). Flat `skyBottom` is the
+   * clear color for now; `skyTop` reserves the gradient-dome refinement.
+   */
+  applyWorldLook(look: WorldLook): void {
+    this.scene.background = new Color(look.skyBottom);
     const fog = this.scene.fog;
-    if (fog && 'color' in fog) (fog.color as Color).setHex(t.bg);
-    this.container.style.background = t.cssBg;
-    document.body.style.background = t.cssBg;
+    if (fog && 'color' in fog) {
+      (fog.color as Color).setHex(look.fogColor);
+      (fog as Fog).near = look.fogNear;
+      (fog as Fog).far = look.fogFar;
+    }
+    this.ambient.color.setHex(look.ambient.color);
+    this.ambient.intensity = look.ambient.intensity;
+    this.directional.color.setHex(look.directional.color);
+    this.directional.intensity = look.directional.intensity;
+    const css = `#${look.skyBottom.toString(16).padStart(6, '0')}`;
+    this.container.style.background = css;
+    document.body.style.background = css;
   }
 
   setUpdateCallback(cb: (delta: number) => void): void {

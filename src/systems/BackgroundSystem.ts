@@ -1,8 +1,7 @@
-import { BackSide, Group, Mesh, MeshBasicMaterial, SphereGeometry, type Scene } from 'three';
-import { THEMES, type ThemeName } from '../config/Themes';
+import { BackSide, ConeGeometry, Group, Mesh, MeshBasicMaterial, SphereGeometry, type Scene } from 'three';
 import { MaterialFactory } from './MaterialFactory';
+import type { PropRecipe, WorldLook } from '../config/WorldLooks';
 
-const BG_CLUSTERS = 10;
 const BG_SPACING = 5; // `iu`
 const BG_OFFSET = 4; // `ru`
 
@@ -11,61 +10,125 @@ interface ClusterData {
   baseY: number;
   side: number;
   index: number;
+  parallax: number;
 }
 
+// Shared unit geometries: instances only ever scale them, so one cone and
+// one sphere serve every prop (dispose() frees materials, never these).
+const ridgeGeo = new ConeGeometry(1, 1, 4);
+const cloudGeo = new SphereGeometry(1, 12, 8);
+
 /**
- * Floating rock clusters in the background.
- * Faithful port of the original `vy` / `Sy` / `My` / `fy`.
- * 10 clusters of 2-4 halftone-toon spheres + outlines, bobbing and recycling.
+ * Layered paper props for the active world look (Week 2 §10).
+ * Built from WorldLook recipes — ridge + cloud families now; city, lantern,
+ * crescent, starfield and aurora arrive with the Dusk/Void passes (skipped
+ * with a dev-only warning until then, never a crash, never a console warning
+ * in production). Z-recycling + bob are unchanged from the rock era.
  */
 export class BackgroundSystem {
   private groups: Group[] = [];
   private ms: number;
 
-  constructor(
-    private scene: Scene,
-    private getTheme: () => ThemeName
-  ) {
-    this.ms = BG_CLUSTERS - 1; // `nu - 1`
+  constructor(private scene: Scene) {
+    this.ms = -1;
   }
 
   init(): void {
-    for (let i = 0; i < BG_CLUSTERS; i++) this.groups.push(this.createCluster(i));
+    // Props arrive via setLook (Game applies the active world right after).
+    this.ms = -1;
   }
 
-  private createCluster(index: number): Group {
-    const theme = this.getTheme();
-    const palettes = THEMES[theme].decorations;
-    const color = palettes[index % palettes.length];
-    const material = MaterialFactory.createMaterial(color);
-
-    const group = new Group();
-    const count = 2 + (index % 3); // 2-4 spheres
-    const geo = new SphereGeometry(1, 12, 8);
-    const outlineMat = new MeshBasicMaterial({ color: 0x111111, side: BackSide });
-
-    for (let u = 0; u < count; u++) {
-      const radius = 0.7 + Math.random() * 0.5;
-      const scaleY = 0.55 + Math.random() * 0.25;
-      const mesh = new Mesh(geo, material);
-      mesh.position.set((u - count / 2) * 0.8, (Math.random() - 0.3) * 0.3, (Math.random() - 0.5) * 0.4);
-      mesh.scale.set(radius, radius * scaleY, radius);
-      group.add(mesh);
-
-      const outline = new Mesh(geo, outlineMat);
-      outline.position.copy(mesh.position);
-      outline.scale.copy(mesh.scale).multiplyScalar(1.04);
-      group.add(outline);
+  /** Rebuild the scenery from a world's prop recipes (select/preview/run). */
+  setLook(look: WorldLook): void {
+    this.clearGroups();
+    let index = 0;
+    for (const recipe of look.props) {
+      if (recipe.family !== 'ridge' && recipe.family !== 'cloud') {
+        // NFR-3: normal play must stay warning-free — only dev builds nag.
+        if (import.meta.env.DEV) {
+          console.warn(`BackgroundSystem: no builder for prop family "${recipe.family}" yet — skipping`);
+        }
+        continue;
+      }
+      for (let k = 0; k < recipe.count; k++, index++) {
+        this.groups.push(
+          recipe.family === 'ridge'
+            ? this.createRidge(recipe, index, k)
+            : this.createCloud(recipe, index, k)
+        );
+      }
     }
+    this.ms = this.groups.length - 1;
+  }
 
-    const side = index % 2 === 0 ? -1 : 1;
-    const x = side * (6 + Math.random() * 3);
-    const z = index * BG_SPACING + BG_OFFSET;
-    const y = 1 + Math.random() * 3;
-    group.position.set(x, y, z);
-    group.userData = { baseX: x, baseY: y, side, index };
+  /** Paper mountain: squashed 4-sided pyramid + black hull (spike lock). */
+  private createRidge(recipe: PropRecipe, index: number, k: number): Group {
+    const color = recipe.colors[k % recipe.colors.length];
+    const group = new Group();
+    const mesh = new Mesh(ridgeGeo, MaterialFactory.createMaterial(color));
+    const s = recipe.scaleMin + Math.random() * (recipe.scaleMax - recipe.scaleMin);
+    mesh.scale.set(2.6 * s, 4.2 * s, 2.6 * s);
+    mesh.rotation.y = Math.PI / 4;
+    group.add(mesh);
+
+    const hull = new Mesh(ridgeGeo, new MeshBasicMaterial({ color: 0x111111, side: BackSide }));
+    hull.scale.copy(mesh.scale).multiplyScalar(1.04);
+    hull.rotation.y = Math.PI / 4;
+    group.add(hull);
+
+    this.place(group, recipe, index, mesh.scale.y / 2 - 0.6);
     this.scene.add(group);
     return group;
+  }
+
+  /** Cloud cutout: three flattened puffs + shared hull material. */
+  private createCloud(recipe: PropRecipe, index: number, k: number): Group {
+    const color = recipe.colors[k % recipe.colors.length];
+    const group = new Group();
+    const hullMat = new MeshBasicMaterial({ color: 0x111111, side: BackSide });
+    const s = recipe.scaleMin + Math.random() * (recipe.scaleMax - recipe.scaleMin);
+    for (let u = 0; u < 3; u++) {
+      const mesh = new Mesh(cloudGeo, MaterialFactory.createMaterial(color));
+      mesh.position.set((u - 1) * 0.9 * s, (u % 2) * 0.25, 0);
+      mesh.scale.set(s, s * 0.45, s * 0.7);
+      group.add(mesh);
+
+      const hull = new Mesh(cloudGeo, hullMat);
+      hull.position.copy(mesh.position);
+      hull.scale.copy(mesh.scale).multiplyScalar(1.04);
+      group.add(hull);
+    }
+    this.place(group, recipe, index, 4.5 + Math.random() * 2);
+    this.scene.add(group);
+    return group;
+  }
+
+  private place(group: Group, recipe: PropRecipe, index: number, y: number): void {
+    let side = 0;
+    let x = 0;
+    if (recipe.side === 'sky') {
+      x = (Math.random() - 0.5) * 9;
+    } else {
+      side = recipe.side === 'left' ? -1 : recipe.side === 'right' ? 1 : index % 2 === 0 ? -1 : 1;
+      x = side * (6 + Math.random() * 3);
+    }
+    const z = index * BG_SPACING + BG_OFFSET;
+    group.position.set(x, y, z);
+    group.userData = { baseX: x, baseY: y, side, index, parallax: recipe.parallax };
+  }
+
+  private clearGroups(): void {
+    for (const g of this.groups) {
+      // Materials are per-prop instances; geometries are shared singletons.
+      g.traverse((child) => {
+        if ((child as Mesh).isMesh) {
+          const m = (child as Mesh).material;
+          if (!Array.isArray(m)) m?.dispose();
+        }
+      });
+      this.scene.remove(g);
+    }
+    this.groups = [];
   }
 
   /** Mirror `My` + `Sy`: bob each cluster, recycle those behind the camera. */
@@ -98,26 +161,9 @@ export class BackgroundSystem {
     for (const group of this.groups) group.visible = v;
   }
 
-  /** Mirror `fy`: recolor non-outline materials per theme. */
-  recolor(): void {
-    const theme = this.getTheme();
-    const palettes = THEMES[theme].decorations;
-    this.groups.forEach((group, e) => {
-      const color = palettes[e % palettes.length];
-      group.traverse((child) => {
-        if ((child as Mesh).isMesh) {
-          const m = (child as Mesh).material;
-          if (Array.isArray(m)) return;
-          if (m && m.type !== 'MeshBasicMaterial') {
-            (m as unknown as { color: { setHex(n: number): void } }).color.setHex(color);
-          }
-        }
-      });
-    });
-  }
-
+  /** Reset for a new run: reposition the current prop set (empty-safe). */
   reset(): void {
-    this.ms = BG_CLUSTERS - 1;
+    this.ms = this.groups.length - 1;
     this.groups.forEach((group, t) => {
       const side = t % 2 === 0 ? -1 : 1;
       const x = side * (6 + Math.random() * 3);

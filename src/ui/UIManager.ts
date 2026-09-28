@@ -1,5 +1,5 @@
 import { GAME_CONFIG } from '../config/GameConfig';
-import { THEMES, type ThemeName } from '../config/Themes';
+import type { ThemeName } from '../config/Themes';
 import type { GameStateManager } from '../core/GameStateManager';
 import { EventBus, GAME_EVENTS } from '../core/EventBus';
 import type { WorldId } from '../config/Worlds';
@@ -382,14 +382,15 @@ export class UIManager {
   /** Fired after a successful world selection (Game re-seeds platform ramps). */
   onWorldSelect: (id: WorldId) => void = () => {};
 
-  /** Mirror `no(r)`: apply theme to scene + DOM. */
+  /**
+   * Week 2 (§10.5): the world look owns the 3D scene — the persisted
+   * light/dark preference only touches state (HUD reads it via getTheme).
+   * The day/night toggle itself was removed in the overhaul; this persists
+   * the preference and notifies, nothing more.
+   */
   setTheme(theme: ThemeName, persist = true): void {
     this.state.setTheme(theme);
-    const t = THEMES[theme];
     if (persist) void this.state.getMutablePlayerData();
-    this.renderer.setTheme(theme);
-    this.shadow.setThemeColor(t.shadowColor);
-    this.background.recolor();
     if (persist) this.onThemeChanged();
   }
 

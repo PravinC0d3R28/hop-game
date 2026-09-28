@@ -2,8 +2,8 @@ import { gsap } from 'gsap';
 import { Mesh } from 'three';
 import type { Object3D } from 'three';
 import { GAME_CONFIG } from './config/GameConfig';
-import type { ThemeName } from './config/Themes';
 import type { WorldConfig, WorldId } from './config/Worlds';
+import { getWorldLook } from './config/WorldLooks';
 import { GameStateManager } from './core/GameStateManager';
 import { EventBus, GAME_EVENTS } from './core/EventBus';
 import { RendererSystem } from './systems/RendererSystem';
@@ -97,7 +97,7 @@ export class Game {
     this.camera = new CameraController(this.renderer.camera);
     this.shadow = new ShadowSystem(this.renderer.scene);
     this.ball = new BallEntity(this.renderer.scene);
-    this.background = new BackgroundSystem(this.renderer.scene, () => this.getTheme());
+    this.background = new BackgroundSystem(this.renderer.scene);
     this.background.init();
     this.buildUI();
     this.platforms = new PlatformManager(this.renderer.scene, this.state);
@@ -111,11 +111,10 @@ export class Game {
     this.wireVisibility();
 
     this.renderer.setUpdateCallback((delta) => this.gameLoop(delta));
+    // Initial look before the first frame (persisted world re-applies after
+    // the async save load in wirePersistence).
+    this.applyWorldLook(this.state.getActiveWorld().id);
     this.renderer.start();
-  }
-
-  private getTheme(): ThemeName {
-    return this.state.getPlayerData().theme;
   }
 
   private buildUI(): void {
@@ -169,10 +168,13 @@ export class Game {
     this.ui.onThemeChanged = () => {
       void this.persistence.save(this.state.getMutablePlayerData());
     };
-    // World selection only happens on the start screen: re-seed the runway so
-    // the first run uses the new world's ramps from platform #1.
-    this.ui.onWorldSelect = () => {
+    // World selection only happens on the start screen: apply the new look,
+    // then re-seed the runway so the first run uses the new world's ramps
+    // from platform #1. Select, locked-preview and preview-revert all funnel
+    // through here, so the look can never desync from the active world.
+    this.ui.onWorldSelect = (id: WorldId) => {
       void this.persistence.save(this.state.getMutablePlayerData());
+      this.applyWorldLook(id);
       this.platforms.reset();
       // The attract demo runs forever; a world switch re-seeds the runway, so
       // restart the demo from tile 0 in the new world instead of hopping on
@@ -229,6 +231,9 @@ export class Game {
       this.ui.applyThemeToDOM();
       this.ui.refreshCoins();
       this.ui.renderStartScreen();
+      // The persisted world may differ from the boot default — re-apply now
+      // that the save is loaded.
+      this.applyWorldLook(this.state.getActiveWorld().id);
     } catch (err) {
       // A corrupt/unreadable save must never take the boot down: fall back to
       // the defaults and keep going (the player's data is re-sanitized on the
@@ -1042,8 +1047,40 @@ export class Game {
     st.isJumping = true;
     st.isWaitingForTap = true;
   }
-
   // ---- dev panel helpers (dev-only server builds) ----
+
+  /**
+   * Week 2 (§10): apply the active world's look — the single entry point for
+   * selection, locked-preview, preview-revert, boot and run start. Idempotent.
+   */
+  private applyWorldLook(id: WorldId): void {
+    const look = getWorldLook(id);
+    this.renderer.applyWorldLook(look);
+    this.background.setLook(look);
+    // setThemeColor predates worlds (stale name, right behavior): the blob
+    // shadow tint follows the world look now, not the removed toggle.
+    this.shadow.setThemeColor(look.shadow);
+    PlatformEntity.setFacePalette(look.platformFaces);
+    PlatformEntity.setCoinColor(look.coin);
+    // Repaint the live pool (reset()/recycle() pick the override up alone).
+    for (const p of this.platforms.getPlatforms()) {
+      (p.mesh.material as unknown as { color: { setHex(n: number): void } }).color.setHex(
+        PlatformEntity.platformColor(p.index)
+      );
+      for (const coin of p.coins) {
+        coin.group.traverse((obj) => {
+          const mesh = obj as Mesh;
+          if (!mesh.isMesh) return;
+          const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          for (const m of mats) {
+            const c = m as unknown as { color?: { getHex(): number; setHex(n: number): void } };
+            // Hulls stay black (spike lock) — tint the coin face only.
+            if (c.color && c.color.getHex() !== 0x111111) c.color.setHex(look.coin);
+          }
+        });
+      }
+    }
+  }
 
   /**
    * Force the active world like a start-screen world switch: re-seeds the
@@ -1054,6 +1091,7 @@ export class Game {
     GAME_CONFIG.DEBUG.forceWorld = id;
     this.state.setWorldOverride(id);
     void this.persistence.save(this.state.getMutablePlayerData());
+    this.applyWorldLook(this.state.getActiveWorld().id);
     this.platforms.reset();
     if (this.demoActive) {
       this.stopAttractDemo();

@@ -137,6 +137,7 @@ export class PlatformEntity {
     if (!force && Math.random() >= GAME_CONFIG.COIN_CHANCE) return;
 
     const coinMat = MaterialFactory.createCoinMaterial();
+    if (this.coinColorOverride !== null) coinMat.color.setHex(this.coinColorOverride);
     const coinMesh = new Mesh(coinGeo, coinMat);
     coinMesh.rotation.z = Math.PI / 2;
 
@@ -222,9 +223,13 @@ export class PlatformEntity {
     platform.hasRisen = true;
   }
 
-  /** Palette color for platform index: random start + floor(index/12) cycle, lerp base→light. */
+  /** Palette color for platform index: world-local list when set (§11.5),
+   *  else the legacy global cycle (random start + floor(index/12), lerp). */
   static platformColor(index: number): number {
-    const palettes = GAME_CONFIG.COLOR_PALETTES;
+    if (this.facePalette) {
+      const list = this.facePalette;
+      return list[((index % list.length) + list.length) % list.length];
+    }    const palettes = GAME_CONFIG.COLOR_PALETTES;
     const start = PlatformEntity.paletteStart;
     const palette = palettes[(start + Math.floor(index / GAME_CONFIG.COLOR_CYCLE_STEPS)) % palettes.length];
     const t = (index % 6) / 6;
@@ -234,6 +239,22 @@ export class PlatformEntity {
   }
 
   static paletteStart = 0;
+
+  /**
+   * Week 2 (§10-11): world-local face/coin palettes. Set by Game.applyWorldLook;
+   * null restores the legacy global behavior. reset()/recycle() repaint via
+   * platformColor/addCoin, so a palette swap propagates with no extra calls.
+   */
+  static facePalette: number[] | null = null;
+  static coinColorOverride: number | null = null;
+
+  static setFacePalette(faces: number[] | null): void {
+    this.facePalette = faces && faces.length > 0 ? [...faces] : null;
+  }
+
+  static setCoinColor(color: number | null): void {
+    this.coinColorOverride = color;
+  }
 
   static randomizePaletteStart(): void {
     PlatformEntity.paletteStart = Math.floor(Math.random() * GAME_CONFIG.COLOR_PALETTES.length);
