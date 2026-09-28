@@ -17,6 +17,7 @@ import { InputSystem } from './systems/InputSystem';
 import { BallEntity } from './entities/BallEntity';
 import { PlatformEntity, type CoinObject, type PlatformData } from './entities/PlatformEntity';
 import { PlatformManager } from './managers/PlatformManager';
+import type { SpikeLab, SpikeSceneHandles, SpikeOutlineMode } from './dev/SpikeLab';
 import { PersistenceManager, LocalStorageBackend } from './managers/PersistenceManager';
 import { UIManager } from './ui/UIManager';
 
@@ -44,6 +45,8 @@ export class Game {
   private platforms: PlatformManager;
   private ui!: UIManager;
   private events = new EventBus();
+  /** Week 2 art-spike lab (dev-only; null in production — see devSpike*). */
+  private spikeLab: SpikeLab | null = null;
 
   private gameContainer: HTMLElement;
 
@@ -1088,6 +1091,49 @@ export class Game {
     };
     for (const p of this.platforms.getPlatforms()) apply(p.group);
     apply(this.ball.group);
+  }
+
+  // ---- Week 2 art spike (dev-only; SpikeLab chunk is dynamically imported
+  // so production never requests it — see src/dev/SpikeLab.ts) ----
+
+  /**
+   * Build the Workstream 0 spike scene on the live start screen: freeze the
+   * attract demo (frozen = identical stills across modes), warm the sky,
+   * swap rocks for paper ridges/clouds, warm the platforms, convert the
+   * first tile ahead of the ball into the Dusk mover. Reload to revert.
+   */
+  async devSpikeScene(): Promise<{ duskTileAhead: boolean; hulls: number; playable: number; props: number }> {
+    const { SpikeLab } = await import('./dev/SpikeLab');
+    this.stopAttractDemo();
+    this.spikeLab ??= new SpikeLab();
+    const handles: SpikeSceneHandles = {
+      scene: this.renderer.scene,
+      ballGroup: this.ball.group,
+      platformGroups: this.platforms.getPlatforms().map((p) => p.group),
+      ballZ: this.ball.group.position.z,
+      setBackgroundVisible: (v: boolean) => this.background.setVisible(v)
+    };
+    return this.spikeLab.build(handles);
+  }
+
+  /**
+   * Flip the spike edge treatment 0-3 (black-hull / tinted-rim /
+   * playable-only / contrast-only). Builds the scene first if needed.
+   */
+  async devSpikeOutline(mode: number): Promise<{ mode: SpikeOutlineMode; name: string; hulls: number; playable: number; props: number }> {
+    const { SpikeLab, SPIKE_OUTLINE_NAMES } = await import('./dev/SpikeLab');
+    const m: SpikeOutlineMode = mode === 1 || mode === 2 || mode === 3 ? mode : 0;
+    this.stopAttractDemo();
+    this.spikeLab ??= new SpikeLab();
+    const handles: SpikeSceneHandles = {
+      scene: this.renderer.scene,
+      ballGroup: this.ball.group,
+      platformGroups: this.platforms.getPlatforms().map((p) => p.group),
+      ballZ: this.ball.group.position.z,
+      setBackgroundVisible: (v: boolean) => this.background.setVisible(v)
+    };
+    const result = this.spikeLab.setMode(m, handles);
+    return { ...result, name: SPIKE_OUTLINE_NAMES[m] };
   }
 
   dispose(): void {

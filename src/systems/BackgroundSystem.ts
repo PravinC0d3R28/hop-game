@@ -93,6 +93,11 @@ export class BackgroundSystem {
     }
   }
 
+  /** Show/hide all clusters (spike scenes swap rocks for paper props). */
+  setVisible(v: boolean): void {
+    for (const group of this.groups) group.visible = v;
+  }
+
   /** Mirror `fy`: recolor non-outline materials per theme. */
   recolor(): void {
     const theme = this.getTheme();
