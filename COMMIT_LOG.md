@@ -47,3 +47,4 @@ b 2 3 d 0 1 0   d o c s :   u p d a t e   R E F E R E N C E   a n d   A R C H I 
 39b7384 feat: add dev-only art-spike scene with four outline modes (SpikeLab, dynamic import, gameDebug spikeScene/spikeOutline, BackgroundSystem.setVisible)
 fc89e97 feat: lock Week 2 outline to black-hull, drop losing spike variants (decision in WEEK2_BASELINE/ART_REFERENCES, G4+NFR-1 superseded, playable-only fallback in 39b7384)
 ccf991f feat: add WorldLook data model with three world entries (Sunrise complete, Dusk/Void provisional + contrast tripwire, 188 tests)
+c0d6b52 feat: apply WorldLook pipeline with Sunrise identity (applyWorldLook, recipe factory, face/coin overrides, theme split, 192 tests)
