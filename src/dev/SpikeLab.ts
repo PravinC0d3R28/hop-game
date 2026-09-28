@@ -1,20 +1,20 @@
-// Week 2 Workstream 0 — ART SPIKE scaffolding.
+// Week 2 Workstream 0 — ART SPIKE scaffolding (post-decision).
 //
-// DEV-ONLY. Deleted after the outline decision is locked (§9.5). Never ships
-// a code path to production: Game reaches this module through a dynamic
-// import() inside dev-only methods (only callable via window.gameDebug,
-// which itself only exists in dev builds), so the spike lives in its own
-// chunk that production never requests.
+// DEV-ONLY. The 2026-09-02 lock kept mode 0 (current black hulls) as the
+// single V1 pipeline; the losing variants (tinted-rim, playable-only,
+// contrast-only) were deleted here — recoverable from git history `39b7384`
+// if the fallback is ever needed. What remains is the locked scene builder
+// (Sunrise snippet + Dusk mover with the provisional cyan tell) plus the
+// hull census, reused as a dev verification tool for the Day 2/3 passes.
+// Game reaches this module through a dynamic import() inside a dev-only
+// method (only callable via window.gameDebug, dev builds only), so the spike
+// lives in its own chunk that production never requests.
 //
-// What it builds (§9.2):
+// What it builds:
 //   - a short Sunrise snippet: warm sky/fog, paper mountain + cloud layers,
 //     warm-tinted platforms (replaces the generic rock clusters for the shot)
-//   - ONE Dusk moving platform with a candidate motion tell (cyan glow strip
-//     under its bottom edge + violet face), swaying via its own tween
-//   - four outline/edge candidates on THAT SAME scene, flipped by
-//     setOutlineMode (0-3). The tell strip is constant across modes so the
-//     matrix question "moving tile distinct at hop start?" is answered per
-//     edge-mode, not per tell-variant.
+//   - ONE Dusk moving platform with the candidate motion tell (cyan glow
+//     strip under its bottom edge + violet face), swaying via its own tween
 //
 // Revert: reload the page. A world switch / runway reseed also wipes the
 // recolors (PlatformManager.reset repaints via platformColor).
@@ -35,15 +35,6 @@ import { gsap } from 'gsap';
 import { GAME_CONFIG } from '../config/GameConfig';
 import { MaterialFactory } from '../systems/MaterialFactory';
 
-export type SpikeOutlineMode = 0 | 1 | 2 | 3;
-
-export const SPIKE_OUTLINE_NAMES: Record<SpikeOutlineMode, string> = {
-  0: 'black-hull (current)',
-  1: 'tinted-rim',
-  2: 'playable-only',
-  3: 'contrast-only'
-};
-
 /** Spike palette (feel-reference, not final art direction). */
 export const SPIKE = {
   /** Warm cream sky + matching fog. */
@@ -59,9 +50,7 @@ export const SPIKE = {
   /** The one Dusk mover's face (violet). */
   duskFace: 0x6b5bb8,
   /** The candidate motion tell: cyan glow strip (Dusk's one cyan accent). */
-  tell: 0x38f0e8,
-  /** Mode 1: world-tinted rim color (warm umber). */
-  rimTint: 0x6e5138
+  tell: 0x38f0e8
 } as const;
 
 type HullRole = 'playable' | 'prop';
@@ -112,11 +101,8 @@ export class SpikeLab {
   private spikeGroup: Group | null = null;
   private swayTween: gsap.core.Tween | null = null;
   private hulls: HullRecord[] = [];
-  private bands: Mesh[] = [];
   private built = false;
   private duskTile: Group | null = null;
-
-  private static bandGeo: BoxGeometry | null = null;
 
   /** Build (or rebuild) the spike scene. Idempotent. */
   build(handles: SpikeSceneHandles): { duskTileAhead: boolean; hulls: number; playable: number; props: number } {
@@ -143,7 +129,7 @@ export class SpikeLab {
 
     this.buildDuskTile(handles);
     this.collectHulls();
-    this.applyMode(0);
+    this.applyLocked();
     this.built = true;
     return {
       duskTileAhead: this.duskTile !== null,
@@ -153,23 +139,9 @@ export class SpikeLab {
     };
   }
 
-  /** Flip the edge treatment on the built scene (builds it first if needed). */
-  setMode(mode: SpikeOutlineMode, handles: SpikeSceneHandles): { mode: SpikeOutlineMode; name: string; hulls: number; playable: number; props: number } {
-    if (!this.built) this.build(handles);
-    this.applyMode(mode);
-    return {
-      mode,
-      name: SPIKE_OUTLINE_NAMES[mode],
-      hulls: this.hulls.length,
-      playable: this.hulls.filter((h) => h.role === 'playable').length,
-      props: this.hulls.filter((h) => h.role === 'prop').length
-    };
-  }
-
   dispose(): void {
     this.teardownScene();
     this.hulls = [];
-    this.bands = [];
     this.built = false;
     this.handles = null;
   }
@@ -297,56 +269,13 @@ export class SpikeLab {
     }
   }
 
-  private applyMode(mode: SpikeOutlineMode): void {
+  /** Locked pipeline (mode 0): thick black hulls everywhere, original scales. */
+  private applyLocked(): void {
     for (const h of this.hulls) {
       const mat = h.mesh.material as unknown as { color: { setHex(n: number): void } };
-      if (mode === 0) {
-        // Current: thick black hulls everywhere, original scales.
-        h.mesh.visible = h.visible;
-        mat.color.setHex(h.color);
-        h.mesh.scale.set(h.sx, h.sy, h.sz);
-      } else if (mode === 1) {
-        // Tinted rims: same hulls, world-tinted + thinner (half the excess).
-        h.mesh.visible = true;
-        mat.color.setHex(SPIKE.rimTint);
-        h.mesh.scale.set(1 + (h.sx - 1) * 0.5, 1 + (h.sy - 1) * 0.5, 1 + (h.sz - 1) * 0.5);
-      } else if (mode === 2) {
-        // Playable-only: ball + platforms (+coins) keep black hulls; props bare.
-        h.mesh.visible = h.role === 'playable' ? h.visible : false;
-        mat.color.setHex(h.color);
-        h.mesh.scale.set(h.sx, h.sy, h.sz);
-      } else {
-        // Contrast-only: no hull meshes at all.
-        h.mesh.visible = false;
-      }
-    }
-    // Mode 3 paper edge bands: thin lighter top plates on platforms.
-    const showBands = mode === 3;
-    if (showBands && this.handles) this.ensureBands();
-    for (const band of this.bands) band.visible = showBands;
-  }
-
-  /** Thin lighter top plate per platform = the "paper edge band" probe. */
-  private ensureBands(): void {
-    const handles = this.handles!;
-    if (this.bands.length > 0) return;
-    if (!SpikeLab.bandGeo) {
-      SpikeLab.bandGeo = new BoxGeometry(
-        GAME_CONFIG.PLATFORM_WIDTH * 0.94,
-        0.06,
-        GAME_CONFIG.PLATFORM_DEPTH * 0.94
-      );
-    }
-    for (const g of handles.platformGroups) {
-      const face = g.children[0] as Mesh;
-      const faceHex = (face.material as unknown as { color: { getHex(): number } }).color.getHex();
-      const light = new Color(faceHex).offsetHSL(0, -0.05, 0.16).getHex();
-      const band = new Mesh(SpikeLab.bandGeo, new MeshBasicMaterial({ color: light }));
-      band.position.y = GAME_CONFIG.PLATFORM_HEIGHT / 2 + 0.031;
-      band.visible = false;
-      band.userData.spikeBand = true;
-      g.add(band);
-      this.bands.push(band);
+      h.mesh.visible = h.visible;
+      mat.color.setHex(h.color);
+      h.mesh.scale.set(h.sx, h.sy, h.sz);
     }
   }
 
@@ -363,17 +292,17 @@ export class SpikeLab {
           const mat = m.material;
           if (!Array.isArray(mat)) mat?.dispose?.();
           // Cone/sphere geos here are per-prop instances (not shared) — safe.
-          if (m.userData.spikeBand !== true) m.geometry?.dispose?.();
+          m.geometry?.dispose?.();
         }
       });
     }
-    // Remove tell strips + bands from platforms (faces keep spike colors
-    // until reload — documented; a reseed repaints via platformColor).
+    // Remove tell strips from platforms (faces keep spike colors until
+    // reload — documented; a reseed repaints via platformColor).
     if (this.handles) {
       for (const g of this.handles.platformGroups) {
         for (let i = g.children.length - 1; i >= 0; i--) {
           const child = g.children[i];
-          if (child.userData.spikeTell === true || child.userData.spikeBand === true) {
+          if (child.userData.spikeTell === true) {
             g.remove(child);
             const m = child as Mesh;
             if (m.isMesh && !Array.isArray(m.material)) (m.material as Material)?.dispose?.();
@@ -383,6 +312,5 @@ export class SpikeLab {
     }
     this.spikeGroup = null;
     this.duskTile = null;
-    this.bands = [];
   }
 }

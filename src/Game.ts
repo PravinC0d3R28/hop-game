@@ -17,7 +17,7 @@ import { InputSystem } from './systems/InputSystem';
 import { BallEntity } from './entities/BallEntity';
 import { PlatformEntity, type CoinObject, type PlatformData } from './entities/PlatformEntity';
 import { PlatformManager } from './managers/PlatformManager';
-import type { SpikeLab, SpikeSceneHandles, SpikeOutlineMode } from './dev/SpikeLab';
+import type { SpikeLab, SpikeSceneHandles } from './dev/SpikeLab';
 import { PersistenceManager, LocalStorageBackend } from './managers/PersistenceManager';
 import { UIManager } from './ui/UIManager';
 
@@ -1114,26 +1114,6 @@ export class Game {
       setBackgroundVisible: (v: boolean) => this.background.setVisible(v)
     };
     return this.spikeLab.build(handles);
-  }
-
-  /**
-   * Flip the spike edge treatment 0-3 (black-hull / tinted-rim /
-   * playable-only / contrast-only). Builds the scene first if needed.
-   */
-  async devSpikeOutline(mode: number): Promise<{ mode: SpikeOutlineMode; name: string; hulls: number; playable: number; props: number }> {
-    const { SpikeLab, SPIKE_OUTLINE_NAMES } = await import('./dev/SpikeLab');
-    const m: SpikeOutlineMode = mode === 1 || mode === 2 || mode === 3 ? mode : 0;
-    this.stopAttractDemo();
-    this.spikeLab ??= new SpikeLab();
-    const handles: SpikeSceneHandles = {
-      scene: this.renderer.scene,
-      ballGroup: this.ball.group,
-      platformGroups: this.platforms.getPlatforms().map((p) => p.group),
-      ballZ: this.ball.group.position.z,
-      setBackgroundVisible: (v: boolean) => this.background.setVisible(v)
-    };
-    const result = this.spikeLab.setMode(m, handles);
-    return { ...result, name: SPIKE_OUTLINE_NAMES[m] };
   }
 
   dispose(): void {

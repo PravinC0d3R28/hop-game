@@ -47,4 +47,16 @@ blue) · neon accents `#38f0e8` (cyan) · `#ff4dd8` (magenta) · star dots
   inner light (keep existing shape, match the new palette family).
 - **Streak-fire element:** soft cartoon flames in warm white-gold for streak 10.
 
+## Locked outline decision (Week 2 spike, 2026-09-02)
+
+Single V1 pipeline: **mode 0 — current thick black inverted-hull outlines
+on everything** (platforms, ball, coins, props). Rejected: tinted rims
+(cloud rims inconsistent); contrast-only not selected. Pre-approved
+fallback: playable-only outlines (recoverable from git history `39b7384`).
+
+Note: the "NO black outlines" lines in the prompts above are prompt
+aspirations and are **superseded** by this lock — use the prompts for
+palette/mood only. If a future week re-opens the edge treatment,
+regenerate references in the new language first.
+
 

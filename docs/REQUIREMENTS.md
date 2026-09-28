@@ -20,7 +20,7 @@ while keeping the core loop unchanged and everything config-driven.
 | G1 | 3 worlds as selectable play spaces | Start-screen world nav (arrows + chips) picks the world; locked worlds show 🔒 + threshold; runs never change worlds mid-flight |
 | G2 | Cumulative-score progression that never punishes failure | Every run adds its final score to a lifetime total; unlocks are derived, permanent, never re-earned |
 | G3 | Retention loop for players of any age | First reward within ~3 min of play; missions + streaks + shield; "fast early, slower later" curve (1,000 → 5,000) |
-| G4 | Visually distinct worlds (Dawn→Dusk arc) | W1 warm/paper-craft → W2 sunset/neon → W3 night/neon; no black outlines; glow accents |
+| G4 | Visually distinct worlds (Dawn→Dusk arc) | W1 warm/paper-craft → W2 sunset/neon → W3 night/neon; ~~no black outlines~~ **black hulls kept per Week 2 spike lock (2026-09-02)**; glow accents |
 | G5 | Ship quality | 60 fps, no console errors, clean memory on world change, backwards-compatible saves, builds to static files |
 
 ## 3. Non-goals (v1)
@@ -76,7 +76,7 @@ while keeping the core loop unchanged and everything config-driven.
 
 | # | Requirement | Target |
 |---|-------------|--------|
-| NFR-1 | Performance | 60 fps on mid-range hardware; draw calls minimized by removing outlines (research: halves draw calls); no canvas-texture updates during the game loop (pre-generate at boot, swap references) |
+| NFR-1 | Performance | 60 fps on mid-range hardware; outlines kept per spike lock — measured cost is ~16–17 draws, not half (57→40/41 desktop, 54→37/38 mobile); no canvas-texture updates during the game loop (pre-generate at boot, swap references) |
 | NFR-2 | Memory | Dispose GPU resources on world change (no per-world texture leak); no listener leaks |
 | NFR-3 | Robustness | No console errors/warnings in normal play; clean handling of corrupt localStorage (sanitize + defaults) |
 | NFR-4 | Testability | All difficulty/unlock/mission logic in pure functions covered by Vitest; existing 33 tests stay green; suite grows per iteration |

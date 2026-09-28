@@ -159,4 +159,32 @@ the Session 0 gate).
 - [x] typecheck and tests pass (181/181)
 - [x] production build passes
 - [x] Week 2 snapshot numbers written down (this file)
-- [ ] the art spike has a scheduled first session (next step)
+- [x] the art spike has a scheduled first session (built + shot 2026-09-02)
+
+## 7. Art-spike decision (LOCKED 2026-09-02, §9.5)
+
+Four outline candidates shot on one frozen Sunrise+Dusk-tell scene
+(8 stills: desktop 1280×800 + mobile 390×844; all modes 60 fps —
+the decision is purely visual, not performance).
+
+- **Locked V1 pipeline: mode 0 — current thick black inverted-hull
+  outlines on everything** (platforms, ball, coins, props). Keep as-is;
+  revisit only if a later world pass feels off.
+- **Rejected: mode 1 tinted-rim** — inconsistent in practice (cloud rims
+  read wrong/off against the cream sky).
+- **Not selected: mode 3 contrast-only.**
+- **Pre-approved fallback: mode 2 playable-only** (black kept on
+  ball+platforms, bare props; measured −16 draws desktop, −16 mobile).
+  Implementation preserved in git history (`39b7384`); re-implementable
+  in ~30 min if black hulls feel heavy later. Losing variants deleted
+  from `SpikeLab` — production/dev ships exactly one edge path.
+- **Motion cue (provisional): cyan glow strip** under the moving tile's
+  bottom edge + violet face — the spike's candidate tell, constant across
+  all four modes. Revalidated in the Day 2 Dusk freeze-frame check; cheap
+  to change (one strip mesh, not a pipeline).
+- **Halftone dots: unchanged (stay).** No dot variant was spiked.
+- **Void: excluded from the spike by design;** dark-scene contrast pass
+  scheduled Day 3.
+
+Day 1 (shared `WorldLook` pipeline + Sunrise paint) is unblocked: it is
+built on the mode-0 lock, so no edge shader gets rewritten three times.

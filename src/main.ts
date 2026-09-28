@@ -68,7 +68,7 @@ function bootstrap(): void {
   //   window.gameDebug.setScore(n) / giveCoins(n) / unlockAllSkins() / toggleInvincible()
   //   window.gameDebug.unlockAllWorlds() / forceWorld(id | null) / setTotalScore(n)
   //   window.gameDebug.straightLane(on) / noSway(on) / hitboxes(on) / reseedRunway()
-  //   window.gameDebug.spikeScene() / spikeOutline(0-3)  (Week 2 art spike)
+  //   window.gameDebug.spikeScene()  (Week 2 art spike, locked scene)
   //   window.gameDebug.completeAllMissions() / claimAllMissions() / resetProgress()
   //
   // 6.4 gate: window.gameDebug is exposed ONLY when the build itself is a dev
@@ -109,7 +109,6 @@ type DebugAccessor = {
   devReseedRunway(): void;
   devSetHitboxes(on: boolean): void;
   devSpikeScene(): Promise<{ duskTileAhead: boolean; hulls: number; playable: number; props: number }>;
-  devSpikeOutline(mode: number): Promise<{ mode: number; name: string; hulls: number; playable: number; props: number }>;
 };
 
 /**
@@ -158,11 +157,9 @@ function createDebugApi(accessor: DebugAccessor): Record<string, unknown> {
     hitboxes: (on: boolean) => {
       accessor.devSetHitboxes(on);
     },
-    // Week 2 art spike (dev-only): build the Sunrise+Dusk-tell scene, then
-    // flip the edge treatment 0-3 (black-hull / tinted-rim / playable-only /
-    // contrast-only). Reload the page to revert. Documented in DEV_COMMANDS.
+    // Week 2 art spike (dev-only): build the locked Sunrise+Dusk-tell scene
+    // for verification shots. Reload the page to revert.
     spikeScene: () => accessor.devSpikeScene(),
-    spikeOutline: (mode: number) => accessor.devSpikeOutline(mode),
     reseedRunway: () => {
       accessor.devReseedRunway();
     },
