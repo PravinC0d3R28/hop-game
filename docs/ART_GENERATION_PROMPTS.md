@@ -8,15 +8,17 @@ never pixels.
 ## 1. How to use this file
 
 1. Pick **one variation per world** (§5) and generate it.
-2. Every variation below is **self-contained** (copy one block, paste, go).
+2. Every variation below is **fully merged** — global style, locked
+   constraints, and the avoid-list are all inside the one block.
+   Copy, paste, go; nothing to append.
 3. Need a 4th variation later? Combine the **global style block** (§2) with a
    new mood line, keeping that world's **locked constraints** (§4).
 4. Judge with §6, then send back the winner IDs + images (see §7).
 
 ## 2. Global style block (baked into every variation)
 
-All nine prompts below share this DNA — it is what keeps the three worlds
-feeling like one game:
+All nine prompts below already contain this DNA — documented here so a
+future 10th variation can be built the same way:
 
 - soft paper-craft diorama, layered cutout depth;
 - a track of floating rounded-cube platforms receding into the distance,
@@ -27,7 +29,9 @@ feeling like one game:
 - storybook mobile game art, clean shapes, luminous lighting;
 - 16:9 landscape, no text, no watermark, no characters, no UI.
 
-## 3. Negative prompt (append when the generator supports it)
+## 3. Negative prompt (already merged into each variation below)
+
+Use standalone only if the generator has a dedicated negative field:
 
 ```
 photorealistic, 3d render, neon grid, synthwave sun only, dark minimalist
@@ -53,51 +57,51 @@ blurry, low resolution, muddy colors, washed out
 
 **S1 — Golden Morning Pop:**
 ```
-Paper-craft diorama game art, 16:9, slightly elevated view following a track of floating rounded-cube platforms into the distance. Vivid golden morning: huge glowing tangerine sun, saturated warm-gold hills layered in cream and peach paper cutouts, bright azure-blue sky gradient, crisp white puffy clouds. Platforms are cream and honey-gold with bold black cartoon outlines. Cheerful, high-energy, luminous. Storybook mobile game art, clean shapes, no text.
+Paper-craft diorama game art, 16:9, slightly elevated view following a track of floating rounded-cube platforms into the distance. Vivid golden morning: huge glowing tangerine sun, saturated warm-gold hills layered in cream and peach paper cutouts, bright azure-blue sky gradient, crisp white puffy clouds. Platforms are cream and honey-gold with bold black cartoon outlines. Cheerful, high-energy, luminous. Storybook mobile game art, clean shapes, no text. Avoid photorealism, 3D renders, text, watermarks, UI elements, blur, and muddy or washed-out colors. Keep it bright and highly legible.
 ```
 
 **S2 — Candy Dawn:**
 ```
-Paper-craft diorama game art, 16:9, slightly elevated view following a track of floating rounded-cube platforms into the distance. Playful candy-colored dawn: hot coral-pink gradient sky, vivid teal-blue paper mountains, bright tangerine sun disc, fluffy pink-white clouds. Platforms are cream, pastel yellow and saturated orange with bold black cartoon outlines. Lively, saturated, joyful. Storybook mobile game art, clean shapes, no text.
+Paper-craft diorama game art, 16:9, slightly elevated view following a track of floating rounded-cube platforms into the distance. Playful candy-colored dawn: hot coral-pink gradient sky, vivid teal-blue paper mountains, bright tangerine sun disc, fluffy pink-white clouds. Platforms are cream, pastel yellow and saturated orange with bold black cartoon outlines. Lively, saturated, joyful. Storybook mobile game art, clean shapes, no text. Avoid photorealism, 3D renders, text, watermarks, UI elements, blur, and muddy or washed-out colors. Keep it bright and highly legible.
 ```
 
 **S3 — Electric Horizon:**
 ```
-Paper-craft diorama game art, 16:9, slightly elevated view following a track of floating rounded-cube platforms into the distance. Bold complementary-color morning: deep vivid cobalt-blue sky, blazing orange-yellow sunburst, peach and apricot paper hills glowing at the edges, sharp white cloud cutouts. Platforms are ivory, gold and bright amber with bold black cartoon outlines. High contrast, electric, crisp. Storybook mobile game art, clean shapes, no text.
+Paper-craft diorama game art, 16:9, slightly elevated view following a track of floating rounded-cube platforms into the distance. Bold complementary-color morning: deep vivid cobalt-blue sky, blazing orange-yellow sunburst, peach and apricot paper hills glowing at the edges, sharp white cloud cutouts. Platforms are ivory, gold and bright amber with bold black cartoon outlines. High contrast, electric, crisp. Storybook mobile game art, clean shapes, no text. Avoid photorealism, 3D renders, text, watermarks, UI elements, blur, and muddy or washed-out colors. Keep it bright and highly legible.
 ```
 
 ### Dusk District
 
 **D1 — Sunset Boulevard:**
 ```
-Paper-craft diorama game art, 16:9, slightly elevated view following a track of floating rounded-cube platforms into the distance. Electric synthwave sunset in paper: blazing magenta-to-orange gradient sky with a low striped sun, deep violet paper city silhouettes and rooftops on both sides. Platforms are warm cream and coral with bold black cartoon outlines and a single streak of glowing electric-cyan light on their bottom edges — the only cyan in the scene. Small warm lantern dots floating. Lively, glowing, dramatic. Storybook mobile game art, clean shapes, no text.
+Paper-craft diorama game art, 16:9, slightly elevated view following a track of floating rounded-cube platforms into the distance. Electric synthwave sunset in paper: blazing magenta-to-orange gradient sky with a low striped sun, deep violet paper city silhouettes and rooftops on both sides. Platforms are warm cream and coral with bold black cartoon outlines and a single streak of glowing electric-cyan light on their bottom edges — the only cyan in the scene. Small warm lantern dots floating. Lively, glowing, dramatic. Storybook mobile game art, clean shapes, no text. Avoid photorealism, 3D renders, text, watermarks, UI elements, blur, and muddy colors. Keep cyan to one single accent only.
 ```
 
 **D2 — Lantern Festival:**
 ```
-Paper-craft diorama game art, 16:9, slightly elevated view following a track of floating rounded-cube platforms into the distance. Festive dusk fairground in paper: rich violet-purple sky, dozens of glowing amber and rose paper lanterns floating everywhere like popping lights, magenta paper hills. Platforms are cream and soft gold with bold black cartoon outlines and a single streak of glowing electric-cyan light on their bottom edges — the only cyan in the scene. Joyful, sparkling, warm. Storybook mobile game art, clean shapes, no text.
+Paper-craft diorama game art, 16:9, slightly elevated view following a track of floating rounded-cube platforms into the distance. Festive dusk fairground in paper: rich violet-purple sky, dozens of glowing amber and rose paper lanterns floating everywhere like popping lights, magenta paper hills. Platforms are cream and soft gold with bold black cartoon outlines and a single streak of glowing electric-cyan light on their bottom edges — the only cyan in the scene. Joyful, sparkling, warm. Storybook mobile game art, clean shapes, no text. Avoid photorealism, 3D renders, text, watermarks, UI elements, blur, and muddy colors. Keep cyan to one single accent only.
 ```
 
 **D3 — Coral Electric:**
 ```
-Paper-craft diorama game art, 16:9, slightly elevated view following a track of floating rounded-cube platforms into the distance. Maximum-saturation coral dusk: hot coral-pink sky, saturated purple and fuchsia paper cliffs, glowing peach sun half-dipped below the skyline. Platforms are vivid tangerine and cream with bold black cartoon outlines and a single streak of glowing electric-cyan light on their bottom edges — the only cyan in the scene. Bold, punchy, loud. Storybook mobile game art, clean shapes, no text.
+Paper-craft diorama game art, 16:9, slightly elevated view following a track of floating rounded-cube platforms into the distance. Maximum-saturation coral dusk: hot coral-pink sky, saturated purple and fuchsia paper cliffs, glowing peach sun half-dipped below the skyline. Platforms are vivid tangerine and cream with bold black cartoon outlines and a single streak of glowing electric-cyan light on their bottom edges — the only cyan in the scene. Bold, punchy, loud. Storybook mobile game art, clean shapes, no text. Avoid photorealism, 3D renders, text, watermarks, UI elements, blur, and muddy colors. Keep cyan to one single accent only.
 ```
 
 ### Deep Void
 
 **V1 — Starlit Origami:**
 ```
-Paper-craft diorama game art, 16:9, slightly elevated view following a track of floating rounded-cube platforms into the distance. Mysterious night-paper kingdom: deep indigo night sky densely scattered with warm golden star dots, thin glowing crescent moon. Platforms are dark slate-blue rounded cubes with bold black cartoon outlines and glowing cyan edge light, one magenta glowing accent platform. Sparse, luminous, magical. Storybook mobile game art, clean shapes, no text.
+Paper-craft diorama game art, 16:9, slightly elevated view following a track of floating rounded-cube platforms into the distance. Mysterious night-paper kingdom: deep indigo night sky densely scattered with warm golden star dots, thin glowing crescent moon. Platforms are dark slate-blue rounded cubes with bold black cartoon outlines and glowing cyan edge light, one magenta glowing accent platform. Sparse, luminous, magical. Storybook mobile game art, clean shapes, no text. Avoid photorealism, 3D renders, neon grids, empty minimalist darkness, text, watermarks, UI elements, and blur. Platforms must stay clearly visible against the sky.
 ```
 
 **V2 — Aurora Reef:**
 ```
-Paper-craft diorama game art, 16:9, slightly elevated view following a track of floating rounded-cube platforms into the distance. Vivid aurora night in paper: sweeping teal and magenta aurora ribbons across a deep indigo starry sky, dark charcoal-blue platforms silhouetted with bold black cartoon outlines and cyan glowing edges, golden star dots. Colorful, alive, electric. Storybook mobile game art, clean shapes, no text.
+Paper-craft diorama game art, 16:9, slightly elevated view following a track of floating rounded-cube platforms into the distance. Vivid aurora night in paper: sweeping teal and magenta aurora ribbons across a deep indigo starry sky, dark charcoal-blue platforms silhouetted with bold black cartoon outlines and cyan glowing edges, golden star dots. Colorful, alive, electric. Storybook mobile game art, clean shapes, no text. Avoid photorealism, 3D renders, neon grids, empty minimalist darkness, text, watermarks, UI elements, and blur. Platforms must stay clearly visible against the sky.
 ```
 
 **V3 — Neon Constellation:**
 ```
-Paper-craft diorama game art, 16:9, slightly elevated view following a track of floating rounded-cube platforms into the distance. Dramatic constellation night in paper: near-black indigo sky, platforms as dark navy shapes with bold black cartoon outlines traced in bright cyan and magenta constellation lines, clusters of gold star dots, one slim glowing crescent. High contrast, striking, premium. Storybook mobile game art, clean shapes, no text.
+Paper-craft diorama game art, 16:9, slightly elevated view following a track of floating rounded-cube platforms into the distance. Dramatic constellation night in paper: near-black indigo sky, platforms as dark navy shapes with bold black cartoon outlines traced in bright cyan and magenta constellation lines, clusters of gold star dots, one slim glowing crescent. High contrast, striking, premium. Storybook mobile game art, clean shapes, no text. Avoid photorealism, 3D renders, neon grids, empty minimalist darkness, text, watermarks, UI elements, and blur. Platforms must stay clearly visible against the sky.
 ```
 
 ## 6. Judging a candidate (ask per image)
