@@ -49,3 +49,4 @@ fc89e97 feat: lock Week 2 outline to black-hull, drop losing spike variants (dec
 ccf991f feat: add WorldLook data model with three world entries (Sunrise complete, Dusk/Void provisional + contrast tripwire, 188 tests)
 c0d6b52 feat: apply WorldLook pipeline with Sunrise identity (applyWorldLook, recipe factory, face/coin overrides, theme split, 192 tests)
 9709365 docs: log Week 2 world-art generation prompts (9 variations + master framework)
+2189da8 docs: merge style, constraints and avoid-list into each art prompt (9 fully merged blocks)
