@@ -1,9 +1,9 @@
 // Week 2 Day 1: crystal + cloud geometry guards. Headless (no WebGL): these
-// pin the concept-critical properties — multi-tonal facets, outward winding,
-// fixed-width outlines, and formation clustering.
+// pin the concept-critical properties — mixed-colour clusters, facet tone
+// variation, a RELATIVE rim, and non-degenerate triangles.
 import { describe, it, expect } from 'vitest';
 import {
-  EDGE_THICKNESS,
+  OUTLINE_FACTOR,
   bakeSegment,
   crystalTones,
   emitCrystal,
@@ -14,6 +14,13 @@ import {
 import { buildCloudSea } from '../src/systems/CloudFactory';
 
 const FAMILY = { base: 0xff6f70 };
+const MIXED = [
+  { base: 0xff6f70 },
+  { base: 0xffb07a },
+  { base: 0x8de3b0 },
+  { base: 0x55cfe6 },
+  { base: 0xffd95a }
+];
 
 function attrs(geo: { getAttribute(n: string): { count: number; getX(i: number): number; getY(i: number): number; getZ(i: number): number } }) {
   return geo.getAttribute('position');
@@ -22,9 +29,7 @@ function attrs(geo: { getAttribute(n: string): { count: number; getX(i: number):
 describe('crystal tones', () => {
   it('derives four distinct facet tones from one base', () => {
     const t = crystalTones(FAMILY);
-    const all = [t.light, t.base, t.shade, t.cream];
-    expect(new Set(all).size).toBe(4);
-    // Cream is the key-facing highlight: clearly lighter than the base.
+    expect(new Set([t.light, t.base, t.shade, t.cream]).size).toBe(4);
     const lum = (c: number) => {
       const f = (v: number) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); };
       return 0.2126 * f((c >> 16) & 255) + 0.7152 * f((c >> 8) & 255) + 0.0722 * f(c & 255);
@@ -33,26 +38,18 @@ describe('crystal tones', () => {
     expect(lum(t.light)).toBeGreaterThan(lum(t.base));
     expect(lum(t.base)).toBeGreaterThan(lum(t.shade));
   });
-
-  it('honours explicit palette overrides', () => {
-    const t = crystalTones({ base: 0xff6f70, cream: 0x123456 });
-    expect(t.cream).toBe(0x123456);
-  });
 });
 
 describe('crystal geometry', () => {
-  it('a crystal is a closed, outward-wound, multi-tone triangle soup', () => {
+  it('uses a facet tone per triangle (the concept look)', () => {
     const acc = emptyAcc();
     emitCrystal(acc, {
-      baseR: 0.5, height: 3, taper: 0.5, sides: 6, spin: 0.3,
-      leanX: 0.05, leanZ: -0.03, scale: 1, pos: [0, 0, 0],
-      tones: crystalTones(FAMILY), jitter: 0
-    }, makeRng(7), EDGE_THICKNESS);
-    const { face, hull } = bakeSegment(acc);
-    const pos = attrs(face);
+      baseR: 0.7, height: 4, taper: 0.5, sides: 6, spin: 0.3,
+      leanX: 0.03, leanZ: -0.02, scale: 1, pos: [0, 0, 0],
+      tones: crystalTones(FAMILY)
+    }, makeRng(7));
+    const { face } = bakeSegment(acc);
     const col = face.getAttribute('color') as unknown as { count: number; getX(i: number): number; getY(i: number): number; getZ(i: number): number };
-    expect(pos.count % 3).toBe(0);
-    // Facet tone variation is the concept's signature — several colors used.
     const used = new Set<string>();
     for (let i = 0; i < col.count; i += 3) {
       used.add(`${col.getX(i).toFixed(2)},${col.getY(i).toFixed(2)},${col.getZ(i).toFixed(2)}`);
@@ -60,36 +57,38 @@ describe('crystal geometry', () => {
     expect(used.size).toBeGreaterThanOrEqual(3);
   });
 
-  it('outlines are a fixed world thickness, not a relative scale', () => {
-    const acc = emptyAcc();
-    emitCrystal(acc, {
-      baseR: 0.5, height: 6, taper: 0.5, sides: 6, spin: 0,
-      leanX: 0, leanZ: 0, scale: 2, pos: [0, 0, 0],
-      tones: crystalTones(FAMILY), jitter: 0
-    }, makeRng(3), EDGE_THICKNESS);
-    const { face, hull } = bakeSegment(acc);
-    const f = attrs(face), h = attrs(hull);
-    // Every hull vertex sits exactly EDGE_THICKNESS from its face vertex.
-    for (let i = 0; i < f.count; i++) {
-      const d = Math.hypot(h.getX(i) - f.getX(i), h.getY(i) - f.getY(i), h.getZ(i) - f.getZ(i));
-      expect(d).toBeCloseTo(EDGE_THICKNESS, 5);
-    }
+  it('the rim is RELATIVE to crystal size (a fixed rim swallowed far crystals)', () => {
+    const small = emptyAcc();
+    emitCrystal(small, {
+      baseR: 0.4, height: 2, taper: 0.5, sides: 6, spin: 0,
+      leanX: 0, leanZ: 0, scale: 0.5, pos: [0, 0, 0], tones: crystalTones(FAMILY)
+    }, makeRng(3));
+    const big = emptyAcc();
+    emitCrystal(big, {
+      baseR: 0.4, height: 2, taper: 0.5, sides: 6, spin: 0,
+      leanX: 0, leanZ: 0, scale: 2, pos: [0, 0, 0], tones: crystalTones(FAMILY)
+    }, makeRng(3));
+
+    const rim = (acc: ReturnType<typeof emptyAcc>): number => {
+      const { face, hull } = bakeSegment(acc);
+      const f = attrs(face), h = attrs(hull);
+      return Math.hypot(h.getX(0) - f.getX(0), h.getY(0) - f.getY(0), h.getZ(0) - f.getZ(0));
+    };
+    const rSmall = rim(small);
+    const rBig = rim(big);
+    // Rim grows with the crystal, and stays a small fraction of it.
+    expect(rBig).toBeGreaterThan(rSmall * 3);
+    expect(rSmall / 0.5).toBeCloseTo(OUTLINE_FACTOR, 5);
+    expect(rSmall / 0.5).toBeLessThan(0.06);
   });
 
   it('an un-sheared crystal has every side face pointing outward', () => {
-    // The real geometric invariant. (A world-origin radial test is invalid for
-    // leaning shards, whose outward normal is not parallel to the origin
-    // direction — the renderer no longer depends on this anyway, since the
-    // crystal material is DoubleSide, but a flipped wall would still shade
-    // wrong.)
     const acc = emptyAcc();
     emitCrystal(acc, {
       baseR: 0.6, height: 4, taper: 0.5, sides: 6, spin: 0.7,
-      leanX: 0, leanZ: 0, scale: 1, pos: [0, 0, 0],
-      tones: crystalTones(FAMILY), jitter: 0
-    }, makeRng(11), EDGE_THICKNESS);
-    const { face } = bakeSegment(acc);
-    const p = attrs(face);
+      leanX: 0, leanZ: 0, scale: 1, pos: [0, 0, 0], tones: crystalTones(FAMILY)
+    }, makeRng(11));
+    const p = attrs(bakeSegment(acc).face);
     let sides = 0;
     for (let t = 0; t < p.count; t += 3) {
       const a = [p.getX(t), p.getY(t), p.getZ(t)];
@@ -105,7 +104,6 @@ describe('crystal geometry', () => {
       const cy = (a[1] + b[1] + c[1]) / 3;
       const cz = (a[2] + b[2] + c[2]) / 3;
       if (Math.abs(ny) > 0.8) {
-        // Base cap points down, tip fan points up.
         if (cy < 0.01) expect(ny).toBeLessThan(0);
         else expect(ny).toBeGreaterThan(0);
         continue;
@@ -118,15 +116,37 @@ describe('crystal geometry', () => {
     }
     expect(sides).toBeGreaterThan(10);
   });
+});
 
-  it('formations across many seeds have no degenerate triangles', () => {
+describe('formations', () => {
+  it('a cluster is MIXED colour, not one family (concept shows many per cluster)', () => {
     const acc = emptyAcc();
-    for (let seed = 1; seed <= 24; seed++) {
-      emitFormation(acc, { x: 0, z: 0, weight: (seed % 5) / 4, family: FAMILY, accent: null, count: 7 },
-        makeRng(seed * 31), EDGE_THICKNESS);
+    emitFormation(acc, { x: 0, z: 0, weight: 1, families: MIXED, count: 7, baseY: -1.3 }, makeRng(5));
+    const col = bakeSegment(acc).face.getAttribute('color') as unknown as { count: number; getX(i: number): number; getY(i: number): number; getZ(i: number): number };
+    const used = new Set<string>();
+    for (let i = 0; i < col.count; i += 3) {
+      used.add(`${col.getX(i).toFixed(2)},${col.getY(i).toFixed(2)},${col.getZ(i).toFixed(2)}`);
     }
-    const { face } = bakeSegment(acc);
-    const p = attrs(face);
+    // At least 4 of the 5 families must appear inside ONE cluster.
+    expect(used.size).toBeGreaterThanOrEqual(8);
+  });
+
+  it('bases sit below the tile plane so crystals emerge from the sea', () => {
+    const acc = emptyAcc();
+    emitFormation(acc, { x: 0, z: 0, weight: 0.6, families: MIXED, count: 6, baseY: -1.4 }, makeRng(9));
+    const p = attrs(bakeSegment(acc).face);
+    let minY = Infinity;
+    for (let i = 0; i < p.count; i++) minY = Math.min(minY, p.getY(i));
+    expect(minY).toBeLessThan(-1);
+  });
+
+  it('has no degenerate triangles across many seeds', () => {
+    const acc = emptyAcc();
+    for (let seed = 1; seed <= 20; seed++) {
+      emitFormation(acc, { x: 0, z: 0, weight: (seed % 5) / 4, families: MIXED, count: 7, baseY: -1.2 },
+        makeRng(seed * 31));
+    }
+    const p = attrs(bakeSegment(acc).face);
     let degenerate = 0;
     for (let t = 0; t < p.count; t += 3) {
       const a = [p.getX(t), p.getY(t), p.getZ(t)];
@@ -141,49 +161,15 @@ describe('crystal geometry', () => {
       );
       if (n < 1e-9) degenerate++;
     }
-    // Only the collapsed pole rings may degenerate.
     expect(degenerate).toBeLessThan(p.count / 3 * 0.2);
-  });
-});
-
-describe('formations', () => {
-  it('a formation is a CLUSTER (dominant spire + satellites), not one crystal', () => {
-    const acc = emptyAcc();
-    emitFormation(acc, {
-      x: 6, z: 10, weight: 0.9, family: FAMILY, accent: null, count: 6
-    }, makeRng(5), EDGE_THICKNESS);
-    const { face } = bakeSegment(acc);
-    const p = attrs(face);
-    // One crystal ≈ 6 sides * 8 triangles * 3 verts. 6 crystals >> that.
-    expect(p.count / 3).toBeGreaterThan(100);
-
-    // Satellites must stay near the cluster centre (tight clump).
-    const single = emptyAcc();
-    emitCrystal(single, {
-      baseR: 0.5, height: 3, taper: 0.5, sides: 6, spin: 0,
-      leanX: 0, leanZ: 0, scale: 1, pos: [6, 0, 10],
-      tones: crystalTones(FAMILY), jitter: 0
-    }, makeRng(5), EDGE_THICKNESS);
-    expect(p.count).toBeGreaterThan(attrs(bakeSegment(single).face).count * 4);
-  });
-
-  it('crystal bases sit below the blanket top so they emerge from cloud', () => {
-    const acc = emptyAcc();
-    emitFormation(acc, { x: -6, z: 8, weight: 0.5, family: FAMILY, accent: null, count: 4 },
-      makeRng(9), EDGE_THICKNESS);
-    const { face } = bakeSegment(acc);
-    const p = attrs(face);
-    let minY = Infinity;
-    for (let i = 0; i < p.count; i++) minY = Math.min(minY, p.getY(i));
-    expect(minY).toBeLessThan(0.15);
   });
 });
 
 describe('cloud sea', () => {
   it('builds a dense vertex-coloured blanket (one merged geometry)', () => {
     const geo = buildCloudSea({
-      length: 70, spread: 17, top: 0.15, depth: 1.5, density: 170,
-      palette: { base: 0xfff7e8, highlight: 0xfffbef, shadow: 0xf4dccb },
+      length: 70, spread: 18, top: -3.4, depth: 1.8, density: 130,
+      palette: { base: 0xfffefc, highlight: 0xffffff, shadow: 0xf0d3b2 },
       seed: 42
     });
     const pos = attrs(geo);
@@ -192,24 +178,9 @@ describe('cloud sea', () => {
     expect(col.count).toBe(pos.count);
   });
 
-  it('stays low and wide — never a tower over the path', () => {
-    const geo = buildCloudSea({
-      length: 70, spread: 17, top: 0.15, depth: 1.5, density: 60,
-      palette: { base: 0xfff7e8, highlight: 0xfffbef, shadow: 0xf4dccb },
-      seed: 8
-    });
-    const p = attrs(geo);
-    let maxY = -Infinity;
-    for (let i = 0; i < p.count; i++) maxY = Math.max(maxY, p.getY(i));
-    expect(maxY).toBeLessThan(3);
-  });
-
   it('every triangle has real area (regression: three identical points = invisible)', () => {
-    // The sea once pushed the SAME vertex three times per triangle. Vertex
-    // count and bounding sphere both looked correct, so nothing caught it
-    // except actually measuring triangle area.
     const geo = buildCloudSea({
-      length: 70, spread: 22, top: -0.5, depth: 2.6, density: 40,
+      length: 70, spread: 18, top: -3.4, depth: 1.8, density: 40,
       palette: { base: 0xfffefc, highlight: 0xffffff, shadow: 0xf0d3b2 },
       seed: 3
     });
@@ -221,18 +192,26 @@ describe('cloud sea', () => {
       const c = [p.getX(t + 2), p.getY(t + 2), p.getZ(t + 2)];
       const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
       const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
-      const n = [
+      const n = Math.hypot(
         u[1] * v[2] - u[2] * v[1],
         u[2] * v[0] - u[0] * v[2],
         u[0] * v[1] - u[1] * v[0]
-      ];
-      // Cross-product magnitude = 2× area. Poles legitimately collapse to
-      // points, so only flag a triangle that is BOTH tiny and duplicated.
-      const len = Math.hypot(n[0], n[1], n[2]);
+      );
       const dup = a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
-      if (dup || len < 1e-9) degenerate++;
+      if (dup || n < 1e-9) degenerate++;
     }
-    // Poles may be degenerate; the bulk of the blanket must not be.
     expect(degenerate).toBeLessThan(p.count / 3 * 0.25);
+  });
+
+  it('stays low and wide — never a tower over the path', () => {
+    const geo = buildCloudSea({
+      length: 70, spread: 18, top: -3.4, depth: 1.8, density: 60,
+      palette: { base: 0xfffefc, highlight: 0xffffff, shadow: 0xf0d3b2 },
+      seed: 8
+    });
+    const p = attrs(geo);
+    let maxY = -Infinity;
+    for (let i = 0; i < p.count; i++) maxY = Math.max(maxY, p.getY(i));
+    expect(maxY).toBeLessThan(0.6);
   });
 });

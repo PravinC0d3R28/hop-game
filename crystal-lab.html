@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>HOP — crystal lab (dev only)</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #f7e3c4; overflow: hidden; }
+      canvas { display: block; }
+      #hud {
+        position: fixed; left: 10px; top: 10px; z-index: 10;
+        font: 12px/1.5 ui-monospace, monospace; color: #3b302d;
+        background: rgba(255,255,255,.82); padding: 8px 10px; border-radius: 8px;
+      }
+      #hud label { display: block; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <div id="hud">
+      <strong>crystal lab</strong><br />
+      <label><input type="checkbox" id="outline" checked /> outline</label>
+      <label><input type="checkbox" id="dots" /> halftone dots</label>
+      <label><input type="checkbox" id="fog" /> fog</label>
+      <label><input type="checkbox" id="tiles" checked /> tile level</label>
+      <label><input type="checkbox" id="loop" checked /> loop</label>
+      <label><input type="checkbox" id="auto" checked /> auto-randomize</label>
+      <label>seed <input type="range" id="seed" min="1" max="40" value="7" /></label>
+      <button id="shuffle">shuffle now</button>
+      <span id="stats"></span>
+    </div>
+    <script type="module" src="/src/dev/crystalLab.ts"></script>
+  </body>
+</html>

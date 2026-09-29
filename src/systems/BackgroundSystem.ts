@@ -8,7 +8,7 @@ import {
   type BufferGeometry,  type Scene
 } from 'three';
 import { MaterialFactory } from './MaterialFactory';
-import { EDGE_THICKNESS, bakeSegment, emptyAcc, emitFormation, makeRng, type FormationSpec } from './CrystalFactory';
+import { bakeSegment, emptyAcc, emitFormation, makeRng, type FormationSpec } from './CrystalFactory';
 import { buildCloudSea } from './CloudFactory';
 import type { CrystalFieldRecipe, CloudSeaRecipe, WorldLook } from '../config/WorldLooks';
 
@@ -79,47 +79,28 @@ export class BackgroundSystem {
       // frame edges) so nothing crowds the landing corridor in 9:16.
       const spread = CORRIDOR + 1.6 + rnd() * 4.6 + (depth > 0.6 ? 1.4 : 0);
       const x = side * spread;
-      // Rotate the dominant family instead of rolling randomly, so every
-      // family in the look is actually on screen (coral, peach, mint, cyan,
-      // gold) — the concept shows all of them in one frame.
-      const famIdx = (i * 2 + Math.floor(rnd() * 2)) % recipe.families.length;
-      const accent = recipe.families[(famIdx + 1) % recipe.families.length];
+      // A cluster shows the WHOLE palette: every formation hands the emitter
+      // the full family list and each crystal inside takes the next one, the
+      // way the concept mixes coral + peach + mint + gold side by side.
       const spec: FormationSpec = {
         x,
         z,
         weight: 0.3 + depth * 0.7,
-        family: recipe.families[famIdx],
-        accent: accent === recipe.families[famIdx] ? null : accent,
-        count: recipe.perFormation
+        families: recipe.families,
+        count: recipe.perFormation,
+        // Buried base: crystals emerge from the cloud sea, not float in sky.
+        baseY: -1.2 - rnd() * 0.9
       };
-      emitFormation(acc, spec, rnd, EDGE_THICKNESS);
+      emitFormation(acc, spec, rnd);
     }
     const { face, hull } = bakeSegment(acc);
-    // Both meshes are polygon-offset in OPPOSITE directions so the coloured
-    // face always wins the depth fight against the outline that hugs it.
-    // Without this, distant crystals render as bare dark hulls (the outline is
-    // only a few centimetres proud, which is below depth resolution at range).
-    const faceMesh = new Mesh(face, MaterialFactory.createMaterial(0xffffff, {
-      // DoubleSide: the crystals are procedurally generated with hand-rolled
-      // winding, and a single flipped quad (easy to get on a leaning shard)
-      // leaves that crystal rendering as its bare dark hull. Removing the
-      // dependence on winding is worth the lost backface culling here.
-      vertexColors: true,
-      side: DoubleSide,
-      polygonOffset: true,
-      polygonOffsetFactor: -4,
-      polygonOffsetUnits: -8
-    }));
-    const hullMesh = new Mesh(
-      hull,
-      new MeshBasicMaterial({
-        color: edge,
-        side: BackSide,
-        polygonOffset: true,
-        polygonOffsetFactor: 4,
-        polygonOffsetUnits: 8
-      })
-    );
+    // MeshBasic + vertex colours: the facet tones (cream/light/base/shade) are
+    // ALREADY the lighting, baked per facet against the key direction — which
+    // is exactly the concept's flat colour blocks. A lit toon material on top
+    // of that only re-darkened some facets to near-black; unlit makes the
+    // palette deterministic and the draw cheaper.
+    const faceMesh = new Mesh(face, new MeshBasicMaterial({ vertexColors: true, side: DoubleSide }));
+    const hullMesh = new Mesh(hull, new MeshBasicMaterial({ color: edge, side: BackSide }));
     // One layer = both meshes, so they recycle in lockstep at the same slot.
     this.spawnLayer([faceMesh, hullMesh], 0);
   }
@@ -135,9 +116,9 @@ export class BackgroundSystem {
       palette: recipe.palette,
       seed: this.seed
     });
-    // DoubleSide: the blanket is a mass of overlapping billows seen from
-    // inside and outside — backface culling would make the far side vanish.
-    const mesh = new Mesh(geo, MaterialFactory.createMaterial(0xffffff, { vertexColors: true, side: DoubleSide }));
+    // Unlit + vertex colours: the crown/shadow tone is baked per billow, so
+    // lighting on top only muddied them. No dots (they read as steam).
+    const mesh = new Mesh(geo, new MeshBasicMaterial({ vertexColors: true, side: DoubleSide }));
     this.spawnLayer([mesh], recipe.parallax);
   }
 

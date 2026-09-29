@@ -32,8 +32,8 @@ export interface CloudSeaOpts {
   seed: number;
 }
 
-const BILLOW_RINGS = 6;
-const BILLOW_SEGS = 10;
+const BILLOW_RINGS = 8;
+const BILLOW_SEGS = 12;
 
 /** Low-poly unit billow (spherical, non-indexed → flat facets). */
 function billowTemplate(): { pos: number[] } {
@@ -83,9 +83,11 @@ export function buildCloudSea(o: CloudSeaOpts): BufferGeometry {
       ? (rnd() - 0.5) * 3.4
       : (rnd() < 0.5 ? -1 : 1) * (2.4 + rnd() * (o.spread - 2.4));
     const yTop = o.top - rnd() * o.depth * 0.5;
-    const rx = 1.2 + rnd() * 1.1;
-    const ry = 0.6 + rnd() * 0.7;
-    const rz = 1.1 + rnd() * 0.9;
+    // Rounder and taller than the first pass: flat wide discs read as
+    // "steam"/pancakes, not the concept's soft overlapping billows.
+    const rx = 1.5 + rnd() * 1.5;
+    const ry = 0.95 + rnd() * 0.85;
+    const rz = 1.4 + rnd() * 1.4;
     const spin = rnd() * Math.PI * 2;
     const cs = Math.cos(spin), sn = Math.sin(spin);
     const pick = rnd();

@@ -147,7 +147,7 @@ export class MaterialFactory {
     // share a program, so crystals rendered with the wrong vertex-color
     // defines (they came out black). Key on the real variant.
     mat.customProgramCacheKey = () =>
-      `halftone-toon|${mat.vertexColors ? 1 : 0}|${mat.side}|${mat.map ? 1 : 0}|${mat.polygonOffset ? 1 : 0}`;
+      `halftone-toon|${mat.vertexColors ? 1 : 0}|${mat.side}|${mat.map ? 1 : 0}`;
     mat.onBeforeCompile = (shader: ShaderMaterial) => {
       shader.uniforms.uHalftone = this.uniforms.uHalftone;
       shader.uniforms.uDotsScale = this.uniforms.uDotsScale;
@@ -213,6 +213,17 @@ export class MaterialFactory {
         #include <dithering_fragment>`
       );
     };
+    return mat;
+  }
+
+  /**
+   * Toon material WITHOUT the halftone-dot patch — the crystal look in the
+   * concept is clean colour blocks with facet shading, no dot texture.
+   * Same 4-step gradient ramp + vertex-colour support, no dot uniforms.
+   */
+  static createFlatMaterial(color: number | Color, opts: Record<string, unknown> = {}): MeshToonMaterial {
+    const mat = new MeshToonMaterial({ color: new Color(color), gradientMap: this.gradientMap, ...opts });
+    mat.customProgramCacheKey = () => `flat-toon|${mat.vertexColors ? 1 : 0}|${mat.side}`;
     return mat;
   }
 

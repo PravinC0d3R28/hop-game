@@ -111,7 +111,10 @@ export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
     // first pass used near-identical values and the cloud sea vanished.
     skyTop: 0xf3d2dc,
     skyBottom: 0xffe3c4,
-    fogColor: 0xf9d9bc,
+    // Fog must sit ON the sky gradient, not beside it: a tan fog turned far
+    // crystals into muddy brown blobs against the pink dawn. This is the
+    // gradient's own mid-tone, so distant geometry dissolves instead.
+    fogColor: 0xf8dfd6,
     // The original 14/40 fog assumed a game with NO ground plane — just
     // floating tiles. With a cloud sea under the path, a 37°-down camera sees
     // only ground that is already past fogNear, so the whole sea fogged out to
@@ -149,7 +152,7 @@ export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
           { base: 0xffd95a, light: 0xffe9a0, shade: 0xe0b93a, cream: 0xfff4cd }
         ],
         count: 12,
-        perFormation: 7,
+        perFormation: 9,
         parallax: 0.2
       },
       {
