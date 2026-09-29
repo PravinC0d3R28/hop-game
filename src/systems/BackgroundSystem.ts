@@ -12,11 +12,14 @@ import { bakeCluster, CLUSTER_SHAPES, emitCluster, emptyAcc, makeRng, type Clust
 import { buildCloudSea } from './CloudFactory';
 import type { CrystalFieldRecipe, CloudSeaRecipe, WorldLook } from '../config/WorldLooks';
 
-/** Segment length along +Z. Seams land beyond the fog far plane, so the
- *  repeated formation layout is never visible. */
+/** Segment length along +Z. */
 const SEG_LEN = 70;
-/** Segments kept alive per layer. */
-const SEG_COUNT = 2;
+/**
+ * Segments kept alive per layer. The camera can see `fogFar` (82) units of
+ * haze plus its own offset, and it sits somewhere inside segment 0 of the
+ * snapped range — 2 left a bare strip at the far end of the view.
+ */
+const SEG_COUNT = 3;
 
 interface Layer {
   /** Meshes sharing one geometry (the set recycles as one chain). */
@@ -73,18 +76,22 @@ export class BackgroundSystem {
       const t = (i + 0.5) / recipe.count;
       const z = 4 + t * (SEG_LEN - 8) + (rnd() - 0.5) * 3;
       const side = i % 2 === 0 ? -1 : 1;
-      // Near formations are big, far ones small (atmospheric depth).
+      // Near formations are big, far ones small (atmospheric depth) — but the
+      // floor stays high. At weight 0.3 a far cluster's tip barely cleared the
+      // cloud deck, so formations appeared to vanish and pop back in as the
+      // ball passed them.
       const depth = 1 - t;
-      // Near formations sit wider (the concept's biggest clusters hug the
-      // frame edges) so nothing crowds the landing corridor in 9:16.
-      const spread = CORRIDOR + 1.6 + rnd() * 4.6 + (depth > 0.6 ? 1.4 : 0);
+      // Near formations sit WIDER. The clusters are ~8 units across, so at the
+      // old 5..11 they overlapped the corridor and crowded the landing path —
+      // the reference keeps clear air between the tiles and the crystals.
+      const spread = 9 + rnd() * 8 + (depth > 0.6 ? 2 : 0);
       const x = side * spread;
       // A cluster is a 3D clump (x/y/z all vary) and its SHAPE is picked at
       // random, so the field never repeats the same silhouette twice.
       const spec: ClusterSpec = {
         x,
         z,
-        weight: 0.3 + depth * 0.7,
+        weight: 0.55 + depth * 0.45,
         shape: CLUSTER_SHAPES[Math.floor(rnd() * CLUSTER_SHAPES.length)],
         families: recipe.families,
         // Deep: crystals grow up out of the thick cloud, well below the tiles,
@@ -99,18 +106,17 @@ export class BackgroundSystem {
     // lighting, baked per facet against the key direction — exactly the
     // concept's flat colour blocks. Lighting on top only re-darkened facets.
     const faceMesh = new Mesh(face, new MeshBasicMaterial({ vertexColors: true, side: DoubleSide }));
-    // The outline shell writes NO depth and is drawn FIRST (renderOrder 1 vs
-    // the faces' 2), so the faces always paint over it. This is the structural
-    // fix for "distant crystals turn black": a depth-buffered inverted hull
-    // loses that fight to depth precision at range and swallows the crystal.
-    const shellMesh = new Mesh(shell, new MeshBasicMaterial({
-      color: edge,
-      side: BackSide,
-      depthWrite: false
-    }));
-    shellMesh.renderOrder = 1;
     faceMesh.renderOrder = 2;
-    this.spawnLayer([shellMesh, faceMesh], 0);
+    // No crystal contour for now. Two implementations were tried and both are
+    // parked in git history:
+    //   * world-space expanded shell — over-expands along the normal near
+    //     silhouettes, and ghosts through the cloud deck and platforms;
+    //   * clip-space contour (makeContourMaterial) — depth-safe, but its
+    //     screen expansion over-shoots and paints solid black masses.
+    // A correct hairline needs a real post-process outline pass. Until that
+    // exists the crystals render flat-coloured, which is clean and matches the
+    // concept's colour blocks.
+    this.spawnLayer([faceMesh], 0);
   }
 
   /** The cloud blanket: one vertex-coloured mesh, no outlines. */
@@ -143,6 +149,12 @@ export class BackgroundSystem {
       for (const source of meshes) {
         const m = new Mesh(source.geometry, source.material);
         m.position.z = k * SEG_LEN;
+        // Copy the ordering flags: the source meshes are only templates and are
+        // never added to the scene, so anything not copied here is silently
+        // lost — this is what let a hidden template still render its clones.
+        m.renderOrder = source.renderOrder;
+        m.frustumCulled = source.frustumCulled;
+        m.visible = source.visible;
         this.root.add(m);
         layer.meshes.push(m);
       }
@@ -250,3 +262,5 @@ export class BackgroundSystem {
     }
   }
 }
+
+

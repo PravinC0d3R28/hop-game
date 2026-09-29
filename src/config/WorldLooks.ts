@@ -166,16 +166,21 @@ export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
       },
       {
         family: 'cloudsea',
-        palette: { base: 0xfffaf0, highlight: 0xffffff, shadow: 0xf2bfa2 },
+        palette: { base: 0xfffaf0, highlight: 0xffffff, shadow: 0xefb193 },
         count: 1,
         // The deck's datum sits well BELOW the tiles (they span −0.4..+0.4), so
         // the path reads as floating above a thick cloud layer. Small billows,
         // low relief: the crystals must stay the tallest thing in frame.
-        spread: 32,
+        //
+        // `spread` must be wide enough that the deck's side edge falls BEYOND
+        // fogFar. At 32 the edge was ~46 units out — only 34% fogged — so on a
+        // 16:9 frame the sky showed through past it as hard pink wedges. At 64
+        // the nearest edge point is ~86 units away, i.e. fully fogged.
+        spread: 64,
         top: -2.8,
-        depth: 1.8,
-        cols: 60,
-        rows: 50,
+        depth: 2.8,
+        cols: 96,
+        rows: 48,
         cell: 3,
         parallax: 0.15
       }

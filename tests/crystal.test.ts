@@ -187,7 +187,7 @@ describe('clusters are real 3D clumps', () => {
 describe('cloud sea', () => {
   // Mirrors the shipped Sunrise deck so the guards test the real config.
   const opts = (seed: number) => ({
-    length: 70, spread: 32, top: -2.2, depth: 1.8, cols: 60, rows: 50, cell: 3,
+    length: 70, spread: 64, top: -2.8, depth: 1.8, cols: 96, rows: 48, cell: 3,
     palette: { base: 0xfff7e8, highlight: 0xfffbef, shadow: 0xf0cdb4 },
     seed
   });
@@ -244,6 +244,28 @@ describe('cloud sea', () => {
     expect(degenerateCount(p)).toBeLessThan(p.count / 3 * 0.05);
   });
 
+  it('tiles exactly: the far edge matches the near edge, so segments meet flush', () => {
+    // The stair-stepped rectangles down the view came from the deck's
+    // per-segment end caps. The surface is now exactly periodic in z, so the
+    // last row and the first row must carry identical heights — that is what
+    // makes two adjacent segments join with no wall and no seam.
+    const o = opts(9);
+    const geo = buildCloudSea(o);
+    const p = pos(geo);
+    // The grid is unindexed: 6 vertices per quad, rows outer, columns inner.
+    // Quad (ix, iz) pushes [a, c, b, a, d, c] where a = hAt(ix, iz),
+    // b = hAt(ix+1, iz), c = hAt(ix+1, iz+1), d = hAt(ix, iz+1).
+    // So z=0 is vertex 0 of the first row, and z=length is the `d` vertex
+    // (offset 4) of the LAST row — those two must agree exactly.
+    const at = (ix: number, iz: number, off: number): number =>
+      p.getY((iz * o.cols + ix) * 6 + off);
+    let worst = 0;
+    for (let ix = 0; ix < o.cols; ix++) {
+      worst = Math.max(worst, Math.abs(at(ix, o.rows - 1, 4) - at(ix, 0, 0)));
+    }
+    expect(worst).toBeLessThan(1e-6);
+  });
+
   it('covers the full width so the deck never shows a gap at the seams', () => {
     const p = pos(buildCloudSea(opts(6)));
     let minX = Infinity, maxX = -Infinity;
@@ -255,3 +277,4 @@ describe('cloud sea', () => {
     expect(maxX).toBeGreaterThanOrEqual(32);
   });
 });
+
