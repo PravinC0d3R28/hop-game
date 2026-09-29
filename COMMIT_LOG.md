@@ -51,3 +51,4 @@ c0d6b52 feat: apply WorldLook pipeline with Sunrise identity (applyWorldLook, re
 9709365 docs: log Week 2 world-art generation prompts (9 variations + master framework)
 2189da8 docs: merge style, constraints and avoid-list into each art prompt (9 fully merged blocks)
 2a5c926 feat: Sunrise Peaks full pass - crystals, cloud sea, sky dome, tile faces (198 tests, 60fps, ~87 desktop/~103 mobile draws)
+d9f963b feat: rebuild Sunrise to the locked concept - crystal formations (multi-tonal facets, fixed-width outlines), merged cloud sea, gradient sky, cream tiles; fixed toon program cache-key collision, scenery tracking, and zero-area cloud triangles; 205 tests, 60fps, ~54 draws
