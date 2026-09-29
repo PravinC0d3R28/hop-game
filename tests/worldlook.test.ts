@@ -22,13 +22,31 @@ describe('WorldLook completeness', () => {
       expect(look.fogNear).toBeGreaterThan(0);
       expect(look.fogFar).toBeGreaterThan(look.fogNear);
       for (const recipe of look.props) {
-        expect(recipe.colors.length).toBeGreaterThan(0);
         expect(recipe.count).toBeGreaterThan(0);
-        expect(recipe.scaleMax).toBeGreaterThanOrEqual(recipe.scaleMin);
         expect(recipe.parallax).toBeGreaterThanOrEqual(0);
         expect(recipe.parallax).toBeLessThanOrEqual(1);
+        if (recipe.family === 'crystalfield') {
+          expect(recipe.families.length).toBeGreaterThan(0);
+          expect(recipe.perFormation).toBeGreaterThanOrEqual(2);
+          for (const f of recipe.families) {
+            expect(typeof f.base).toBe('number');
+            // Derived tones must differ from the base or facets go flat.
+            expect(f.base).not.toBe(f.cream);
+          }
+        }
+        if (recipe.family === 'cloudsea') {
+          expect(recipe.density).toBeGreaterThan(0);
+          expect(recipe.spread).toBeGreaterThan(0);
+          expect(recipe.depth).toBeGreaterThan(0);
+        }
       }
     }
+  });
+
+  it('Sunrise ships both a crystal field and a cloud sea (concept structure)', () => {
+    const families = WORLD_LOOKS.sunrise.props.map((p) => p.family);
+    expect(families).toContain('crystalfield');
+    expect(families).toContain('cloudsea');
   });
 
   it('unknown world ids throw instead of silently falling back', () => {

@@ -109,6 +109,7 @@ type DebugAccessor = {
   devReseedRunway(): void;
   devSetHitboxes(on: boolean): void;
   devSpikeScene(): Promise<{ duskTileAhead: boolean; hulls: number; playable: number; props: number }>;
+  devLookInfo(): unknown;
 };
 
 /**
@@ -160,6 +161,7 @@ function createDebugApi(accessor: DebugAccessor): Record<string, unknown> {
     // Week 2 art spike (dev-only): build the locked Sunrise+Dusk-tell scene
     // for verification shots. Reload the page to revert.
     spikeScene: () => accessor.devSpikeScene(),
+    lookInfo: () => accessor.devLookInfo(),
     reseedRunway: () => {
       accessor.devReseedRunway();
     },

@@ -1,277 +1,261 @@
-import { BackSide, ConeGeometry, Group, Mesh, MeshBasicMaterial, SphereGeometry, type Scene } from 'three';
+import {
+  BackSide,
+  BoxGeometry,
+  DoubleSide,
+  Group,
+  Mesh,
+  MeshBasicMaterial,
+  type BufferGeometry,  type Scene
+} from 'three';
 import { MaterialFactory } from './MaterialFactory';
-import { chooseBaseColor, createCrystal, getCrystalPreset, presetForScale } from './CrystalFactory';
-import type { PropRecipe, WorldLook } from '../config/WorldLooks';
+import { EDGE_THICKNESS, bakeSegment, emptyAcc, emitFormation, makeRng, type FormationSpec } from './CrystalFactory';
+import { buildCloudSea } from './CloudFactory';
+import type { CrystalFieldRecipe, CloudSeaRecipe, WorldLook } from '../config/WorldLooks';
 
-const BG_SPACING = 5; // `iu`
-const BG_OFFSET = 4; // `ru`
-/** Initial props wrap into this z-window (4..34); recycle extends past it. */
-const BG_WINDOW = 34;
-/** Highest slot index inside the window (slots 0..6). */
-const BG_MAX_SLOT = 6;
+/** Segment length along +Z. Seams land beyond the fog far plane, so the
+ *  repeated formation layout is never visible. */
+const SEG_LEN = 70;
+/** Segments kept alive per layer. */
+const SEG_COUNT = 2;
 
-interface ClusterData {
-  baseX: number;
-  baseY: number;
-  side: number;
-  index: number;
-  parallax: number;
+interface Layer {
+  /** Meshes sharing one geometry (the set recycles as one chain). */
+  meshes: Mesh[];
+  geo: BufferGeometry;
+  bob: number;
 }
 
-// Shared unit geometries: instances only ever scale them, so one cone and
-// one sphere serve every prop (dispose() frees materials, never these).
-const ridgeGeo = new ConeGeometry(1, 1, 4);
-const cloudGeo = new SphereGeometry(1, 12, 8);
+const CORRIDOR = 3.4; // keep |x| clear so the landing path stays readable
 
 /**
- * Layered paper props for the active world look (Week 2 §10).
- * Built from WorldLook recipes — ridge + cloud families now; city, lantern,
- * crescent, starfield and aurora arrive with the Dusk/Void passes (skipped
- * with a dev-only warning until then, never a crash, never a console warning
- * in production). Z-recycling + bob are unchanged from the rock era.
+ * Environment layers for the active world look.
+ *
+ * Each layer is ONE merged geometry instanced across a few recycled segments,
+ * so a dense concept scene costs 2 draws (faces + hull) for all crystals and
+ * 1 draw for the whole cloud sea. Z-recycling keeps the runway endless.
  */
 export class BackgroundSystem {
-  private groups: Group[] = [];
-  private ms: number;
-  /** Hull color for fresh builds (the active look's edge — spike lock warmed). */
-  private edge = 0x111111;
+  private layers: Layer[] = [];
+  private root: Group;
+  private seed = 1;
 
   constructor(private scene: Scene) {
-    this.ms = -1;
+    this.root = new Group();
+    scene.add(this.root);
   }
 
   init(): void {
-    // Props arrive via setLook (Game applies the active world right after).
-    this.ms = -1;
+    // Geometry arrives via setLook (Game applies the active world right after).
   }
 
-  /** Rebuild the scenery from a world's prop recipes (select/preview/run). */
+  /** Rebuild the scenery from a world's recipes (select/preview/run). */
   setLook(look: WorldLook): void {
-    this.clearGroups();
-    this.edge = look.platformEdge;
-    let index = 0;
+    this.dispose(false);
+    this.seed = (this.seed * 1664525 + 1013904223) >>> 0;
+    let built = 0;
     for (const recipe of look.props) {
-      for (let k = 0; k < recipe.count; k++, index++) {
-        switch (recipe.family) {
-          case 'ridge':
-            this.groups.push(this.createRidge(recipe, index, k));
-            break;
-          case 'cloud':
-            this.groups.push(this.createCloud(recipe, index, k));
-            break;
-          case 'crystal':
-            this.groups.push(this.createCrystalProp(recipe, index, k));
-            break;
-          case 'cloudbank':
-            this.groups.push(this.createCloudbank(recipe, index, k));
-            break;
-          default:
-            // NFR-3: normal play must stay warning-free — only dev builds nag.
-            if (import.meta.env.DEV) {
-              console.warn(`BackgroundSystem: no builder for prop family "${recipe.family}" yet — skipping`);
-            }
-            index--;
-            break;
-        }
+      if (recipe.family === 'crystalfield') this.addCrystalLayer(recipe, look.platformEdge);
+      else if (recipe.family === 'cloudsea') this.addCloudLayer(recipe);
+      else if (import.meta.env.DEV) {
+        console.warn(`BackgroundSystem: no builder for prop family "${recipe.family}" yet — skipping`);
+      }
+      built++;
+    }
+    void built;
+  }
+
+  /** Crystal formations: face mesh (vertex-coloured) + fixed-width hull. */
+  private addCrystalLayer(recipe: CrystalFieldRecipe, edge: number): void {
+    const rnd = makeRng(this.seed);
+    const acc = emptyAcc();
+    for (let i = 0; i < recipe.count; i++) {
+      // Spread across the segment, alternating sides, never in the corridor.
+      const t = (i + 0.5) / recipe.count;
+      const z = 4 + t * (SEG_LEN - 8) + (rnd() - 0.5) * 3;
+      const side = i % 2 === 0 ? -1 : 1;
+      // Near formations are big, far ones small (atmospheric depth).
+      const depth = 1 - t;
+      // Near formations sit wider (the concept's biggest clusters hug the
+      // frame edges) so nothing crowds the landing corridor in 9:16.
+      const spread = CORRIDOR + 1.6 + rnd() * 4.6 + (depth > 0.6 ? 1.4 : 0);
+      const x = side * spread;
+      // Rotate the dominant family instead of rolling randomly, so every
+      // family in the look is actually on screen (coral, peach, mint, cyan,
+      // gold) — the concept shows all of them in one frame.
+      const famIdx = (i * 2 + Math.floor(rnd() * 2)) % recipe.families.length;
+      const accent = recipe.families[(famIdx + 1) % recipe.families.length];
+      const spec: FormationSpec = {
+        x,
+        z,
+        weight: 0.3 + depth * 0.7,
+        family: recipe.families[famIdx],
+        accent: accent === recipe.families[famIdx] ? null : accent,
+        count: recipe.perFormation
+      };
+      emitFormation(acc, spec, rnd, EDGE_THICKNESS);
+    }
+    const { face, hull } = bakeSegment(acc);
+    // Both meshes are polygon-offset in OPPOSITE directions so the coloured
+    // face always wins the depth fight against the outline that hugs it.
+    // Without this, distant crystals render as bare dark hulls (the outline is
+    // only a few centimetres proud, which is below depth resolution at range).
+    const faceMesh = new Mesh(face, MaterialFactory.createMaterial(0xffffff, {
+      // DoubleSide: the crystals are procedurally generated with hand-rolled
+      // winding, and a single flipped quad (easy to get on a leaning shard)
+      // leaves that crystal rendering as its bare dark hull. Removing the
+      // dependence on winding is worth the lost backface culling here.
+      vertexColors: true,
+      side: DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: -4,
+      polygonOffsetUnits: -8
+    }));
+    const hullMesh = new Mesh(
+      hull,
+      new MeshBasicMaterial({
+        color: edge,
+        side: BackSide,
+        polygonOffset: true,
+        polygonOffsetFactor: 4,
+        polygonOffsetUnits: 8
+      })
+    );
+    // One layer = both meshes, so they recycle in lockstep at the same slot.
+    this.spawnLayer([faceMesh, hullMesh], 0);
+  }
+
+  /** The cloud blanket: one vertex-coloured mesh, no outlines. */
+  private addCloudLayer(recipe: CloudSeaRecipe): void {
+    const geo = buildCloudSea({
+      length: SEG_LEN,
+      spread: recipe.spread,
+      top: recipe.top,
+      depth: recipe.depth,
+      density: recipe.density,
+      palette: recipe.palette,
+      seed: this.seed
+    });
+    // DoubleSide: the blanket is a mass of overlapping billows seen from
+    // inside and outside — backface culling would make the far side vanish.
+    const mesh = new Mesh(geo, MaterialFactory.createMaterial(0xffffff, { vertexColors: true, side: DoubleSide }));
+    this.spawnLayer([mesh], recipe.parallax);
+  }
+
+  private spawnLayer(meshes: Mesh[], bob: number): void {
+    const layer: Layer = { meshes, geo: meshes[0].geometry, bob };
+    // NOTE: `root.add(m)` moves an Object3D, it does not clone it — adding the
+    // SAME mesh once per segment silently produced ONE segment per layer (the
+    // last position won). Each segment needs its own Mesh over the shared
+    // geometry.
+    layer.meshes = [];
+    for (let k = 0; k < SEG_COUNT; k++) {
+      for (const source of meshes) {
+        const m = new Mesh(source.geometry, source.material);
+        m.position.z = k * SEG_LEN;
+        this.root.add(m);
+        layer.meshes.push(m);
       }
     }
-    this.ms = BG_MAX_SLOT;
-  }
-
-  /** z-slot inside the initial window (recycle continues past it). */
-  private slotZ(index: number): number {
-    return BG_OFFSET + ((index * BG_SPACING) % BG_WINDOW);
-  }
-
-  /** Paper mountain: squashed 4-sided pyramid + edge hull (reserved: Dusk hills). */
-  private createRidge(recipe: PropRecipe, index: number, k: number): Group {
-    const color = recipe.colors[k % recipe.colors.length];
-    const group = new Group();
-    const mesh = new Mesh(ridgeGeo, MaterialFactory.createMaterial(color));
-    const s = recipe.scaleMin + Math.random() * (recipe.scaleMax - recipe.scaleMin);
-    mesh.scale.set(2.6 * s, 4.2 * s, 2.6 * s);
-    mesh.rotation.y = Math.PI / 4;
-    group.add(mesh);
-
-    const hull = new Mesh(ridgeGeo, new MeshBasicMaterial({ color: this.edge, side: BackSide }));
-    hull.scale.copy(mesh.scale).multiplyScalar(1.04);
-    hull.rotation.y = Math.PI / 4;
-    group.add(hull);
-
-    this.place(group, recipe, index, mesh.scale.y / 2 - 0.6);
-    this.scene.add(group);
-    return group;
-  }
-
-  /** Cloud cutout: three flattened puffs + shared hull material. */
-  private createCloud(recipe: PropRecipe, index: number, k: number): Group {
-    const color = recipe.colors[k % recipe.colors.length];
-    const group = new Group();
-    const hullMat = new MeshBasicMaterial({ color: this.edge, side: BackSide });
-    const s = recipe.scaleMin + Math.random() * (recipe.scaleMax - recipe.scaleMin);
-    for (let u = 0; u < 3; u++) {
-      const mesh = new Mesh(cloudGeo, MaterialFactory.createMaterial(color));
-      mesh.position.set((u - 1) * 0.9 * s, (u % 2) * 0.25, 0);
-      mesh.scale.set(s, s * 0.45, s * 0.7);
-      group.add(mesh);
-
-      const hull = new Mesh(cloudGeo, hullMat);
-      hull.position.copy(mesh.position);
-      hull.scale.copy(mesh.scale).multiplyScalar(1.04);
-      group.add(hull);
-    }
-    this.place(group, recipe, index, 4.5 + Math.random() * 2);
-    this.scene.add(group);
-    return group;
+    this.layers.push(layer);
   }
 
   /**
-   * Sunrise crystal: one base color from the recipe's related set (never a
-   * rainbow), preset by size class, slight tilt + spin. Placement keeps the
-   * landing corridor clear: large far-sides, medium mid-sides, small
-   * near-edges (some floating high).
+   * Keep the scenery centred on the player.
+   *
+   * Every segment shares ONE geometry, so the environment is periodic with
+   * period SEG_LEN: snapping each segment to `floor(camZ / SEG_LEN) * SEG_LEN
+   * + i * SEG_LEN` advances the whole world by exactly one period when the
+   * ball crosses a cell boundary — a pixel-identical image, so there is no pop
+   * — while the scenery can never outrun the camera.
+   *
+   * (The first two attempts advanced a running slot index per frame. That
+   * moved scenery ~70 units per frame while the ball advances ~0.2, so the
+   * world ran away and the screen went empty; anchoring to the ball's own
+   * position is the only stable rule.)
    */
-  private createCrystalProp(recipe: PropRecipe, index: number, k: number): Group {
-    const s = recipe.scaleMin + Math.random() * (recipe.scaleMax - recipe.scaleMin);
-    const color = chooseBaseColor(recipe.colors, Math.random());
-    const group = createCrystal(getCrystalPreset(presetForScale(s, k)), color, this.edge);
-    group.scale.setScalar(s);
-    group.rotation.y = Math.random() * Math.PI * 2;
-    group.rotation.z = (Math.random() - 0.5) * 0.14;
-    const side = index % 2 === 0 ? -1 : 1;
-    let x: number;
-    let y: number;
-    if (s >= 1.2) {
-      x = side * (6.5 + Math.random() * 3.5);
-      y = -0.5;
-    } else if (s >= 0.8) {
-      x = side * (4.8 + Math.random() * 2.7);
-      y = -0.3;
-    } else {
-      x = side * (4.5 + Math.random() * 4.5);
-      y = Math.random() < 0.3 ? 2 + Math.random() * 2.5 : -0.2;
-    }
-    const z = this.slotZ(index);
-    group.position.set(x, y, z);
-    group.userData = { baseX: x, baseY: y, side, index, parallax: recipe.parallax };
-    this.scene.add(group);
-    return group;
-  }
-
-  /**
-   * Cloud sea bank: 4–5 flattened hull-free puffs the crystals emerge from.
-   * Owner pick: no hulls (soft, airy, cheaper). Banks stay low and off the
-   * near-center corridor; far-center banks read as fogged depth.
-   */
-  private createCloudbank(recipe: PropRecipe, index: number, k: number): Group {
-    const group = new Group();
-    const n = 4 + (k % 2);
-    const s = recipe.scaleMin + Math.random() * (recipe.scaleMax - recipe.scaleMin);
-    for (let u = 0; u < n; u++) {
-      const mesh = new Mesh(cloudGeo, MaterialFactory.createMaterial(recipe.colors[u % recipe.colors.length]));
-      mesh.position.set(
-        (u - n / 2) * 1.1 * s + (Math.random() - 0.5) * 0.4,
-        (Math.random() - 0.5) * 0.5,
-        (Math.random() - 0.5) * 0.8
-      );
-      mesh.scale.set(s * 1.4, s * 0.55, s);
-      group.add(mesh);
-    }
-    const z = this.slotZ(index);
-    const far = z > 20;
-    const side = index % 2 === 0 ? -1 : 1;
-    const x = far ? (Math.random() - 0.5) * 14 : side * (3.5 + Math.random() * 4.5);
-    const y = -0.8 + Math.random() * 1.0;
-    group.position.set(x, y, z);
-    group.userData = { baseX: x, baseY: y, side: Math.sign(x) || side, index, parallax: recipe.parallax };
-    this.scene.add(group);
-    return group;
-  }
-
-  private place(group: Group, recipe: PropRecipe, index: number, y: number): void {
-    let side = 0;
-    let x = 0;
-    if (recipe.side === 'sky') {
-      x = (Math.random() - 0.5) * 9;
-    } else {
-      side = recipe.side === 'left' ? -1 : recipe.side === 'right' ? 1 : index % 2 === 0 ? -1 : 1;
-      x = side * (6 + Math.random() * 3);
-    }
-    const z = this.slotZ(index);
-    group.position.set(x, y, z);
-    group.userData = { baseX: x, baseY: y, side, index, parallax: recipe.parallax };
-  }
-
-  private clearGroups(): void {
-    for (const g of this.groups) {
-      // Materials are per-prop instances; geometries are shared singletons.
-      g.traverse((child) => {
-        if ((child as Mesh).isMesh) {
-          const m = (child as Mesh).material;
-          if (!Array.isArray(m)) m?.dispose();
-        }
+  update(camZ: number, now: number): void {
+    const base = Math.floor(camZ / SEG_LEN) * SEG_LEN;
+    for (const layer of this.layers) {
+      layer.meshes.forEach((m, i) => {
+        m.position.z = base + i * SEG_LEN;
       });
-      this.scene.remove(g);
-    }
-    this.groups = [];
-  }
-
-  /** Mirror `My` + `Sy`: bob each cluster, recycle those behind the camera. */
-  update(camZ: number): void {
-    const now = Date.now() * 0.001;
-    for (const group of this.groups) {
-      const d = group.userData as ClusterData;
-      group.position.y = d.baseY + Math.sin(now * 0.3 + d.index * 1.5) * 0.15;
-    }
-    this.recycle(camZ);
-  }
-
-  private recycle(camZ: number): void {
-    // Advance depth only — x/y keep the prop's placement character.
-    for (const group of this.groups) {
-      if (group.position.z < camZ - 10) {
-        this.ms++;
-        const d = group.userData as ClusterData;
-        const z = this.ms * BG_SPACING + BG_OFFSET;
-        group.position.set(group.position.x, d.baseY, z);
-        group.userData = { ...d, index: this.ms };
+      if (layer.bob > 0) {
+        // Parallax drift: distant layers breathe very slowly so the world never
+        // feels frozen (kept well below tile sway).
+        const y = Math.sin(now * 0.00018) * 0.25 * layer.bob;
+        for (const m of layer.meshes) m.position.y = y;
       }
     }
   }
 
-  /** Show/hide all clusters (spike scenes swap rocks for paper props). */
+  /** Reset for a new run: rewind every segment to its start slot. */
+  reset(): void {
+    for (const layer of this.layers) {
+      for (const m of layer.meshes) {
+        m.position.z = 0;
+        m.position.y = 0;
+      }
+    }
+  }
+
   setVisible(v: boolean): void {
-    for (const group of this.groups) group.visible = v;
+    this.root.visible = v;
+  }
+
+  /** Root group (dev spikes swap scenery in/out). */
+  getRoot(): Group {
+    return this.root;
   }
 
   /**
-   * Reset for a new run: re-slot depths into the start window, preserving
-   * each prop's x/y placement character (crystal corridors, bank heights).
+   * Development-only look diagnostics (Week 2 §16): what is actually in the
+   * scene, with real world-space bounds. Debugging "I can't see the clouds"
+   * by eye is guesswork; this answers it in one call.
    */
-  reset(): void {
-    this.ms = BG_MAX_SLOT;
-    this.groups.forEach((group, t) => {
-      const d = group.userData as ClusterData;
-      group.position.set(group.position.x, d.baseY, this.slotZ(t));
-      group.userData = { ...d, index: t };
+  inspect(): Array<Record<string, unknown>> {
+    return this.layers.map((layer) => {
+      const pos = layer.geo.getAttribute('position');
+      const min: [number, number, number] = [Infinity, Infinity, Infinity];
+      const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+        if (x < min[0]) min[0] = x;
+        if (y < min[1]) min[1] = y;
+        if (z < min[2]) min[2] = z;
+        if (x > max[0]) max[0] = x;
+        if (y > max[1]) max[1] = y;
+        if (z > max[2]) max[2] = z;
+      }
+      const m = layer.meshes[0];
+      const r = (v: number) => Math.round(v * 10) / 10;
+      return {
+        z: r(m.position.z),
+        visible: this.root.visible && m.visible,
+        parented: m.parent === this.root,
+        rootChildren: this.root.children.length,
+        inScene: !!this.root.parent,
+        matType: (m.material as { type?: string }).type,
+        frustumCulled: m.frustumCulled,
+        verts: pos.count,
+        hulls: layer.meshes.length,
+        min: [r(min[0]), r(min[1]), r(min[2])],
+        max: [r(max[0]), r(max[1]), r(max[2])]
+      };
     });
   }
 
-  /** Live prop groups (hull recolor + inspection). */
-  getGroups(): Group[] {
-    return this.groups;
-  }
-
-  dispose(): void {
-    for (const g of this.groups) {
-      g.traverse((child) => {
-        if ((child as Mesh).isMesh) {
-          const m = (child as Mesh).material;
-          if (!Array.isArray(m)) m?.dispose();
-        }
-      });
-      this.scene.remove(g);
+  dispose(full = true): void {
+    for (const layer of this.layers) {
+      for (const m of layer.meshes) {
+        this.root.remove(m);
+        const mat = m.material;
+        if (!Array.isArray(mat)) mat?.dispose();
+      }
+      for (const m of layer.meshes) m.geometry.dispose();
     }
-    this.groups = [];
+    this.layers = [];
+    if (full) {
+      this.scene.remove(this.root);
+    }
   }
 }

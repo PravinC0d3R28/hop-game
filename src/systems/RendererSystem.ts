@@ -39,7 +39,11 @@ export class RendererSystem {
     this.scene.background = new Color(GAME_CONFIG.COLOR_BG);
     this.scene.fog = new Fog(GAME_CONFIG.COLOR_BG, 14, 40);
 
-    this.camera = new PerspectiveCamera(55, rect.width / rect.height, 0.1, 100);
+    // Far plane reaches past the fog so the cloud sea and distant formations
+    // are never clipped before they finish fading — but not further: every
+    // extra unit of range costs depth precision, and a thin outline needs the
+    // depth buffer to separate it from the face it hugs.
+    this.camera = new PerspectiveCamera(55, rect.width / rect.height, 0.1, 110);
     this.camera.position.set(0, GAME_CONFIG.CAMERA_OFFSET_Y, GAME_CONFIG.CAMERA_OFFSET_Z);
     this.camera.lookAt(0, 0, GAME_CONFIG.CAMERA_LOOK_AHEAD);
 

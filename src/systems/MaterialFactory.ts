@@ -142,7 +142,12 @@ export class MaterialFactory {
   /** Mirror Fd(color, opts): halftone-toon MeshToonMaterial. */
   static createMaterial(color: number | Color, opts: Record<string, unknown> = {}): MeshToonMaterial {
     const mat = new MeshToonMaterial({ color: new Color(color), gradientMap: this.gradientMap, ...opts });
-    mat.customProgramCacheKey = () => 'halftone-toon';
+    // The cache key MUST include every define that changes the compiled
+    // program — a constant key made a `vertexColors` material and a plain one
+    // share a program, so crystals rendered with the wrong vertex-color
+    // defines (they came out black). Key on the real variant.
+    mat.customProgramCacheKey = () =>
+      `halftone-toon|${mat.vertexColors ? 1 : 0}|${mat.side}|${mat.map ? 1 : 0}|${mat.polygonOffset ? 1 : 0}`;
     mat.onBeforeCompile = (shader: ShaderMaterial) => {
       shader.uniforms.uHalftone = this.uniforms.uHalftone;
       shader.uniforms.uDotsScale = this.uniforms.uDotsScale;

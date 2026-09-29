@@ -13,39 +13,70 @@
 // stays a HUD/menu-chrome preference only and must never recolor the world.
 import type { WorldId } from './Worlds';
 
-/** Silhouette family a background factory knows how to build. */
+/**
+ * Prop silhouette family. `crystalfield` + `cloudsea` are implemented (Sunrise);
+ * the rest are reserved slots for the Dusk/Void passes and are skipped safely.
+ */
 export type PropFamily =
-  | 'ridge'
-  | 'cloud'
-  | 'crystal'
-  | 'cloudbank'
+  | 'crystalfield'
+  | 'cloudsea'
   | 'city'
   | 'lantern'
   | 'crescent'
   | 'starfield'
   | 'aurora';
 
-/**
- * Data-only prop recipe: silhouette family, palette, scale range, side and
- * parallax speed. Never embeds Three.js objects (factory interprets it).
- * Background parallax must stay slower/calmer than tile sway so the eye
- * never confuses world motion with platform motion.
- */
-export interface PropRecipe {
-  family: PropFamily;
-  colors: number[];
+/** A crystal colour family: one base tone, three derived facet tones. */
+export interface CrystalFamily {
+  base: number;
+  light?: number;
+  shade?: number;
+  cream?: number;
+}
+
+interface RecipeBase {
+  /** Items per environment segment (formations / blanket recipes). */
   count: number;
-  scaleMin: number;
-  scaleMax: number;
-  side: 'left' | 'right' | 'both' | 'sky';
   /** 0 = static distant backdrop … 1 = rides with the runway. */
   parallax: number;
 }
 
+/** Crystal formations: clusters of related crystals flanking the path. */
+export interface CrystalFieldRecipe extends RecipeBase {
+  family: 'crystalfield';
+  families: CrystalFamily[];
+  /** Crystals per formation (1 dominant spire + N-1 satellites). */
+  perFormation: number;
+}
+
+/** The soft blanket crystals emerge from. */
+export interface CloudSeaRecipe extends RecipeBase {
+  family: 'cloudsea';
+  palette: { base: number; highlight: number; shadow: number };
+  /** Billows per segment. */
+  density: number;
+  /** Half-width of the blanket. */
+  spread: number;
+  /** Blanket top height (crystal bases sit below it). */
+  top: number;
+  /** How far the blanket dips below `top`. */
+  depth: number;
+}
+
+/** Reserved family with no builder yet (Dusk/Void). */
+export interface PendingRecipe extends RecipeBase {
+  family: 'city' | 'lantern' | 'crescent' | 'starfield' | 'aurora';
+  colors: number[];
+  scaleMin: number;
+  scaleMax: number;
+  side: 'left' | 'right' | 'both' | 'sky';
+}
+
+export type PropRecipe = CrystalFieldRecipe | CloudSeaRecipe | PendingRecipe;
+
 export interface WorldLook {
   id: WorldId;
-  /** Gradient sky (top/bottom). The Day-1 apply path uses `skyBottom` as the
-   *  flat clear color; a true gradient dome is a later refinement. */
+  /** Gradient sky (skyTop at frame top → skyBottom at the horizon). */
   skyTop: number;
   skyBottom: number;
   fogColor: number;
@@ -76,16 +107,29 @@ export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
   // ---- Sunrise Peaks: locked 2026-09-02 (docs/ART concept + palette) ----
   sunrise: {
     id: 'sunrise',
-    skyTop: 0xf5d9df,
-    skyBottom: 0xfff0d5,
-    fogColor: 0xffe8c7,
-    fogNear: 14,
-    fogFar: 52,
-    ambient: { color: 0xf6d7c5, intensity: 0.42 },
-    directional: { color: 0xffd39a, intensity: 2 },
-    directionalPos: [-4, 10, 7],
-    // Warm tile tops (coral last = occasional 1-in-6). Sides derive darker.
-    platformFaces: [0xfff5d8, 0xffe9af, 0xffd84f, 0xf6b83f, 0xf29a2e, 0xf59a7c],
+    // Sky bottom is deliberately a step deeper than the cloud palette: the
+    // first pass used near-identical values and the cloud sea vanished.
+    skyTop: 0xf3d2dc,
+    skyBottom: 0xffe3c4,
+    fogColor: 0xf9d9bc,
+    // The original 14/40 fog assumed a game with NO ground plane — just
+    // floating tiles. With a cloud sea under the path, a 37°-down camera sees
+    // only ground that is already past fogNear, so the whole sea fogged out to
+    // sky colour and vanished. Push fog to the far field and keep the near/mid
+    // world clear.
+    fogNear: 28,
+    fogFar: 82,
+    // High-key dawn: a strong ambient keeps the shaded facets coloured (the
+    // 4-step toon ramp drops unlit faces to near-black otherwise, which turned
+    // the crystal families into dark silhouettes).
+    ambient: { color: 0xffe8d5, intensity: 0.85 },
+    directional: { color: 0xffd39a, intensity: 1.3 },
+    // Upper-left, but pulled forward so camera-facing facets stay lit.
+    directionalPos: [-4, 9, 13],
+    // Concept tiles are CREAM/IVORY dominant with warm tan sides — the gold and
+    // amber tones are the occasional variant, not the base. (Side colours
+    // derive from these in PlatformEntity.deriveSideColor.)
+    platformFaces: [0xfff5d8, 0xfdf0d2, 0xffe9af, 0xfff5d8, 0xf7e39a, 0xffe9af],
     // Spike lock warmed per owner pick: charcoal reads black, sits in dawn.
     platformEdge: 0x3b302d,
     shadow: 0xb8a898,
@@ -94,11 +138,34 @@ export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
     perfect: { fill: 0xffffff, ring: 0xffffff },
     motionCue: NO_CUE,
     props: [
-      { family: 'crystal', colors: [0xff6f70, 0xffb07a, 0xffc27e, 0xff9c38], count: 5, scaleMin: 1.2, scaleMax: 1.8, side: 'both', parallax: 0.2 },
-      { family: 'crystal', colors: [0x8de3b0, 0x52d8c8, 0x55cfe6], count: 6, scaleMin: 0.8, scaleMax: 1.2, side: 'both', parallax: 0.3 },
-      { family: 'crystal', colors: [0xffd95a, 0xffc27e, 0xfff0be], count: 8, scaleMin: 0.4, scaleMax: 0.8, side: 'both', parallax: 0.4 },
-      { family: 'cloudbank', colors: [0xfff7e8, 0xfffbef, 0xf4dccb], count: 4, scaleMin: 0.7, scaleMax: 1.1, side: 'both', parallax: 0.15 },
-      { family: 'cloud', colors: [0xfffbef], count: 2, scaleMin: 0.8, scaleMax: 1.2, side: 'sky', parallax: 0.08 }
+      {
+        family: 'crystalfield',
+        // Four related families (palette §4): coral, peach, mint, cyan, gold.
+        families: [
+          { base: 0xff6f70, light: 0xff927c, shade: 0xe0505a, cream: 0xffb9a4 },
+          { base: 0xffb07a, light: 0xffc27e, shade: 0xe08a5c, cream: 0xffe0bd },
+          { base: 0x8de3b0, light: 0xb5f0c7, shade: 0x5fc89a, cream: 0xd6f7e2 },
+          { base: 0x55cfe6, light: 0x89e8f1, shade: 0x35afc1, cream: 0xc0f2fa },
+          { base: 0xffd95a, light: 0xffe9a0, shade: 0xe0b93a, cream: 0xfff4cd }
+        ],
+        count: 12,
+        perFormation: 7,
+        parallax: 0.2
+      },
+      {
+        family: 'cloudsea',
+        // Brighter than the sky with a real shadow tone — clouds that match
+        // the sky value read as nothing at all (the first pass did exactly that).
+        palette: { base: 0xfffefc, highlight: 0xffffff, shadow: 0xf0d3b2 },
+        count: 1,
+        density: 130,
+        spread: 18,
+        // Well BELOW the tile line (tiles span y −0.4..+0.4): the path floats
+        // above the sea, and the sea reads as the bottom of the frame.
+        top: -3.4,
+        depth: 1.8,
+        parallax: 0.15
+      }
     ]
   },
   // ---- Dusk District: provisional (Day 2 completes + validates) ----
@@ -122,8 +189,7 @@ export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
     props: [
       { family: 'city', colors: [0x6b5bb8, 0xc86ba6], count: 5, scaleMin: 0.8, scaleMax: 1.4, side: 'both', parallax: 0.25 },
       { family: 'lantern', colors: [0x38f0e8, 0xffd9a0], count: 8, scaleMin: 0.4, scaleMax: 0.8, side: 'both', parallax: 0.4 }
-    ]
-  },
+    ]  },
   // ---- Deep Void: provisional (Day 3 completes + validates) ----
   void: {
     id: 'void',

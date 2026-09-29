@@ -862,7 +862,7 @@ export class Game {
     this.platforms.updateCoins(delta, Date.now());
     this.platforms.updateSway(Date.now());
     this.effects.updateFailureFlags(Date.now());
-    this.background.update(this.renderer.camera.position.z);
+    this.background.update(this.renderer.camera.position.z, Date.now());
     MaterialFactory.updateLightDirection(this.renderer.directional);
   }
 
@@ -1068,7 +1068,7 @@ export class Game {
     const hullRoots: Object3D[] = [
       ...this.platforms.getPlatforms().map((p) => p.group),
       this.ball.group,
-      ...this.background.getGroups()
+      this.background.getRoot()
     ];
     for (const root of hullRoots) {
       root.traverse((obj) => {
@@ -1099,6 +1099,14 @@ export class Game {
         });
       }
     }
+  }
+
+  /** Week 2 §16 look diagnostics: what the environment actually contains. */
+  devLookInfo(): unknown {
+    return {
+      world: this.state.getActiveWorld().id,
+      layers: this.background.inspect()
+    };
   }
 
   /**
