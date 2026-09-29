@@ -27,7 +27,9 @@ describe('WorldLook completeness', () => {
         expect(recipe.parallax).toBeLessThanOrEqual(1);
         if (recipe.family === 'crystalfield') {
           expect(recipe.families.length).toBeGreaterThan(0);
-          expect(recipe.perFormation).toBeGreaterThanOrEqual(2);
+          // Cluster bases must sit below the tile plane (tiles span −0.4..+0.4)
+          // so crystals rise out of the cloud instead of floating at tile height.
+          expect(recipe.baseY).toBeLessThan(-1);
           for (const f of recipe.families) {
             expect(typeof f.base).toBe('number');
             // Derived tones must differ from the base or facets go flat.
@@ -35,9 +37,12 @@ describe('WorldLook completeness', () => {
           }
         }
         if (recipe.family === 'cloudsea') {
-          expect(recipe.density).toBeGreaterThan(0);
           expect(recipe.spread).toBeGreaterThan(0);
           expect(recipe.depth).toBeGreaterThan(0);
+          expect(recipe.cols).toBeGreaterThan(1);
+          expect(recipe.rows).toBeGreaterThan(1);
+          // The deck's crest belongs under the tiles so the path floats above it.
+          expect(recipe.top).toBeLessThan(0);
         }
       }
     }

@@ -59,4 +59,31 @@ aspirations and are **superseded** by this lock — use the prompts for
 palette/mood only. If a future week re-opens the edge treatment,
 regenerate references in the new language first.
 
+## Crystal outline — revised after the Day 1 rebuild (2026-09-29)
+
+The spike's "thick black inverted hull" is **no longer how crystals are
+outlined**. The owner picked a **thin warm-charcoal hairline** (`#3B302D`) for
+crystals and **no outline at all** for clouds. Platforms, the ball and coins
+keep their existing hulls.
+
+**Technique.** The outline is the same geometry expanded along its normals,
+drawn `BackSide` with **`depthWrite: false`** and a **lower `renderOrder`** than
+the faces. The faces always paint over the shell, so only a rim at the
+silhouette survives.
+
+**Why.** A normal depth-buffered inverted hull loses the depth test to depth
+precision at range and swallows the entire crystal — the recurring
+"distant crystals go black, then turn colourful up close" bug. Drawing first
+with no depth write makes the result distance-independent. The earlier
+`polygonOffset` "fix" made it worse and is gone.
+
+**Width** scales with the crystal (`OUTLINE_FACTOR = 0.05` of its own size). A
+fixed world-unit rim made small distant crystals read as solid dark blobs.
+
+**Facet lighting is baked**, not lit: unlit `MeshBasicMaterial` with vertex
+colours assigned against a low, raking key (`x -0.78, y 0.45, z 0.44`). A key
+pointing upward puts every camera-visible top facet in the cream band and
+washes the palette out to pastel.
+
+
 

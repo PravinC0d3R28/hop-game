@@ -1,22 +1,35 @@
 // Week 2 Day 1 — Sunrise crystal system (docs/ART concept + palette).
 //
-// OWNER CORRECTIONS applied here (2026-09-02):
-//   1. OUTLINE IS RELATIVE, NOT FIXED. A fixed 0.1-world-unit rim looks fine
-//      up close and swallows a distant crystal whole — far formations went
-//      solid black. The rim now scales with the crystal (same language the
-//      tiles/ball already use), so a small far crystal keeps a small rim.
-//   2. A CLUSTER IS MIXED COLOUR. The concept's formations contain coral AND
-//      peach AND mint AND gold side by side. Each crystal now takes the next
-//      family in the look, so one cluster shows the whole palette.
-//   3. NO HALFTONE DOTS on crystals (MaterialFactory.createFlatMaterial).
-//   4. Crystals are ROOTED BELOW TILE LEVEL so they emerge from the cloud sea
-//      instead of floating in the sky.
+// REBUILT after the first pass read as "stuffing": a cluster is now a real 3D
+// CLUMP — every crystal gets its own x/y/z offset inside a volume, its own
+// lean, spin and size. Previously they were packed on one flat ring, which
+// looked like a pile of spikes in a single spot.
+//
+// Cluster VARIANTS (each a named shape, chosen at random per formation):
+//   trio    — 3 shards, small and tight
+//   fan     — 5 shards splaying outward from one base
+//   spire   — 1 dominant needle with 2 small companions
+//   ridge   — 4-5 shards in a diagonal row (depth variation)
+//   cluster — 7-9 dense clump (the signature shape from the concept)
+//
+// OUTLINE: a fixed width baked into the geometry, drawn as a shell that
+// writes NO depth and is drawn BEFORE the faces. The faces then always paint
+// over it, so a crystal can never turn into a black silhouette at range —
+// the exact failure the depth-buffered inverted hull kept producing.
 import { BufferGeometry, Color, Float32BufferAttribute } from 'three';
+import { DoubleSide } from 'three';
 
-/** Rim width as a fraction of crystal size (thin — the concept is 1-2px). */
-export const OUTLINE_FACTOR = 0.035;
+/** Outline width as a fraction of the crystal's own size. */
+export const OUTLINE_FACTOR = 0.05;
 
-const KEY = { x: -0.42, y: 0.82, z: 0.39 };
+/**
+ * Key direction for baking facet tones. Kept LOW and to the side, matching the
+ * concept's raking light. A key pointing mostly UP puts every top facet — the
+ * ones the camera actually sees — in the cream band, and the whole cluster
+ * washes out to pale. Raking it sideways keeps the saturated body colour
+ * dominant and leaves cream for one or two narrow highlights.
+ */
+const KEY = { x: -0.78, y: 0.45, z: 0.44 };
 
 export function makeRng(seed: number): () => number {
   let s = seed >>> 0 || 1;
@@ -53,9 +66,11 @@ export function crystalTones(f: CrystalFamily): CrystalTones {
 }
 
 export interface SegAcc {
+  /** [x,y,z, r,g,b] per vertex, interleaved — one buffer for the faces. */
   pos: number[];
   nor: number[];
   col: number[];
+  /** Shell vertices, same order. */
   hPos: number[];
   hNor: number[];
 }
@@ -74,12 +89,7 @@ function cross(a: number[], b: number[], c: number[]): [number, number, number] 
   return [nx / l, ny / l, nz / l];
 }
 
-function pushTri(
-  acc: SegAcc,
-  a: number[], b: number[], c: number[],
-  color: number,
-  thickness: number
-): void {
+function pushTri(acc: SegAcc, a: number[], b: number[], c: number[], color: number, rim: number): void {
   const [nx, ny, nz] = cross(a, b, c);
   const r = ((color >> 16) & 255) / 255;
   const g = ((color >> 8) & 255) / 255;
@@ -88,16 +98,19 @@ function pushTri(
     acc.pos.push(p[0], p[1], p[2]);
     acc.nor.push(nx, ny, nz);
     acc.col.push(r, g, bl);
-    acc.hPos.push(p[0] + nx * thickness, p[1] + ny * thickness, p[2] + nz * thickness);
+    acc.hPos.push(p[0] + nx * rim, p[1] + ny * rim, p[2] + nz * rim);
     acc.hNor.push(nx, ny, nz);
   }
 }
 
 function facetTone(n: [number, number, number], t: CrystalTones, jitter: number): number {
   const d = n[0] * KEY.x + n[1] * KEY.y + n[2] * KEY.z + jitter * 0.1;
-  if (d > 0.5) return t.cream;
-  if (d > 0.12) return t.light;
-  if (d < -0.2) return t.shade;
+  // The family's BODY colour owns the widest band on purpose. Widen it and the
+  // coral/mint/cyan actually read; narrow it and every crystal washes out to
+  // pale cream, which is what the concept never does.
+  if (d > 0.82) return t.cream;
+  if (d > 0.46) return t.light;
+  if (d < -0.52) return t.shade;
   return t.base;
 }
 
@@ -125,18 +138,21 @@ export interface CrystalOpts {
   height: number;
   taper: number;
   sides: number;
+  /** Yaw. */
   spin: number;
+  /** Shear (top displaced relative to base). */
   leanX: number;
   leanZ: number;
   scale: number;
+  /** World position of the base. */
   pos: [number, number, number];
   tones: CrystalTones;
 }
 
 export function emitCrystal(acc: SegAcc, o: CrystalOpts, rnd: () => number): void {
-  // Rim scales WITH the crystal: a far, small crystal keeps a small rim instead
-  // of being swallowed by a fixed-width one.
-  const thickness = OUTLINE_FACTOR * o.scale;
+  // Rim scales WITH the crystal: a far, small crystal keeps a small rim. A
+  // fixed world-unit rim is what made distant formations swallow themselves.
+  const rim = OUTLINE_FACTOR * o.scale;
   const s = o.scale;
   const cs = Math.cos(o.spin), sn = Math.sin(o.spin);
   // Clamp lean inside the base radius: a stronger shear folds the prism and
@@ -161,7 +177,7 @@ export function emitCrystal(acc: SegAcc, o: CrystalOpts, rnd: () => number): voi
 
   const add = (A: Ring, B: Ring, C: Ring) => {
     const pa = P(A), pb = P(B), pc = P(C);
-    pushTri(acc, pa, pb, pc, facetTone(cross(pa, pb, pc), o.tones, rnd() * 2 - 1), thickness);
+    pushTri(acc, pa, pb, pc, facetTone(cross(pa, pb, pc), o.tones, rnd() * 2 - 1), rim);
   };
   const quad = (A: Ring, B: Ring, C: Ring, D: Ring) => { add(A, C, B); add(A, D, C); };
 
@@ -174,74 +190,116 @@ export function emitCrystal(acc: SegAcc, o: CrystalOpts, rnd: () => number): voi
   }
 }
 
-export interface FormationSpec {
+export type ClusterShape = 'trio' | 'fan' | 'spire' | 'ridge' | 'cluster';
+
+export const CLUSTER_SHAPES: ClusterShape[] = ['trio', 'fan', 'spire', 'ridge', 'cluster'];
+
+/** Per-shape recipes: how many crystals and how they're spread. */
+const SHAPES: Record<ClusterShape, { n: number; radius: number; height: [number, number]; size: [number, number]; lean: number; row: boolean }> = {
+  trio:    { n: 3, radius: 2.0, height: [0.62, 0.84], size: [0.85, 1.0], lean: 0.5,  row: false },
+  fan:     { n: 5, radius: 4.0, height: [0.6, 0.88],  size: [0.8, 1.05], lean: 1.1,  row: false },
+  spire:   { n: 3, radius: 2.2, height: [0.55, 0.8],  size: [0.8, 0.95], lean: 0.7,  row: false },
+  ridge:   { n: 5, radius: 3.2, height: [0.62, 0.86], size: [0.8, 1.0],  lean: 0.6,  row: true },
+  cluster: { n: 8, radius: 4.2, height: [0.6, 0.92],  size: [0.78, 1.05], lean: 0.9, row: false }
+};
+
+/**
+ * Width-to-height ratio. The concept's crystals are chunky prisms at roughly
+ * 1:1.7 with a tapered point — not needles, not boulders. Deriving the radius
+ * from each crystal's own height is what guarantees that: a 12-unit spire gets
+ * a 3.6-unit base, so every crystal stays chunky as the cluster scales.
+ */
+const CHUNK = 0.3;
+
+export interface ClusterSpec {
   x: number;
   z: number;
-  /** 0..1 — 0 small shards, 1 a dominant spire cluster. */
+  /** 0..1 overall size of the cluster. */
   weight: number;
+  shape: ClusterShape;
   families: CrystalFamily[];
-  count: number;
-  /** Base sits this far below the tile plane so the crystal emerges. */
+  /** Base height (the cloud top the cluster grows out of). */
   baseY: number;
 }
 
 /**
- * One formation: a dominant spire plus satellites fanning outward from a
- * shared buried base. Colours CYCLE through the look's families, so a single
- * cluster shows coral + peach + mint + gold the way the concept does.
+ * Build one cluster. Crystals are placed inside an ellipsoidal VOLUME — x, y
+ * AND z all vary — so a cluster reads as a 3D clump from every camera angle,
+ * not a flat row. The tallest crystal is placed last and central, so the
+ * silhouette has a clear dominant spire.
  */
-export function emitFormation(acc: SegAcc, spec: FormationSpec, rnd: () => number): void {
+export function emitCluster(acc: SegAcc, spec: ClusterSpec, rnd: () => number): void {
   const fam = spec.families;
   if (fam.length === 0) return;
-  const spireH = 2.6 + spec.weight * 3.6;
+  const rec = SHAPES[spec.shape];
+  // HERO scale: the crystals are the subject of the frame, not scenery props.
+  // A near cluster tops out around 12 units above its base.
+  const spireH = 5.5 + spec.weight * 7.5;
   const phase = Math.floor(rnd() * fam.length);
+  // Per-cluster primary/secondary axis so repeated clusters don't all face
+  // the same way.
+  const axisRot = rnd() * Math.PI;
 
-  // Dominant spire
-  emitCrystal(acc, {
-    baseR: 0.62 + spec.weight * 0.42,
-    height: spireH,
-    taper: 0.46 + rnd() * 0.16,
-    sides: 6,
-    spin: rnd() * Math.PI,
-    leanX: (rnd() - 0.5) * 0.06,
-    leanZ: (rnd() - 0.5) * 0.06,
-    scale: 0.85 + spec.weight * 0.3,
-    pos: [spec.x, spec.baseY, spec.z],
-    tones: crystalTones(fam[phase % fam.length])
-  }, rnd);
+  for (let i = 0; i < rec.n; i++) {
+    // Spread in a volume: random in x/z (elliptical), small in y so the
+    // bases stay buried together.
+    const ang = (i / rec.n) * Math.PI * 2 + rnd() * 0.9;
+    const rad = (0.25 + rnd() * 0.75) * rec.radius * (0.6 + spec.weight * 0.8);
+    let ox: number;
+    let oz: number;
+    if (rec.row) {
+      // Diagonal row: strong x, gentle z — reads as a ridge in depth.
+      const t = i / Math.max(1, rec.n - 1) - 0.5;
+      ox = t * rec.radius * 2.2;
+      oz = t * rec.radius * 0.7 + (rnd() - 0.5) * 0.2;
+    } else {
+      const ca = Math.cos(axisRot), sa = Math.sin(axisRot);
+      const lx = Math.cos(ang) * rad;
+      const lz = Math.sin(ang) * rad * 0.75;
+      ox = lx * ca - lz * sa;
+      oz = lx * sa + lz * ca;
+    }
+    const oy = (rnd() - 0.5) * 0.5 * spec.weight;
 
-  // Satellites — each takes the NEXT family, so the cluster is mixed colour.
-  // Tight radius + outward lean: the concept clumps are dense, with the shards
-  // fanning out of one base, not a scatter of lone crystals.
-  for (let i = 1; i < spec.count; i++) {
-    const ang = (i / spec.count) * Math.PI * 2 + rnd() * 0.5;
-    const rad = (0.22 + rnd() * 0.4) * (0.55 + spec.weight * 0.7);
+    // The spire leads but does not tower: if it dominates, the cluster reads as
+    // one lone crystal with specks beside it instead of a clump.
+    const isSpire = i === rec.n - 1;
+    const hFrac = isSpire
+      ? 0.82 + spec.weight * 0.18
+      : rec.height[0] + rnd() * (rec.height[1] - rec.height[0]);
+    const sFrac = isSpire
+      ? 0.8 + spec.weight * 0.18
+      : rec.size[0] + rnd() * (rec.size[1] - rec.size[0]);
+
+    // Size this crystal FIRST, then derive its width from its own height —
+    // that is what keeps every crystal chunky instead of needle-thin.
+    const h = spireH * hFrac;
+    const scale = sFrac;
     emitCrystal(acc, {
-      baseR: 0.3 + rnd() * 0.26,
-      height: spireH * (0.5 + rnd() * 0.5),
-      taper: 0.44 + rnd() * 0.2,
+      baseR: h * CHUNK * (0.82 + rnd() * 0.3),
+      height: h,
+      taper: 0.5 + rnd() * 0.22,
       sides: 5 + (i % 2),
       spin: rnd() * Math.PI,
-      leanX: Math.cos(ang) * (0.2 + rnd() * 0.16),
-      leanZ: Math.sin(ang) * (0.2 + rnd() * 0.16),
-      scale: 0.72 + rnd() * 0.4,
-      pos: [
-        spec.x + Math.cos(ang) * rad,
-        spec.baseY - rnd() * 0.3,
-        spec.z + Math.sin(ang) * rad * 0.8
-      ],
+      leanX: (rnd() - 0.5) * rec.lean,
+      leanZ: (rnd() - 0.5) * rec.lean,
+      scale,
+      pos: [spec.x + ox, spec.baseY + oy, spec.z + oz],
+      // Colours cycle through the palette so one cluster is multi-coloured.
       tones: crystalTones(fam[(phase + i) % fam.length])
     }, rnd);
   }
 }
 
-export function bakeSegment(acc: SegAcc): { face: BufferGeometry; hull: BufferGeometry } {
+export function bakeCluster(acc: SegAcc): { face: BufferGeometry; shell: BufferGeometry } {
   const face = new BufferGeometry();
   face.setAttribute('position', new Float32BufferAttribute(acc.pos, 3));
   face.setAttribute('normal', new Float32BufferAttribute(acc.nor, 3));
   face.setAttribute('color', new Float32BufferAttribute(acc.col, 3));
-  const hull = new BufferGeometry();
-  hull.setAttribute('position', new Float32BufferAttribute(acc.hPos, 3));
-  hull.setAttribute('normal', new Float32BufferAttribute(acc.hNor, 3));
-  return { face, hull };
+  const shell = new BufferGeometry();
+  shell.setAttribute('position', new Float32BufferAttribute(acc.hPos, 3));
+  shell.setAttribute('normal', new Float32BufferAttribute(acc.hNor, 3));
+  return { face, shell };
 }
+
+export { DoubleSide };

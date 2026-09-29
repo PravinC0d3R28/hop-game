@@ -41,26 +41,29 @@ interface RecipeBase {
   parallax: number;
 }
 
-/** Crystal formations: clusters of related crystals flanking the path. */
+/** Crystal clusters: clumps of related crystals flanking the path. */
 export interface CrystalFieldRecipe extends RecipeBase {
   family: 'crystalfield';
   families: CrystalFamily[];
-  /** Crystals per formation (1 dominant spire + N-1 satellites). */
-  perFormation: number;
+  /** Y of the cloud-top the clusters grow out of (well below the tiles). */
+  baseY: number;
 }
 
-/** The soft blanket crystals emerge from. */
+/** The soft blanket crystals rise out of. */
 export interface CloudSeaRecipe extends RecipeBase {
   family: 'cloudsea';
   palette: { base: number; highlight: number; shadow: number };
-  /** Billows per segment. */
-  density: number;
   /** Half-width of the blanket. */
   spread: number;
-  /** Blanket top height (crystal bases sit below it). */
+  /** Crest height — the sea's top surface. */
   top: number;
-  /** How far the blanket dips below `top`. */
+  /** Trough depth below the crest. */
   depth: number;
+  /** Grid resolution. */
+  cols: number;
+  rows: number;
+  /** Billow spacing. Smaller = puffier. */
+  cell?: number;
 }
 
 /** Reserved family with no builder yet (Dusk/Void). */
@@ -143,30 +146,37 @@ export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
     props: [
       {
         family: 'crystalfield',
-        // Four related families (palette §4): coral, peach, mint, cyan, gold.
+        // Four related families (palette §4). Saturated BODY colours with only
+        // a modest lift for highlights — the concept's crystals read as deep
+        // coral / teal / mint / gold, not as pale pastels.
         families: [
-          { base: 0xff6f70, light: 0xff927c, shade: 0xe0505a, cream: 0xffb9a4 },
-          { base: 0xffb07a, light: 0xffc27e, shade: 0xe08a5c, cream: 0xffe0bd },
-          { base: 0x8de3b0, light: 0xb5f0c7, shade: 0x5fc89a, cream: 0xd6f7e2 },
-          { base: 0x55cfe6, light: 0x89e8f1, shade: 0x35afc1, cream: 0xc0f2fa },
-          { base: 0xffd95a, light: 0xffe9a0, shade: 0xe0b93a, cream: 0xfff4cd }
+          { base: 0xf2545f, light: 0xff7d70, shade: 0xc4374c, cream: 0xffa892 },
+          { base: 0xff9a4d, light: 0xffb96a, shade: 0xdb7530, cream: 0xffd79a },
+          { base: 0x5fcf9a, light: 0x8ce0b8, shade: 0x35a97c, cream: 0xbdeecf },
+          { base: 0x2fb8d4, light: 0x63d2e6, shade: 0x1a8fa8, cream: 0x9fe4f0 },
+          { base: 0xf5c531, light: 0xffd964, shade: 0xc99a1c, cream: 0xffeeb0 }
         ],
-        count: 12,
-        perFormation: 9,
+        count: 11,
+        // Crystal bases sit ~4.2 below the tile plane — deep inside the deck —
+        // so clusters tower up out of the clouds. This is what sells "we are
+        // high above a cloud sea": the deck is far BELOW the tiles, not level
+        // with them.
+        baseY: -4.2,
         parallax: 0.2
       },
       {
         family: 'cloudsea',
-        // Brighter than the sky with a real shadow tone — clouds that match
-        // the sky value read as nothing at all (the first pass did exactly that).
-        palette: { base: 0xfffefc, highlight: 0xffffff, shadow: 0xf0d3b2 },
+        palette: { base: 0xfffaf0, highlight: 0xffffff, shadow: 0xf2bfa2 },
         count: 1,
-        density: 130,
-        spread: 18,
-        // Well BELOW the tile line (tiles span y −0.4..+0.4): the path floats
-        // above the sea, and the sea reads as the bottom of the frame.
-        top: -3.4,
+        // The deck's datum sits well BELOW the tiles (they span −0.4..+0.4), so
+        // the path reads as floating above a thick cloud layer. Small billows,
+        // low relief: the crystals must stay the tallest thing in frame.
+        spread: 32,
+        top: -2.8,
         depth: 1.8,
+        cols: 60,
+        rows: 50,
+        cell: 3,
         parallax: 0.15
       }
     ]

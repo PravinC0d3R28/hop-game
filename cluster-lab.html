@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>HOP — cluster lab (dev only)</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #f7e3c4; overflow: hidden; }
+      canvas { display: block; }
+      #hud {
+        position: fixed; left: 10px; top: 10px; z-index: 10;
+        font: 12px/1.6 ui-monospace, monospace; color: #3b302d;
+        background: rgba(255,255,255,.85); padding: 10px 12px; border-radius: 8px;
+      }
+      #hud label { display: block; }
+      #hud select, #hud button { font: inherit; margin: 2px 0; }
+    </style>
+  </head>
+  <body>
+    <div id="hud">
+      <strong>cluster lab</strong>
+      <div>shape <select id="shape"></select></div>
+      <label><input type="checkbox" id="outline" checked /> outline</label>
+      <label><input type="checkbox" id="clouds" checked /> cloud deck</label>
+      <label><input type="checkbox" id="tiles" checked /> tile level</label>
+      <label><input type="checkbox" id="spin" checked /> orbit</label>
+      <label><input type="checkbox" id="gallery" /> gallery (all 5 shapes)</label>
+      <label><input type="checkbox" id="auto" checked /> auto-randomize</label>
+      <div>seed <input type="range" id="seed" min="1" max="60" value="3" /></div>
+      <div>size <input type="range" id="weight" min="10" max="100" value="80" /></div>
+      <button id="shuffle">shuffle</button>
+      <span id="stats"></span>
+    </div>
+    <script type="module" src="/src/dev/clusterLab.ts"></script>
+  </body>
+</html>

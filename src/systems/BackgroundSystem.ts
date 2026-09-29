@@ -8,7 +8,7 @@ import {
   type BufferGeometry,  type Scene
 } from 'three';
 import { MaterialFactory } from './MaterialFactory';
-import { bakeSegment, emptyAcc, emitFormation, makeRng, type FormationSpec } from './CrystalFactory';
+import { bakeCluster, CLUSTER_SHAPES, emitCluster, emptyAcc, makeRng, type ClusterSpec } from './CrystalFactory';
 import { buildCloudSea } from './CloudFactory';
 import type { CrystalFieldRecipe, CloudSeaRecipe, WorldLook } from '../config/WorldLooks';
 
@@ -79,30 +79,38 @@ export class BackgroundSystem {
       // frame edges) so nothing crowds the landing corridor in 9:16.
       const spread = CORRIDOR + 1.6 + rnd() * 4.6 + (depth > 0.6 ? 1.4 : 0);
       const x = side * spread;
-      // A cluster shows the WHOLE palette: every formation hands the emitter
-      // the full family list and each crystal inside takes the next one, the
-      // way the concept mixes coral + peach + mint + gold side by side.
-      const spec: FormationSpec = {
+      // A cluster is a 3D clump (x/y/z all vary) and its SHAPE is picked at
+      // random, so the field never repeats the same silhouette twice.
+      const spec: ClusterSpec = {
         x,
         z,
         weight: 0.3 + depth * 0.7,
+        shape: CLUSTER_SHAPES[Math.floor(rnd() * CLUSTER_SHAPES.length)],
         families: recipe.families,
-        count: recipe.perFormation,
-        // Buried base: crystals emerge from the cloud sea, not float in sky.
-        baseY: -1.2 - rnd() * 0.9
+        // Deep: crystals grow up out of the thick cloud, well below the tiles,
+        // so the player reads "high above a cloud sea" instead of "crystals
+        // floating at tile height".
+        baseY: recipe.baseY - rnd() * 2.2
       };
-      emitFormation(acc, spec, rnd);
+      emitCluster(acc, spec, rnd);
     }
-    const { face, hull } = bakeSegment(acc);
-    // MeshBasic + vertex colours: the facet tones (cream/light/base/shade) are
-    // ALREADY the lighting, baked per facet against the key direction — which
-    // is exactly the concept's flat colour blocks. A lit toon material on top
-    // of that only re-darkened some facets to near-black; unlit makes the
-    // palette deterministic and the draw cheaper.
+    const { face, shell } = bakeCluster(acc);
+    // Unlit + vertex colours: the facet tones (cream/light/base/shade) ARE the
+    // lighting, baked per facet against the key direction — exactly the
+    // concept's flat colour blocks. Lighting on top only re-darkened facets.
     const faceMesh = new Mesh(face, new MeshBasicMaterial({ vertexColors: true, side: DoubleSide }));
-    const hullMesh = new Mesh(hull, new MeshBasicMaterial({ color: edge, side: BackSide }));
-    // One layer = both meshes, so they recycle in lockstep at the same slot.
-    this.spawnLayer([faceMesh, hullMesh], 0);
+    // The outline shell writes NO depth and is drawn FIRST (renderOrder 1 vs
+    // the faces' 2), so the faces always paint over it. This is the structural
+    // fix for "distant crystals turn black": a depth-buffered inverted hull
+    // loses that fight to depth precision at range and swallows the crystal.
+    const shellMesh = new Mesh(shell, new MeshBasicMaterial({
+      color: edge,
+      side: BackSide,
+      depthWrite: false
+    }));
+    shellMesh.renderOrder = 1;
+    faceMesh.renderOrder = 2;
+    this.spawnLayer([shellMesh, faceMesh], 0);
   }
 
   /** The cloud blanket: one vertex-coloured mesh, no outlines. */
@@ -112,7 +120,9 @@ export class BackgroundSystem {
       spread: recipe.spread,
       top: recipe.top,
       depth: recipe.depth,
-      density: recipe.density,
+      cols: recipe.cols,
+      rows: recipe.rows,
+      cell: recipe.cell,
       palette: recipe.palette,
       seed: this.seed
     });
