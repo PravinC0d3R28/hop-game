@@ -70,6 +70,51 @@ const mix = (a: number, b: number, t: number): number => {
   return (r << 16) | (g << 8) | bl;
 };
 
+function toHsl(c: number): [number, number, number] {
+  const r = ((c >> 16) & 255) / 255, g = ((c >> 8) & 255) / 255, b = (c & 255) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const d = max - min;
+  if (d === 0) return [0, 0, l];
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h: number;
+  if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+  else if (max === g) h = ((b - r) / d + 2) / 6;
+  else h = ((r - g) / d + 4) / 6;
+  return [h, s, l];
+}
+
+function fromHsl(h: number, s: number, l: number): number {
+  const c = (1 - Math.abs(2 * l - 1)) * Math.max(0, Math.min(1, s));
+  const hp = (h % 1 + 1) % 1;
+  const x = c * (1 - Math.abs(((hp * 6) % 2) - 1));
+  const m = l - c / 2;
+  let rgb: [number, number, number];
+  const seg = Math.floor(hp * 6);
+  if (seg === 0) rgb = [c, x, 0];
+  else if (seg === 1) rgb = [x, c, 0];
+  else if (seg === 2) rgb = [0, c, x];
+  else if (seg === 3) rgb = [0, x, c];
+  else if (seg === 4) rgb = [x, 0, c];
+  else rgb = [c, 0, x];
+  const to = (v: number): number => Math.max(0, Math.min(255, Math.round((v + m) * 255)));
+  return (to(rgb[0]) << 16) | (to(rgb[1]) << 8) | to(rgb[2]);
+}
+
+/**
+ * Push a palette colour toward "poppy" WITHOUT moving its hue.
+ *
+ * The doc's crystal hexes are correct in hue but high-key in value, and the
+ * owner wants them to read as vividly as the tiles. So saturation is driven up
+ * and lightness is pulled toward the middle — the hue is held fixed, which is
+ * what keeps coral looking like coral and not drifting toward red. Clamped so a
+ * near-grey source colour cannot be pushed into neon.
+ */
+function poppy(base: number, satBoost = 1.42, lightTarget = 0.52): number {
+  const [h, s, l] = toHsl(base);
+  return fromHsl(h, Math.min(0.95, s * satBoost), s * satBoost > 0.2 ? lightTarget : l);
+}
+
 /**
  * Derive the four facet tones for one crystal colour.
  *
@@ -93,7 +138,10 @@ function tonesFor(base: number, pale: number): CrystalFamily {
 }
 
 function buildFamilies(p: Palette): PaletteFamily[] {
-  return p.crystals.map((c) => ({ name: c.name, ...tonesFor(c.base, p.paleFacet) }));
+  return p.crystals.map((c) => {
+    const base = poppy(c.base);
+    return { name: c.name, ...tonesFor(base, p.paleFacet) };
+  });
 }
 
 let activePalette: Palette = getPalette(DEFAULT_PALETTE_ID);

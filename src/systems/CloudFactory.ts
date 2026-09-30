@@ -95,6 +95,29 @@ function seaHeight(x: number, z: number, domes: Dome[], period: number, seed: nu
   return swell + rollA + rollB + billow;
 }
 
+/**
+ * The deck's surface height at an arbitrary world (x, z).
+ *
+ * The crystal field needs this: the cloud tops are uneven, so a formation given
+ * one fixed base height is either floating in the air over a trough or buried
+ * to the tips under a crest — the "clusters are submerged" bug. Sampling the
+ * real surface lets each formation be seated exactly where it will be seen.
+ *
+ * Shares `hAt`'s maths, so the returned height always matches the built mesh.
+ */
+export function cloudHeightAt(
+  o: CloudSeaOpts,
+  x: number,
+  z: number
+): number {
+  const domes = makeDomes(o.seed * 11 + 3, o.spread, o.length, o.cell ?? 5);
+  const roll = seaHeight(x, z, domes, o.length, o.seed) * o.depth;
+  const lim = o.depth * 1.3;
+  const relief = lim * Math.tanh(roll / lim);
+  const edge = Math.abs(x) / o.spread;
+  return o.top + relief * (1 - edge * 0.5);
+}
+
 export function buildCloudSea(o: CloudSeaOpts): BufferGeometry {
   // The deck tiles over `length`, so that is its period.
   const domes = makeDomes(o.seed * 11 + 3, o.spread, o.length, o.cell ?? 5);

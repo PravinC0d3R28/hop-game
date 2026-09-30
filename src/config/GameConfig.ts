@@ -222,8 +222,11 @@ export const GAME_CONFIG: GameConfig = {
 
   SHIELD_UNLOCK_SCORE: 1000,
 
+  // Halftone polka dots. Zeroed: the owner removed the dot styling from the
+  // tiles. The toon ramp itself stays (tiles still need the top/side value
+  // separation); only the dot overlay is gone, so this is the single knob for it.
   DOTS_SCALE: 0.3,
-  DOTS_STRENGTH: 0.25,
+  DOTS_STRENGTH: 0,
   DOTS_SHADOW_MIN: 0.25,
   DOTS_SHADOW_MAX: 0.55,
   SPEED_LINES_START_SCORE: 15,

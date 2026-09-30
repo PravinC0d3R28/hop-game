@@ -15,7 +15,7 @@ import {
   type FrameInfo,
   type PlacementOptions
 } from './CrystalField';
-import { buildCloudSea } from './CloudFactory';
+import { buildCloudSea, cloudHeightAt } from './CloudFactory';
 import type { CrystalFieldRecipe, CloudSeaRecipe, WorldLook } from '../config/WorldLooks';
 
 /** Segment length along +Z. */
@@ -91,9 +91,13 @@ export class BackgroundSystem {
     this.dispose(false);
     this.seed = (this.seed * 1664525 + 1013904223) >>> 0;
     let built = 0;
+    // The crystal layer needs the cloud recipe up front so it can seat each
+    // formation on the real cloud surface.
+    const cloud = look.props.find((p) => p.family === 'cloudsea');
     for (const recipe of look.props) {
-      if (recipe.family === 'crystalfield') this.addCrystalLayer(recipe, look.platformEdge);
-      else if (recipe.family === 'cloudsea') this.addCloudLayer(recipe);
+      if (recipe.family === 'crystalfield') {
+        this.addCrystalLayer(recipe, cloud && cloud.family === 'cloudsea' ? cloud : null);
+      } else if (recipe.family === 'cloudsea') this.addCloudLayer(recipe);
       else if (import.meta.env.DEV) {
         console.warn(`BackgroundSystem: no builder for prop family "${recipe.family}" yet — skipping`);
       }
@@ -102,44 +106,46 @@ export class BackgroundSystem {
     void built;
   }
 
-  /** Crystal formations: one vertex-coloured mesh of authored + procedural clusters. */
-  private addCrystalLayer(recipe: CrystalFieldRecipe, edge: number): void {
-    const rnd = makeRng(this.seed);
+  /** Crystal formations: one vertex-coloured mesh of the authored structures. */
+  private addCrystalLayer(recipe: CrystalFieldRecipe, cloud: CloudSeaRecipe | null): void {
     const acc = emptyAcc();
-    const frame = this.frame;
-    void edge;
+    void recipe.parallax;
+    // Seat each formation on the REAL cloud surface at its own (x, z). The deck
+    // is uneven, so a single fixed base height buried formations on the crests
+    // and floated them over the troughs.
+    const cloudOpts = cloud
+      ? {
+        length: SEG_LEN,
+        spread: cloud.spread,
+        top: cloud.top,
+        depth: cloud.depth,
+        cols: cloud.cols,
+        rows: cloud.rows,
+        cell: cloud.cell,
+        palette: cloud.palette,
+        seed: this.seed
+      }
+      : null;
+    const cloudHeight = cloudOpts
+      ? (x: number, z: number) => cloudHeightAt(cloudOpts, x, z)
+      : () => recipe.baseY;
 
-    // Seeded, reproducible, and framed for the CURRENT viewport. The generator
-    // clamps each formation's lateral offset to the visible half-width, which is
-    // what keeps them on screen on a phone without letting them touch the path.
     const opts: PlacementOptions = {
       ...DEFAULT_PLACEMENT,
       count: recipe.count,
       segmentLength: SEG_LEN,
       corridor: CORRIDOR
     };
-    const placements = generatePlacements(this.seed ^ 0x5f3a, frame, opts);
-    // A slice of the field stays procedural so the field never reads as five
-    // repeated pieces, however many the owner authors.
-    for (const p of placements) {
-      if (rnd() < 0.25) {
-        emitCluster(acc, {
-          x: p.side * p.spread,
-          z: p.z,
-          weight: 0.55 + (1 - Math.min(1, p.z / SEG_LEN)) * 0.45,
-          shape: CLUSTER_SHAPES[Math.floor(rnd() * CLUSTER_SHAPES.length)],
-          families: recipe.families,
-          baseY: recipe.baseY - rnd() * 2.2
-        }, rnd);
-      } else {
-        emitStructure(acc, p.structure, {
-          x: p.side * p.spread,
-          z: p.z,
-          baseY: recipe.baseY - rnd() * 2.2,
-          scale: p.scale,
-          families: recipe.families
-        });
-      }
+    // Authored formations ONLY — the owner locked five and asked that nothing
+    // else appear in the field.
+    for (const p of generatePlacements(this.seed ^ 0x5f3a, this.frame, cloudHeight, opts)) {
+      emitStructure(acc, p.structure, {
+        x: p.side * p.spread,
+        z: p.z,
+        baseY: p.baseY,
+        scale: p.scale,
+        families: recipe.families
+      });
     }
     const faceMesh = new Mesh(bakeCluster(acc).face, new MeshBasicMaterial({ vertexColors: true, side: DoubleSide }));
     // No crystal contour for now. Two implementations were tried and both are
@@ -298,6 +304,8 @@ export class BackgroundSystem {
     }
   }
 }
+
+
 
 
 

@@ -27,6 +27,8 @@ export interface Placement {
   z: number;
   /** Uniform scale applied to the authored numbers. */
   scale: number;
+  /** Base height, seated on the cloud surface so nothing is buried or floating. */
+  baseY: number;
 }
 
 export interface FrameInfo {
@@ -50,16 +52,32 @@ export interface PlacementOptions {
   /** Hard minimum spread — the path must always stay readable. */
   minSpread: number;
   maxSpread: number;
+  /** Authored formation height treated as "normal"; others scale off it. */
+  referenceHeight: number;
+  /** Global size boost applied to every formation. */
+  boost: number;
+  /** How deep a formation's base is buried in the cloud it stands on. */
+  sink: number;
+  /** Never let consecutive formations crowd each other. */
+  minGap: number;
 }
 
 export const DEFAULT_PLACEMENT: PlacementOptions = {
-  count: 9,
+  count: 6,
   segmentLength: 70,
   corridor: 3.4,
-  minZ: 30,
+  minZ: 32,
   margin: 0.82,
   minSpread: 5.6,
-  maxSpread: 17
+  maxSpread: 17,
+  /** Authored formation height treated as "normal"; others scale off it. */
+  referenceHeight: 9.5,
+  /** Global size boost. The owner asked for bigger crystals. */
+  boost: 1.0,
+  /** How deep a formation's base is buried in the cloud it stands on. */
+  sink: 0.9,
+  /** Never let consecutive formations crowd each other. */
+  minGap: 6.5
 };
 
 /**
@@ -94,12 +112,17 @@ export function structureHalfWidth(s: CrystalStructure): number {
 }
 
 /**
- * Build a segment's worth of placements. Pure function of (seed, frame, count):
+ * Build a segment's worth of placements. Pure function of (seed, frame, cloud):
  * same inputs, same field, so a seed is a shareable recipe.
+ *
+ * `cloudHeight` lets each formation be seated on the actual cloud surface
+ * instead of at one fixed height — without it, formations on a crest are buried
+ * to the tips and those over a trough float in mid-air.
  */
 export function generatePlacements(
   seed: number,
   frame: FrameInfo,
+  cloudHeight: (x: number, z: number) => number,
   o: PlacementOptions = DEFAULT_PLACEMENT
 ): Placement[] {
   const rnd = makeRng(seed);
@@ -107,38 +130,63 @@ export function generatePlacements(
   // Evenly divide the runnable span into slots, then jitter WITHIN each slot.
   // Dividing by `count` and adding a full step of jitter on the last slot pushed
   // it past the segment, so the span is divided by (count - 1) and jitter is
-  // capped at a fraction of the slot.
-  const span = o.segmentLength - o.minZ;
+  // forward-only and clamped to the segment.
+  const span = Math.max(1, o.segmentLength - o.minZ);
   const step = o.count > 1 ? span / (o.count - 1) : span;
+  // Strict alternation, not a coin flip. Random sides produced runs of three or
+  // four on the same flank, which read as a lopsided clump instead of a rhythm.
+  const firstSide: 1 | -1 = rnd() < 0.5 ? -1 : 1;
+
   for (let i = 0; i < o.count; i++) {
     const structure = CRYSTAL_STRUCTURES[Math.floor(rnd() * CRYSTAL_STRUCTURES.length)];
-    const side: 1 | -1 = rnd() < 0.5 ? -1 : 1;
-    // Always start past minZ so a phone can actually see the formation; the
-    // first slot is the one the camera meets head-on. Jitter is one-sided and
-    // forward-only, so it can neither pull a formation back inside minZ nor
-    // push the last one past the segment.
-    const z = Math.min(
-      o.segmentLength,
-      o.minZ + i * step + rnd() * step * 0.4
-    );
-    const half = structureHalfWidth(structure);
-    // Nearer formations are larger, as atmospheric depth demands — but the
-    // authored heights run to 12 units, so the scale range is deliberately
-    // restrained: at 0.45-0.95 the closest formation filled half the frame.
+    const side: 1 | -1 = i % 2 === 0 ? firstSide : (-firstSide as 1 | -1);
+    const z = Math.min(o.segmentLength, o.minZ + i * step + rnd() * step * 0.35);
+
+    // The formation's VISUAL height is the controlled quantity, and the scale
+    // is derived from it. A 12-unit "Needles" and a 7-unit "Ridge" then come out
+    // the same size instead of one dwarfing the other, and near formations still
+    // read larger than far ones. That is what stops a boosted tall piece from
+    // swallowing the frame.
     const depth = 1 - Math.min(1, z / o.segmentLength);
-    const scale = 0.34 + depth * 0.34;
-    const spread = Math.max(
+    const targetHeight = o.referenceHeight * (0.55 + depth * 0.45) * o.boost;
+    const half0 = structureHalfWidth(structure);
+    let scale = targetHeight / Math.max(1, structure.height);
+
+    // Two constraints fight here: the formation must clear the path, and it must
+    // fit the frustum. The frustum is the harder limit on a phone, so shrink the
+    // formation until BOTH can hold — rather than pushing it out of frame or
+    // letting it overlap the tiles.
+    const GAP = 0.6;
+    const limit = visibleHalfWidth(frame, z) * o.margin;
+    for (let guard = 0; guard < 24; guard++) {
+      const need = o.corridor + half0 * scale + GAP;
+      if (need <= limit) break;
+      scale *= 0.9;
+    }
+    scale = Math.max(scale, 0.12);
+
+    const half = half0 * scale;
+    let spread = Math.max(
       o.minSpread,
-      o.corridor + half * scale * 0.6,
+      o.corridor + half + GAP,
       Math.min(
-        maxSpreadFor(frame, z, half * scale, o),
+        maxSpreadFor(frame, z, half, o),
         o.minSpread + rnd() * (o.maxSpread - o.minSpread)
       )
     );
-    out.push({ structure, side, spread, z, scale });
+    // Final guarantee: the formation's OUTER edge is inside the frustum. The
+    // clamps above can each win individually (minSpread on a narrow phone, the
+    // corridor on a wide screen) and together overshoot, so the bound is applied
+    // once more here rather than trusted to the ordering.
+    spread = Math.min(spread, Math.max(half + 0.1, visibleHalfWidth(frame, z) - half - 0.1));
+    // Sit the formation on the cloud it actually stands over, buried just
+    // enough that no base is left hanging in the air.
+    const x = side * spread;
+    out.push({ structure, side, spread, z, scale, baseY: cloudHeight(x, z) - o.sink });
   }
-  // Deterministic order keeps the emitter's draw order stable.
   out.sort((a, b) => a.z - b.z);
   return out;
 }
+
+
 
