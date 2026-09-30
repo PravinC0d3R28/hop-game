@@ -76,10 +76,24 @@ export interface SegAcc {
   /** Shell vertices, same order. */
   hPos: number[];
   hNor: number[];
+  /**
+   * Facet-edge vertices as line SEGMENTS (two points per edge).
+   *
+   * The concept draws a dark stroke on every facet edge, not just the outer
+   * silhouette. This is separate from the shell outline on purpose: lines lie
+   * exactly on the geometry, so they can never ghost through the cloud deck or
+   * the tiles the way an expanded hull did.
+   */
+  edge: number[];
 }
 
 export function emptyAcc(): SegAcc {
-  return { pos: [], nor: [], col: [], hPos: [], hNor: [] };
+  return { pos: [], nor: [], col: [], hPos: [], hNor: [], edge: [] };
+}
+
+/** Push one facet edge as a line segment (two vertices). */
+function pushEdge(acc: SegAcc, a: number[], b: number[]): void {
+  acc.edge.push(a[0], a[1], a[2], b[0], b[1], b[2]);
 }
 
 function cross(a: number[], b: number[], c: number[]): [number, number, number] {
@@ -231,6 +245,14 @@ function buildPrism(
     quad(r1[i], r1[j], r2[j], r2[i]);
     add(r2[i], apex, r2[j]);
     add(base, r0[i], r0[j]);
+    // Facet strokes: only the LONG edges — the vertical arris between
+    // neighbouring facets, and the spoke into the tip. An earlier pass also drew
+    // the horizontal rings, and the result was a dark lattice that buried the
+    // colour under a cage. The long arrises alone are what the concept shows:
+    // they read as separate facets without drawing a ladder over the crystal.
+    pushEdge(acc, P(r0[i]), P(r1[i]));
+    pushEdge(acc, P(r1[i]), P(r2[i]));
+    pushEdge(acc, P(r2[i]), P(apex));
   }
 }
 
@@ -334,15 +356,21 @@ export function emitCluster(acc: SegAcc, spec: ClusterSpec, rnd: () => number): 
     }, rnd);
   }
 }
-
-export function bakeCluster(acc: SegAcc): { face: BufferGeometry; shell: BufferGeometry } {  const face = new BufferGeometry();
+export function bakeCluster(acc: SegAcc): {
+  face: BufferGeometry;
+  shell: BufferGeometry;
+  edges: BufferGeometry;
+} {
+  const face = new BufferGeometry();
   face.setAttribute('position', new Float32BufferAttribute(acc.pos, 3));
   face.setAttribute('normal', new Float32BufferAttribute(acc.nor, 3));
   face.setAttribute('color', new Float32BufferAttribute(acc.col, 3));
   const shell = new BufferGeometry();
   shell.setAttribute('position', new Float32BufferAttribute(acc.hPos, 3));
   shell.setAttribute('normal', new Float32BufferAttribute(acc.hNor, 3));
-  return { face, shell };
+  const edges = new BufferGeometry();
+  edges.setAttribute('position', new Float32BufferAttribute(acc.edge, 3));
+  return { face, shell, edges };
 }
 
 export { DoubleSide };

@@ -4,8 +4,11 @@ import {
   BoxGeometry,
   DoubleSide,
   Group,
+  LineBasicMaterial,
+  LineSegments,
   Mesh,
   MeshBasicMaterial,
+  CanvasTexture,
   PlaneGeometry,
   type BufferGeometry,
   type Scene
@@ -22,7 +25,7 @@ import { buildCloudSea, cloudHeightAlongSight, type CloudSeaOpts } from './Cloud
 import type { CrystalFieldRecipe, CloudSeaRecipe, WorldLook } from '../config/WorldLooks';
 
 /** Segment length along +Z. */
-const SEG_LEN = 70;
+const SEG_LEN = 120;
 /**
  * Segments kept alive per layer. The camera can see `fogFar` (82) units of
  * haze plus its own offset, and it sits somewhere inside segment 0 of the
@@ -32,10 +35,14 @@ const SEG_COUNT = 3;
 
 interface Layer {
   /** Meshes sharing one geometry (the set recycles as one chain). */
-  meshes: Mesh[];
+  meshes: LayerObject[];
   geo: BufferGeometry;
   bob: number;
 }
+
+/** Either drawable kind in a scenery layer: the crystal field mixes faces and
+ *  facet-stroke lines in one recycled chain. */
+type LayerObject = Mesh | LineSegments;
 
 const CORRIDOR = 3.4; // keep |x| clear so the landing path stays readable
 
@@ -102,7 +109,7 @@ export class BackgroundSystem {
     this.addSunRayLayer();
     for (const recipe of look.props) {
       if (recipe.family === 'crystalfield') {
-        this.addCrystalLayer(recipe, cloud && cloud.family === 'cloudsea' ? cloud : null);
+        this.addCrystalLayer(recipe, cloud && cloud.family === 'cloudsea' ? cloud : null, look.platformEdge);
       } else if (recipe.family === 'cloudsea') this.addCloudLayer(recipe);
       else if (import.meta.env.DEV) {
         console.warn(`BackgroundSystem: no builder for prop family "${recipe.family}" yet — skipping`);
@@ -122,35 +129,72 @@ export class BackgroundSystem {
    * the palette work just added.
    */
   private addSunRayLayer(): void {
+    // A soft, tapered streak texture. Flat-coloured planes read as hard
+    // rectangles hanging in the sky, which is exactly what the owner flagged;
+    // the alpha has to fall off along the ray AND across its width.
+    const tex = this.makeRayTexture();
     const g = new Group();
     const mat = new MeshBasicMaterial({
-      color: 0xffe6b8,
+      map: tex,
+      color: 0xffe8c0,
       transparent: true,
-      opacity: 0.1,
+      opacity: 0.16,
       blending: AdditiveBlending,
       depthWrite: false,
       side: DoubleSide,
       fog: false
     });
     const rays = new Group();
-    for (let i = 0; i < 7; i++) {
-      const w = 1.6 + (i % 3) * 1.5;
-      const len = 90 + (i % 4) * 22;
-      const geo = new PlaneGeometry(w, len);
-      // Origin off-frame at the upper left, splaying down and to the right.
-      const m = new Mesh(geo, mat);
-      m.position.set(-34 + i * 7.5, 40 - i * 2.5, -34 - i * 9);
-      m.rotation.set(0.42, 0, -0.62 + i * 0.05);
-      rays.add(m);
+    // All rays are children of one pivot placed up and to the LEFT of the
+    // camera, each rotated a few degrees further, so they genuinely fan out of
+    // the top-left corner instead of sitting as unrelated slabs.
+    const pivot = new Group();
+    pivot.position.set(-26, 16, -34);
+    for (let i = 0; i < 6; i++) {
+      const w = 5 + (i % 3) * 4;
+      const len = 120 + (i % 4) * 26;
+      const m = new Mesh(new PlaneGeometry(w, len), mat);
+      // Pivot at the ray's top end so rotation swings the far end outward.
+      m.geometry.translate(0, -len / 2, 0);
+      m.position.set(0, 0, -i * 2);
+      m.rotation.z = (-16 + i * 6.5) * (Math.PI / 180);
+      pivot.add(m);
     }
+    pivot.rotation.x = -0.34;
+    rays.add(pivot);
     g.add(rays);
-    g.renderOrder = 0;
     this.root.add(g);
     this.rayGroup = rays;
   }
 
+  /** Soft-edged ray texture: bright core, feathered on every edge. */
+  private makeRayTexture(): CanvasTexture {
+    const c = document.createElement('canvas');
+    c.width = 64;
+    c.height = 256;
+    const g = c.getContext('2d')!;
+    const grad = g.createLinearGradient(0, 0, 0, 256);
+    // Fades out at BOTH ends so the ray has no hard cap.
+    grad.addColorStop(0, 'rgba(255,255,255,0)');
+    grad.addColorStop(0.18, 'rgba(255,255,255,0.85)');
+    grad.addColorStop(0.55, 'rgba(255,255,255,1)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 64, 256);
+    // Feather across the width.
+    const side = g.createLinearGradient(0, 0, 64, 0);
+    side.addColorStop(0, 'rgba(0,0,0,1)');
+    side.addColorStop(0.5, 'rgba(0,0,0,0)');
+    side.addColorStop(1, 'rgba(0,0,0,1)');
+    g.globalCompositeOperation = 'destination-out';
+    g.fillStyle = side;
+    g.fillRect(0, 0, 64, 256);
+    const tex = new CanvasTexture(c);
+    return tex;
+  }
+
   /** Crystal formations: one vertex-coloured mesh of the authored structures. */
-  private addCrystalLayer(recipe: CrystalFieldRecipe, cloud: CloudSeaRecipe | null): void {
+  private addCrystalLayer(recipe: CrystalFieldRecipe, cloud: CloudSeaRecipe | null, edge: number): void {
     const acc = emptyAcc();
     void recipe.parallax;
     const cloudOpts: CloudSeaOpts | null = cloud
@@ -191,18 +235,15 @@ export class BackgroundSystem {
         families: recipe.families
       });
     }
-    const faceMesh = new Mesh(bakeCluster(acc).face, new MeshBasicMaterial({ vertexColors: true, side: DoubleSide }));
-    // No crystal contour for now. Two implementations were tried and both are
-    // parked in git history:
-    //   * world-space expanded shell — over-expands along the normal near
-    //     silhouettes, and ghosts through the cloud deck and platforms;
-    //   * clip-space contour — depth-safe, but its screen expansion over-shoots
-    //     and paints solid black masses.
-    // A correct hairline needs a real post-process outline pass. Until then the
-    // crystals render flat-coloured, which is clean and matches the concept's
-    // colour blocks.
+    const { face, edges } = bakeCluster(acc);
+    const faceMesh = new Mesh(face, new MeshBasicMaterial({ vertexColors: true, side: DoubleSide }));
+    // Facet strokes: LineSegments lying exactly on the face geometry. Because
+    // they share the face's depth, they cannot ghost through the cloud deck or
+    // the tiles — the failure that killed the expanded-hull outline.
+    const edgeMesh = new LineSegments(edges, new LineBasicMaterial({ color: edge, transparent: true, opacity: 0.32, depthWrite: false }));
+    edgeMesh.renderOrder = 3;
     faceMesh.renderOrder = 2;
-    this.spawnLayer([faceMesh], 0);
+    this.spawnLayer([faceMesh, edgeMesh], 0);
   }
 
   /** The cloud blanket: one vertex-coloured mesh, no outlines. */
@@ -224,7 +265,7 @@ export class BackgroundSystem {
     this.spawnLayer([mesh], recipe.parallax);
   }
 
-  private spawnLayer(meshes: Mesh[], bob: number): void {
+  private spawnLayer(meshes: LayerObject[], bob: number): void {
     const layer: Layer = { meshes, geo: meshes[0].geometry, bob };
     // NOTE: `root.add(m)` moves an Object3D, it does not clone it — adding the
     // SAME mesh once per segment silently produced ONE segment per layer (the
@@ -353,6 +394,13 @@ export class BackgroundSystem {
     }
   }
 }
+
+
+
+
+
+
+
 
 
 

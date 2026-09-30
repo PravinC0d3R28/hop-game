@@ -121,9 +121,17 @@
        read. Lift the STREAK banner clear into the empty sky; the world banner
        stays put (it fires on the start screen, where nothing is in play). */
     @media (orientation: landscape) and (max-height: 560px) {
-      .streak-banner { top: 13%; }
-      .streak-banner .world-banner-title { font-size: clamp(30px, 8vmin, 58px); }
-      .streak-banner .world-banner-tag { font-size: clamp(11px, 3vmin, 18px); }
+      .streak-banner { top: 7%; }
+      .streak-banner .world-banner-title { font-size: clamp(24px, 6.5vmin, 42px); }
+      .streak-banner .world-banner-tag { font-size: clamp(9px, 2.6vmin, 14px); }
+      .streak-banner { margin-left: var(--pp-shift, 0px); }
+    }
+    /* Portrait phones: the banner also sat over the ball. Lift it into the sky
+       band and shrink it, matching the perfect counter's new slot. */
+    @media (orientation: portrait) and (max-width: 560px) {
+      .streak-banner { top: 11%; }
+      .streak-banner .world-banner-title { font-size: clamp(28px, 8.5vmin, 52px); }
+      .streak-banner .world-banner-tag { font-size: clamp(10px, 3vmin, 16px); }
     }
     .world-banner-title {
       font-size: clamp(40px, 12vmin, 88px);
@@ -173,7 +181,11 @@
       position: absolute;
       top: clamp(12px, 4vh, 40px);
       left: 50%;
-      transform: translateX(-50%);
+      /* `translate` (not `transform`) so the score-pop GSAP tween — which sets
+         transform: scale(...) — composes with the centring instead of
+         replacing it. With transform, a 2- or 3-digit score was shoved right of
+         centre because the -50% translateX was lost on the first pop. */
+      translate: -50% 0;
       font-size: clamp(36px, 10vmin, 72px);
       font-weight: 900;
       color: #fff;
@@ -662,7 +674,10 @@
     }
     .perfect-popup {
       position: absolute;
-      left: 50%; top: calc(28% - 5px);
+      /* Side is set per streak (random, not alternating) via --pp-shift so the
+         counter never sits on top of the ball or the next tiles. The vertical
+         slot is high in the frame, clear of the playfield. */
+      left: 50%; top: clamp(78px, 15vh, 150px);
       transform: translate(-50%, -50%) scale(0.4);
       display: flex;
       flex-direction: column;
@@ -672,8 +687,10 @@
       line-height: 1;
       opacity: 0;
     }
+    /* Random left/right nudge chosen fresh for each streak. */
+    .perfect-popup { margin-left: var(--pp-shift, 0px); }
     .perfect-popup-title {
-      font-size: clamp(14px, 3vmin, 20px);
+      font-size: clamp(12px, 2.4vmin, 17px);
       font-weight: 900;
       letter-spacing: 2px;
       -webkit-text-stroke: var(--stroke-width) #111;
@@ -682,7 +699,7 @@
       color: #fff;
     }
     .perfect-popup-streak {
-      font-size: clamp(26px, 6vmin, 38px);
+      font-size: clamp(22px, 4.6vmin, 31px);
       font-weight: 900;
       letter-spacing: 2px;
       -webkit-text-stroke: var(--stroke-width) #111;
@@ -692,7 +709,17 @@
       margin-top: 2px;
     }
     @media (min-width: 1024px) {
-      .perfect-popup { top: calc(28% - 10px); }
+      .perfect-popup { top: clamp(90px, 13vh, 140px); }
+    }
+    /* Short/landscape frames: the score and both callouts stack tightly at the
+       very top so nothing reaches the ball or the upcoming tiles. */
+    @media (orientation: landscape) and (max-height: 560px) {
+      .perfect-popup { top: clamp(52px, 15vh, 74px); }
+      .perfect-popup-title { font-size: clamp(10px, 2.6vmin, 14px); }
+      .perfect-popup-streak { font-size: clamp(18px, 5vmin, 26px); }
+    }
+    @media (max-height: 620px) and (orientation: portrait) {
+      .perfect-popup { top: clamp(64px, 12vh, 110px); }
     }
     /* Pause button — top-left during gameplay, manual + auto (tab/notification) */
     #pause-btn {

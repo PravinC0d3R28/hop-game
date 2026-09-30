@@ -63,10 +63,10 @@ export interface PlacementOptions {
 }
 
 export const DEFAULT_PLACEMENT: PlacementOptions = {
-  count: 6,
-  segmentLength: 70,
+  count: 16,
+  segmentLength: 120,
   corridor: 3.4,
-  minZ: 32,
+  minZ: 26,
   margin: 0.82,
   minSpread: 5.6,
   maxSpread: 17,
@@ -77,7 +77,7 @@ export const DEFAULT_PLACEMENT: PlacementOptions = {
   /** How deep a formation's base is buried in the cloud it stands on. */
   sink: 0.9,
   /** Never let consecutive formations crowd each other. */
-  minGap: 6.5
+  minGap: 7
 };
 
 /**
@@ -127,7 +127,24 @@ export function generatePlacements(
 ): Placement[] {
   const rnd = makeRng(seed);
   const out: Placement[] = [];
-  const span = Math.max(1, o.segmentLength - o.minZ);
+
+  /**
+   * Minimum usable depth is VIEW-DEPENDENT, not a constant.
+   *
+   * A portrait phone sees roughly half the horizontal field of a laptop, so a
+   * formation 24 units ahead has only ~7.8 units of visible half-width. Anything
+   * substantial cannot fit there, and the shrink-to-fit loop collapsed every
+   * near formation to nothing. Solving for the depth at which a reference-sized
+   * formation actually fits keeps the same framing intent on every screen and
+   * stops the field being crushed against the camera on a phone.
+   */
+  const vHalf = Math.tan((frame.fovDeg * Math.PI) / 360);
+  const halfPerUnit = vHalf * frame.aspect * o.margin;
+  const stand = Math.max(o.corridor, o.minSpread);
+  const refHalf = structureHalfWidth(CRYSTAL_STRUCTURES[0]) * (o.referenceHeight / 9);
+  const needed = (stand + 2 * refHalf + 0.6) / Math.max(0.02, halfPerUnit);
+  const minZ = Math.min(o.segmentLength * 0.5, Math.max(o.minZ, needed));
+  const span = Math.max(1, o.segmentLength - minZ);
 
   // Left and right are built as INDEPENDENT sequences, each picking freely from
   // the five authored formations with its own jitter. A single shared pass (or
@@ -142,7 +159,11 @@ export function generatePlacements(
     const step = perSide > 1 ? span / (perSide - 1) : span;
     for (let i = 0; i < perSide; i++) {
       const structure = CRYSTAL_STRUCTURES[Math.floor(rnd() * CRYSTAL_STRUCTURES.length)];
-      const z = Math.min(o.segmentLength, o.minZ + i * step + rnd() * step * 0.55);
+      // Jitter only into the room the minimum gap leaves. Without this clamp the
+      // jitter pushes a formation forward into its own neighbour and the flank
+      // ends up crowded exactly where it was meant to be spread out.
+      const jitterRoom = Math.max(0, step - o.minGap);
+      const z = Math.min(o.segmentLength, minZ + i * step + rnd() * jitterRoom);
 
       // The formation's VISUAL height is the controlled quantity, and the scale
       // is derived from it, so a 12-unit "Needles" and a 7-unit "Ridge" come out
@@ -162,7 +183,6 @@ export function generatePlacements(
       // up half off screen.
       const GAP = 0.6;
       const limit = visibleHalfWidth(frame, z) * o.margin;
-      const stand = Math.max(o.corridor, o.minSpread);
       for (let guard = 0; guard < 40; guard++) {
         if (stand + 2 * half0 * scale + GAP <= limit) break;
         scale *= 0.9;
@@ -187,6 +207,10 @@ export function generatePlacements(
   out.sort((a, b) => a.z - b.z);
   return out;
 }
+
+
+
+
 
 
 

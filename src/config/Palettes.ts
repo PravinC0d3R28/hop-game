@@ -35,6 +35,8 @@ export interface Palette {
   /** Shared warm-white used for the brightest facets. */
   paleFacet: number;
   tiles: { base: number; bright: number; mid: number; accent: number };
+  /** Tile-top diamond marker colour. */
+  tileMark: number;
   ball: number;
   outline: number;
   ambient: { color: number; intensity: number };
@@ -71,16 +73,17 @@ export const PALETTES: Record<string, Palette> = {
       { name: 'blue', base: 0x71bdeb }
     ],
     paleFacet: 0xfff3dc,
-    // Tiles stay in the warm ivory/gold family and must never take on the
-    // crystal palette — the doc is explicit that the two must not collapse into
-    // the same visual category.
+    // Tiles stay in the warm family and must never take on the crystal palette.
     //
-    // `bright` is deliberately a deep tangerine, NOT the doc's Lemon Yellow:
-    // lemon yellow sits at almost the same value as the cream cloud sea and the
-    // variant tile vanished into it. A deeper, more saturated warm orange keeps
-    // the tile readable against cloud while staying inside the doc's permitted
-    // warm range.
-    tiles: { base: 0xfff6d8, bright: 0xf0902c, mid: 0xdd7a24, accent: 0xe05f42 },
+    // Both the base AND the variant are deliberately WARMER and DARKER than the
+    // doc's ivory/lemon: cream tile faces sat at almost the same value as the
+    // cream cloud sea and the whole path dissolved into the background, which is
+    // fatal for a game where the path must read instantly. A warm apricot base
+    // with a tangerine/orange variant family keeps the doc's warm identity and
+    // separates cleanly from near-white cloud at any distance.
+    tiles: { base: 0xffd98f, bright: 0xf5901f, mid: 0xdd6f18, accent: 0xe0502f },
+    /** Tile-top diamond marker. Dark so it reads on the light tile faces. */
+    tileMark: 0x4a3020,
     ball: 0xfffdf8,
     outline: 0x4a3638,
     ambient: { color: 0xffe8d0, intensity: 0.9 },
@@ -106,9 +109,10 @@ export const PALETTES: Record<string, Palette> = {
       { name: 'blue', base: 0x65bfe8 }
     ],
     paleFacet: 0xfff3dc,
-    // Same reasoning as Aqua: the doc's lemon yellow is unreadable on cream
-    // cloud, so the variant tiles are a deep warm tangerine.
-    tiles: { base: 0xfff5d8, bright: 0xef8f2b, mid: 0xd9761f, accent: 0xde5f40 },
+    // Same reasoning as Aqua: the doc's ivory and lemon yellow are unreadable
+    // against cream cloud, so the whole tile family is warmer and darker.
+    tiles: { base: 0xffd79a, bright: 0xf2901f, mid: 0xdb6a18, accent: 0xdf4d33 },
+    tileMark: 0x4a2f33,
     ball: 0xfffdf8,
     outline: 0x4a3638,
     ambient: { color: 0xffe6d2, intensity: 0.92 },

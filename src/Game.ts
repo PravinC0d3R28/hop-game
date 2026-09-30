@@ -1066,6 +1066,7 @@ export class Game {
     this.shadow.setThemeColor(look.shadow);
     PlatformEntity.setFacePalette(look.platformFaces);
     PlatformEntity.setCoinColor(look.coin);
+    PlatformEntity.setTileMark(look.tileMark);
     PlatformEntity.setEdgeColor(look.platformEdge);
     // Recolor live hulls (new outlines use the edge from birth): any BackSide
     // mesh in the old blacks is one of ours (rings/dots/shells are not BackSide).
@@ -1215,3 +1216,4 @@ export class Game {
     MaterialFactory.dispose();
   }
 }
+

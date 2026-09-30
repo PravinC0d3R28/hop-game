@@ -111,6 +111,7 @@ export class RendererSystem {
     const col = geo.getAttribute('color') as BufferAttribute;
     const top = new Color(look.skyTop);
     const bottom = new Color(look.skyBottom);
+    const mid = look.skyMid !== undefined ? new Color(look.skyMid) : null;
     const v = new Vector3();
     const c = new Color();
     for (let i = 0; i < pos.count; i++) {
@@ -118,10 +119,16 @@ export class RendererSystem {
       // the frame's sky spans dome-local y ≈ -25 (horizon cream) to -10
       // (dawn color at frame top). Mapping the full hemisphere hid the whole
       // gradient above the frame (the "flat sky" bug).
-      v.fromBufferAttribute(pos, i);
-      const t = Math.min(1, Math.max(0, (v.y / 60 + 0.417) / 0.25));
+v.fromBufferAttribute(pos, i);
+      // The band is deliberately generous and reaches further UP than before.
+      // The cloud deck dropped to -8.5 so more sky is visible, and with the old
+      // narrow band the top hue was pinched into a corner sliver. A mid stop is
+      // used where the palette supplies one (Lavender Bloom), which is what makes
+      // the purple/green read as sky rather than a flat ceiling.
+      const t = Math.min(1, Math.max(0, (v.y / 60 + 0.52) / 0.46));
       const s = t * t * (3 - 2 * t);
-      c.copy(bottom).lerp(top, s);
+      if (mid && s < 0.5) c.copy(bottom).lerp(mid, s * 2);
+      else c.copy(mid ?? bottom).lerp(top, mid ? (s - 0.5) * 2 : s);
       col.setXYZ(i, c.r, c.g, c.b);
     }
     col.needsUpdate = true;
@@ -192,4 +199,5 @@ export class RendererSystem {
     this.renderer.dispose();
   }
 }
+
 

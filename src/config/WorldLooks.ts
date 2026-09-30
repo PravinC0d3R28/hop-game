@@ -81,6 +81,8 @@ export interface WorldLook {
   id: WorldId;
   /** Gradient sky (skyTop at frame top → skyBottom at the horizon). */
   skyTop: number;
+  /** Optional mid stop for a three-band sky. */
+  skyMid?: number;
   skyBottom: number;
   fogColor: number;
   fogNear: number;
@@ -93,6 +95,8 @@ export interface WorldLook {
   /** World-local platform face cycle (§11.5) + locked edge color. */
   platformFaces: number[];
   platformEdge: number;
+  /** Tile-top diamond marker colour. */
+  tileMark: number;
   /** Blob-shadow tint (follows the world, not the removed light/dark toggle). */
   shadow: number;
   coin: number;
@@ -120,6 +124,7 @@ export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
     // the doc calls it fresher, brighter and more playful, and poppy was the
     // brief. Switch to Lavender Bloom with `?palette=lavender`.
     skyTop: PAL.skyTop,
+    skyMid: PAL.skyMid,
     skyBottom: PAL.skyBottom,
     // Fog sits ON the sky's own value so distant geometry dissolves into it
     // instead of turning to mud. The first pass used a tan fog and far crystals
@@ -143,7 +148,10 @@ export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
     directionalPos: [-4, 9, 13],
     // Concept tiles are IVORY dominant with warm gold/amber variants — never the
     // crystal palette, so the two never collapse into one visual category.
-    platformFaces: [PAL.tiles.base, 0xfdf0d2, PAL.tiles.bright, PAL.tiles.base, PAL.tiles.mid, PAL.tiles.accent],
+    // No cream anywhere in the cycle: every face must separate from the cream
+    // cloud sea. Slots alternate warm base / bright / deep warm.
+    platformFaces: [PAL.tiles.base, PAL.tiles.bright, PAL.tiles.base, PAL.tiles.mid, PAL.tiles.base, PAL.tiles.accent],
+    tileMark: PAL.tileMark,
     // Doc-locked warm dark outline, shared across both palette variants.
     platformEdge: PAL.outline,
     shadow: PAL.shadow,
@@ -157,7 +165,7 @@ export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
         // Seven palette colours with DERIVED facet tones. The authored
         // structures index into this list, so the order must not change.
         families: SUNRISE_CRYSTAL_PALETTE,
-        count: 9,
+        count: 16,
         // Bases sit ~3.5 below the tile plane, which is well ABOVE the deck
         // (datum −5.6): the crystals rise out of the cloud tops rather than
         // starting inside them.
@@ -178,7 +186,7 @@ export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
         // 16:9 frame the sky showed through past it as hard pink wedges. At 64
         // the nearest edge point is ~86 units away, i.e. fully fogged.
         spread: 64,
-        top: -5.6,
+        top: -8.5,
         depth: 2.8,
         cols: 96,
         rows: 48,
@@ -199,6 +207,7 @@ export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
     directional: { color: 0xffb98a, intensity: 2 },
     // Warm paper faces for static tiles; movers carry the cyan cue.
     platformFaces: [0xffd9a0, 0xffb98a, 0xe08a6b],
+    tileMark: 0x4a2a2c,
     platformEdge: BLACK_HULL,
     shadow: 0x9a6a70,
     coin: 0xffb347,
@@ -222,6 +231,7 @@ export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
     // Dark sky must never swallow the next platform — Day 3 contrast pass
     // owns this list (lightest face vs sky stays above VOID_CONTRAST_FLOOR).
     platformFaces: [0x2a2f52, 0x3d4470, 0x4a5180],
+    tileMark: 0xd8dcf0,
     platformEdge: BLACK_HULL,
     shadow: 0x141428,
     coin: 0xfff3c8,
@@ -270,4 +280,9 @@ export function contrastRatio(a: number, b: number): number {
   const [hi, lo] = l1 >= l2 ? [l1, l2] : [l2, l1];
   return (hi + 0.05) / (lo + 0.05);
 }
+
+
+
+
+
 

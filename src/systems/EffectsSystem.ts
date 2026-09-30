@@ -43,6 +43,15 @@ interface SpeedLine {
   life: number;
   maxLife: number;
   startAlpha: number;
+  /** Spin about the streak's own axis, so the curl keeps turning as it flies. */
+  spin: number;
+  /** Angular rate around the corridor axis — this is the swirl. */
+  orbit: number;
+  /** Corridor axis the streak orbits, and the radius it holds. */
+  cx: number;
+  cy: number;
+  r: number;
+  a0: number;
 }
 
 /** A planted failure flag: root rides the platform, cloth billboards + waves. */
@@ -68,8 +77,35 @@ const dustGeo = new SphereGeometry(1, 8, 6);
 const dustOutlineGeo = new SphereGeometry(1, 8, 6);
 const ringGeo = new RingGeometry(0.2, 0.3, 32);
 const burstGeo = new CircleGeometry(0.06, 6);
-const lineGeo = new BoxGeometry(0.04, 0.04, 1);
-lineGeo.translate(0, 0, 0.5);
+/**
+ * Curved ribbon used by the swirl wind.
+ *
+ * The wind used to be a 1×1 box, which rendered as a hard white stick — the
+ * "white lines" the owner kept seeing, and they fired constantly because the
+ * spawn rate scaled with score from 15 upward. This is a tapered arc instead, so
+ * each streak reads as a curling current of air rather than a rectangle.
+ */
+function makeSwirlGeo(): BufferGeometry {
+  const segs = 12;
+  const w = 0.055;
+  const pos: number[] = [];
+  const idx: number[] = [];
+  for (let i = 0; i <= segs; i++) {
+    const t = i / segs;
+    // Width swells in the middle and tapers to nothing at both ends.
+    const halfW = w * Math.sin(Math.PI * t);
+    pos.push(-halfW, 0, t, halfW, 0, t);
+    if (i < segs) {
+      const a = i * 2;
+      idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  return g;
+}
+const lineGeo = makeSwirlGeo();
 const flagChipGeo = new BoxGeometry(0.12, 0.12, 0.12);
 
 const CONFETTI_COLORS = ['#FFD700', '#FF4444', '#44AAFF', '#44FF88', '#FF44AA', '#8844FF', '#FF8800'];
@@ -209,43 +245,50 @@ export class EffectsSystem {
     return Math.max(0, Math.min(1, (score - GAME_CONFIG.SPEED_LINES_START_SCORE) / 70));
   }
 
-  /** Original `Fy`: spawn one speed line. */
+  /** Original `Fy`: spawn one swirl streak. */
   private spawnSpeedLine(score: number, ballX: number, ballY: number, ballZ: number): void {
     const intensity = this.getSpeedIntensity(score);
     if (intensity <= 0 || this.speedLines.length >= GAME_CONFIG.SPEED_LINES_MAX_COUNT) return;
 
-    const angle = Math.random() * Math.PI * 2;
-    const o1 = 1 + Math.random() * 0.5;
-    const o2 = 3 + Math.random() * 2;
-    const off = o1 + Math.random() * (o2 - o1);
-    const lineLen = 8 + Math.random() * 12;
-    const px = ballX + Math.cos(angle) * off * 0.6;
-    const py = ballY + Math.sin(angle) * off * 0.5 + 1;
-    const pz = ballZ + lineLen;
-    const dx = Math.cos(angle) * off * 0.15;
-    const dy = Math.sin(angle) * off * 0.1 - 0.3;
-    const dz = -1;
-    const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
-    const scaleZ = 3 + intensity * 6 + Math.random() * 3;
-    const alpha = (0.12 + intensity * 0.3) * (0.5 + Math.random() * 0.5);
+    // Each streak is seeded on a circle around the corridor and then ORBITS it
+    // while flying at the camera. A straight-line drift read as flying debris;
+    // a constant radius with an angular rate reads as a current of air.
+    const a0 = Math.random() * Math.PI * 2;
+    const r = 1.4 + Math.random() * 4.2;
+    const cy = ballY + 1.2;
+    const px = ballX + Math.cos(a0) * r;
+    const py = cy + Math.sin(a0) * r * 0.55;
+    const pz = ballZ + 6 + Math.random() * 10;
+    const vel = 14 + intensity * 22 + Math.random() * 10;
 
-    const mat = new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: alpha, depthWrite: false });
+    const mat = new MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.1,
+      depthWrite: false,
+      side: DoubleSide
+    });
     const mesh = new Mesh(lineGeo, mat);
     mesh.position.set(px, py, pz);
-    const target = new Vector3(px + dx / len, py + dy / len, pz + dz / len);
-    mesh.lookAt(target);
-    mesh.scale.set(1, 1, scaleZ);
     this.scene.add(mesh);
 
-    const vel = 15 + intensity * 25 + Math.random() * 10;
+    const alpha = (0.1 + intensity * 0.2) * (0.5 + Math.random() * 0.5);
     this.speedLines.push({
       mesh,
-      vx: (dx / len) * vel,
-      vy: (dy / len) * vel,
-      vz: (dz / len) * vel,
+      vx: 0,
+      vy: 0,
+      vz: -vel,
       life: GAME_CONFIG.SPEED_LINES_LIFETIME + Math.random() * 0.15,
       maxLife: 0,
-      startAlpha: alpha
+      startAlpha: alpha,
+      // Faster swirl at higher intensity, and always the same sign within a
+      // streak so the curl does not jitter.
+      spin: (1.6 + intensity * 3) * (Math.random() < 0.5 ? -1 : 1),
+      orbit: (1.1 + intensity * 2.2) * (Math.random() < 0.5 ? -1 : 1),
+      cx: ballX,
+      cy,
+      r,
+      a0
     });
     this.speedLines[this.speedLines.length - 1].maxLife =
       this.speedLines[this.speedLines.length - 1].life;
@@ -273,9 +316,17 @@ export class EffectsSystem {
         continue;
       }
       const n = 1 - s.life / s.maxLife;
-      s.mesh.position.x += s.vx * dt;
-      s.mesh.position.y += s.vy * dt;
+      // Orbit the corridor axis AND close in slightly, so the streak spirals
+      // toward the camera rather than sliding sideways past it.
+      s.a0 += s.orbit * dt;
+      const shrink = 1 - n * 0.35;
+      s.mesh.position.x = s.cx + Math.cos(s.a0) * s.r * shrink;
+      s.mesh.position.y = s.cy + Math.sin(s.a0) * s.r * 0.55 * shrink;
       s.mesh.position.z += s.vz * dt;
+      // Point along the travel direction, with the ribbon rolled about it.
+      s.mesh.lookAt(s.mesh.position.x, s.mesh.position.y, s.mesh.position.z + 1);
+      s.mesh.rotateZ(s.spin * (1 - n));
+      s.mesh.scale.set(1, 1, 2.4 + n * 3.5);
       const fade = n < 0.1 ? n / 0.1 : (1 - n) / 0.9;
       (s.mesh.material as MeshBasicMaterial).opacity = s.startAlpha * fade;
     }

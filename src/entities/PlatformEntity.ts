@@ -93,10 +93,14 @@ export class PlatformEntity {
     group.add(outlineMesh);
 
     // Perfect indicator: diamond + ring, lying flat
+    // The tile-top diamond marker. This was white at 50% opacity, which is
+    // invisible on a light tile face — and the tile faces are light by design.
+    // It now uses the palette's dedicated dark mark colour so the landing marker
+    // reads at a glance, and is fully opaque so it never washes out.
     const dotMat = new MeshBasicMaterial({
-      color: 0xffffff,
+      color: PlatformEntity.tileMarkOverride ?? 0x4a3020,
       transparent: true,
-      opacity: 0.5,
+      opacity: 0.85,
       depthWrite: false
     });
     const perfectDot = new Mesh(diamondGeo, dotMat);
@@ -261,13 +265,20 @@ export class PlatformEntity {
    */
   static facePalette: number[] | null = null;
   static coinColorOverride: number | null = null;
+  /** Tile-top diamond colour; null falls back to the default warm dark. */
+  static tileMarkOverride: number | null = null;
 
   static setFacePalette(faces: number[] | null): void {
     this.facePalette = faces && faces.length > 0 ? [...faces] : null;
   }
 
-  static setCoinColor(color: number | null): void {
+static setCoinColor(color: number | null): void {
     this.coinColorOverride = color;
+  }
+
+  /** Tile-top diamond colour, so the landing marker always reads on the tile. */
+  static setTileMark(color: number | null): void {
+    this.tileMarkOverride = color;
   }
 
   /** Hull color for newly built outlines (set by Game.applyWorldLook). */
@@ -287,3 +298,4 @@ export class PlatformEntity {
     PlatformEntity.paletteStart = Math.floor(Math.random() * GAME_CONFIG.COLOR_PALETTES.length);
   }
 }
+
