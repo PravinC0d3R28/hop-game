@@ -9,7 +9,12 @@ import {
 } from 'three';
 import { MaterialFactory } from './MaterialFactory';
 import { bakeCluster, CLUSTER_SHAPES, emitCluster, emitStructure, emptyAcc, makeRng, type ClusterSpec } from './CrystalFactory';
-import { CRYSTAL_STRUCTURES } from '../config/CrystalStructures';
+import {
+  DEFAULT_PLACEMENT,
+  generatePlacements,
+  type FrameInfo,
+  type PlacementOptions
+} from './CrystalField';
 import { buildCloudSea } from './CloudFactory';
 import type { CrystalFieldRecipe, CloudSeaRecipe, WorldLook } from '../config/WorldLooks';
 
@@ -42,6 +47,13 @@ export class BackgroundSystem {
   private layers: Layer[] = [];
   private root: Group;
   private seed = 1;
+  private look: WorldLook | null = null;
+  /**
+   * Live camera framing, pushed in by the renderer. The crystal field is laid
+   * out against the ACTUAL horizontal field of view, because the same lateral
+   * offset is on screen on a laptop and off it on a phone.
+   */
+  private frame: FrameInfo = { fovDeg: 55, aspect: 16 / 9 };
 
   constructor(private scene: Scene) {
     this.root = new Group();
@@ -52,8 +64,30 @@ export class BackgroundSystem {
     // Geometry arrives via setLook (Game applies the active world right after).
   }
 
+  /** Camera framing used to keep formations inside the visible frustum. */
+  setFrame(fovDeg: number, aspect: number): void {
+    if (!Number.isFinite(fovDeg) || !Number.isFinite(aspect) || aspect <= 0) return;
+    if (this.frame.fovDeg === fovDeg && this.frame.aspect === aspect) return;
+    this.frame = { fovDeg, aspect };
+    // Frustum-safe placement depends on the framing, so the field is rebuilt.
+    if (this.look) this.setLook(this.look);
+  }
+
+  /** The seed the field was generated from — share it to reproduce a layout. */
+  getSeed(): number {
+    return this.seed;
+  }
+
+  /** Reseed the field: a new arrangement, same rules. */
+  reseed(seed?: number): number {
+    this.seed = (seed ?? (this.seed * 1664525 + 1013904223)) >>> 0;
+    if (this.look) this.setLook(this.look);
+    return this.seed;
+  }
+
   /** Rebuild the scenery from a world's recipes (select/preview/run). */
   setLook(look: WorldLook): void {
+    this.look = look;
     this.dispose(false);
     this.seed = (this.seed * 1664525 + 1013904223) >>> 0;
     let built = 0;
@@ -72,70 +106,52 @@ export class BackgroundSystem {
   private addCrystalLayer(recipe: CrystalFieldRecipe, edge: number): void {
     const rnd = makeRng(this.seed);
     const acc = emptyAcc();
-    const structures = CRYSTAL_STRUCTURES;
+    const frame = this.frame;
     void edge;
-    for (let i = 0; i < recipe.count; i++) {
-      // Spread across the segment, alternating sides, never in the corridor.
-      const t = (i + 0.5) / recipe.count;
-      const z = 4 + t * (SEG_LEN - 8) + (rnd() - 0.5) * 3;
-      const side = i % 2 === 0 ? -1 : 1;
-      // Near formations are big, far ones small (atmospheric depth) — but the
-      // floor stays high. At weight 0.3 a far cluster's tip barely cleared the
-      // cloud deck, so formations appeared to vanish and pop back in as the
-      // ball passed them.
-      const depth = 1 - t;
-      const weight = 0.55 + depth * 0.45;
-      // Near formations sit WIDER. The clusters are ~8 units across, so at the
-      // old 5..11 they overlapped the corridor and crowded the landing path —
-      // the reference keeps clear air between the tiles and the crystals.
-      const spread = 9 + rnd() * 8 + (depth > 0.6 ? 2 : 0);
-      const x = side * spread;
-      // Hero formations come from the authored structures (crystal-editor.html);
-      // the procedural variants fill in between them. The 60/40 split keeps the
-      // field varied while the pieces you designed stay recognisable.
-      const authored = rnd() < 0.6;
-      if (authored) {
-        const s = structures[Math.floor(rnd() * structures.length)];
-        // Scale the formation so a big authored piece still sits correctly at
-        // distance, and normalise by the structure's own height so `weight`
-        // means the same thing for every piece.
-        emitStructure(acc, s, {
-          x,
-          z,
-          baseY: recipe.baseY - rnd() * 2.2,
-          scale: (0.35 + depth * 0.65) * (weight / Math.max(1, s.height / 9)),
-          families: recipe.families
-        });
-      } else {
-        const spec: ClusterSpec = {
-          x,
-          z,
-          weight,
+
+    // Seeded, reproducible, and framed for the CURRENT viewport. The generator
+    // clamps each formation's lateral offset to the visible half-width, which is
+    // what keeps them on screen on a phone without letting them touch the path.
+    const opts: PlacementOptions = {
+      ...DEFAULT_PLACEMENT,
+      count: recipe.count,
+      segmentLength: SEG_LEN,
+      corridor: CORRIDOR
+    };
+    const placements = generatePlacements(this.seed ^ 0x5f3a, frame, opts);
+    // A slice of the field stays procedural so the field never reads as five
+    // repeated pieces, however many the owner authors.
+    for (const p of placements) {
+      if (rnd() < 0.25) {
+        emitCluster(acc, {
+          x: p.side * p.spread,
+          z: p.z,
+          weight: 0.55 + (1 - Math.min(1, p.z / SEG_LEN)) * 0.45,
           shape: CLUSTER_SHAPES[Math.floor(rnd() * CLUSTER_SHAPES.length)],
           families: recipe.families,
-          // Deep: crystals grow up out of the thick cloud, well below the tiles,
-          // so the player reads "high above a cloud sea" instead of "crystals
-          // floating at tile height".
           baseY: recipe.baseY - rnd() * 2.2
-        };
-        emitCluster(acc, spec, rnd);
+        }, rnd);
+      } else {
+        emitStructure(acc, p.structure, {
+          x: p.side * p.spread,
+          z: p.z,
+          baseY: recipe.baseY - rnd() * 2.2,
+          scale: p.scale,
+          families: recipe.families
+        });
       }
     }
-    const { face, shell } = bakeCluster(acc);
-    // Unlit + vertex colours: the facet tones (cream/light/base/shade) ARE the
-    // lighting, baked per facet against the key direction — exactly the
-    // concept's flat colour blocks. Lighting on top only re-darkened facets.
-    const faceMesh = new Mesh(face, new MeshBasicMaterial({ vertexColors: true, side: DoubleSide }));
-    faceMesh.renderOrder = 2;
+    const faceMesh = new Mesh(bakeCluster(acc).face, new MeshBasicMaterial({ vertexColors: true, side: DoubleSide }));
     // No crystal contour for now. Two implementations were tried and both are
     // parked in git history:
     //   * world-space expanded shell — over-expands along the normal near
     //     silhouettes, and ghosts through the cloud deck and platforms;
-    //   * clip-space contour (makeContourMaterial) — depth-safe, but its
-    //     screen expansion over-shoots and paints solid black masses.
-    // A correct hairline needs a real post-process outline pass. Until that
-    // exists the crystals render flat-coloured, which is clean and matches the
-    // concept's colour blocks.
+    //   * clip-space contour — depth-safe, but its screen expansion over-shoots
+    //     and paints solid black masses.
+    // A correct hairline needs a real post-process outline pass. Until then the
+    // crystals render flat-coloured, which is clean and matches the concept's
+    // colour blocks.
+    faceMesh.renderOrder = 2;
     this.spawnLayer([faceMesh], 0);
   }
 
@@ -282,6 +298,7 @@ export class BackgroundSystem {
     }
   }
 }
+
 
 
 

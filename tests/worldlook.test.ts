@@ -9,6 +9,7 @@ import {
   getWorldLook,
   luminance
 } from '../src/config/WorldLooks';
+import { getActivePalette } from '../src/config/CrystalStructures';
 import { WORLDS } from '../src/config/Worlds';
 
 describe('WorldLook completeness', () => {
@@ -59,10 +60,12 @@ describe('WorldLook completeness', () => {
     expect(() => getWorldLook('')).toThrow(/unknown world id/);
   });
 
-  it('edges follow the locked decisions (charcoal Sunrise, black elsewhere)', () => {
-    // Owner pick 2026-09-02: Sunrise hulls warmed to charcoal (reads black,
-    // sits in dawn). Dusk/Void keep spike-lock black until their passes.
-    expect(WORLD_LOOKS.sunrise.platformEdge).toBe(0x3b302d);
+  it('edges follow the locked decisions (warm dark Sunrise, black elsewhere)', () => {
+    // The palette doc (Sunrise_Peaks_Selected_Palettes.md) locks the outline as
+    // "Dark Cocoa / Plum Black" #4A3638, shared across both palette variants.
+    // Dusk/Void keep spike-lock black until their passes.
+    expect(WORLD_LOOKS.sunrise.platformEdge).toBe(getActivePalette().outline);
+    expect(WORLD_LOOKS.sunrise.platformEdge).toBe(0x4a3638);
     expect(WORLD_LOOKS.dusk.platformEdge).toBe(0x111111);
     expect(WORLD_LOOKS.void.platformEdge).toBe(0x111111);
   });
@@ -71,8 +74,8 @@ describe('WorldLook completeness', () => {
     for (const world of WORLDS) {
       expect(typeof WORLD_LOOKS[world.id].shadow).toBe('number');
     }
-    // Sunrise keeps the exact legacy light-theme shadow: zero behavior change.
-    expect(WORLD_LOOKS.sunrise.shadow).toBe(0xb8a898);
+    // Sunrise's shadow is now palette-owned rather than the legacy constant.
+    expect(WORLD_LOOKS.sunrise.shadow).toBe(getActivePalette().shadow);
   });
 });
 
@@ -102,3 +105,4 @@ describe('Void contrast floor', () => {
     expect(luminance(0x000000)).toBeCloseTo(0, 3);
   });
 });
+

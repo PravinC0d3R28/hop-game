@@ -102,6 +102,11 @@ export interface WorldLook {
   props: PropRecipe[];
 }
 
+import { SUNRISE_CRYSTAL_PALETTE, getActivePalette } from './CrystalStructures';
+
+/** The active colour system; see docs/ART/Sunrise_Peaks_Selected_Palettes.md. */
+const PAL = getActivePalette();
+
 const BLACK_HULL = 0x111111;
 const NO_CUE = { color: 0x38f0e8, strength: 0 };
 const FULL_CUE = { color: 0x38f0e8, strength: 1 };
@@ -110,54 +115,50 @@ export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
   // ---- Sunrise Peaks: locked 2026-09-02 (docs/ART concept + palette) ----
   sunrise: {
     id: 'sunrise',
-    // Sky bottom is deliberately a step deeper than the cloud palette: the
-    // first pass used near-identical values and the cloud sea vanished.
-    skyTop: 0xf3d2dc,
-    skyBottom: 0xffe3c4,
-    // Fog must sit ON the sky gradient, not beside it: a tan fog turned far
-    // crystals into muddy brown blobs against the pink dawn. This is the
-    // gradient's own mid-tone, so distant geometry dissolves instead.
-    fogColor: 0xf8dfd6,
-    // The original 14/40 fog assumed a game with NO ground plane — just
-    // floating tiles. With a cloud sea under the path, a 37°-down camera sees
-    // only ground that is already past fogNear, so the whole sea fogged out to
-    // sky colour and vanished. Push fog to the far field and keep the near/mid
-    // world clear.
-    fogNear: 28,
+    // Every colour below comes from the active palette
+    // (docs/ART/Sunrise_Peaks_Selected_Palettes.md). Aqua Bloom is the default:
+    // the doc calls it fresher, brighter and more playful, and poppy was the
+    // brief. Switch to Lavender Bloom with `?palette=lavender`.
+    skyTop: PAL.skyTop,
+    skyBottom: PAL.skyBottom,
+    // Fog sits ON the sky's own value so distant geometry dissolves into it
+    // instead of turning to mud. The first pass used a tan fog and far crystals
+    // became brown blobs against the dawn.
+    fogColor: PAL.fogColor,
+    // The original 14/40 fog assumed a game with NO ground plane. With a cloud
+    // sea under the path, a steeply-down camera sees only ground already past
+    // fogNear, so the whole sea fogged to sky and vanished.
+    //
+    // fogNear also controls how much colour survives. At 28 the first authored
+    // formations (z≈30) were already 5% hazed and the pale Aqua Bloom bleached
+    // out. Pushing the near plane to 40 keeps the whole playable mid-field fully
+    // saturated while still swallowing the cloud deck's far edge.
+    fogNear: 40,
     fogFar: 82,
-    // High-key dawn: a strong ambient keeps the shaded facets coloured (the
-    // 4-step toon ramp drops unlit faces to near-black otherwise, which turned
-    // the crystal families into dark silhouettes).
-    ambient: { color: 0xffe8d5, intensity: 0.85 },
-    directional: { color: 0xffd39a, intensity: 1.3 },
+    // High-key dawn: a strong ambient keeps shaded facets coloured (the 4-step
+    // toon ramp drops unlit faces to near-black otherwise).
+    ambient: { ...PAL.ambient },
+    directional: { ...PAL.directional },
     // Upper-left, but pulled forward so camera-facing facets stay lit.
     directionalPos: [-4, 9, 13],
-    // Concept tiles are CREAM/IVORY dominant with warm tan sides — the gold and
-    // amber tones are the occasional variant, not the base. (Side colours
-    // derive from these in PlatformEntity.deriveSideColor.)
-    platformFaces: [0xfff5d8, 0xfdf0d2, 0xffe9af, 0xfff5d8, 0xf7e39a, 0xffe9af],
-    // Spike lock warmed per owner pick: charcoal reads black, sits in dawn.
-    platformEdge: 0x3b302d,
-    shadow: 0xb8a898,
-    coin: 0xf0c020,
+    // Concept tiles are IVORY dominant with warm gold/amber variants — never the
+    // crystal palette, so the two never collapse into one visual category.
+    platformFaces: [PAL.tiles.base, 0xfdf0d2, PAL.tiles.bright, PAL.tiles.base, PAL.tiles.mid, PAL.tiles.accent],
+    // Doc-locked warm dark outline, shared across both palette variants.
+    platformEdge: PAL.outline,
+    shadow: PAL.shadow,
+    coin: PAL.coin,
     // White on ivory reads via outlines + side shade (concept-confirmed).
     perfect: { fill: 0xffffff, ring: 0xffffff },
     motionCue: NO_CUE,
     props: [
       {
         family: 'crystalfield',
-        // Four related families (palette §4). Saturated BODY colours with only
-        // a modest lift for highlights — the concept's crystals read as deep
-        // coral / teal / mint / gold, not as pale pastels.
-        families: [
-          { base: 0xf2545f, light: 0xff7d70, shade: 0xc4374c, cream: 0xffa892 },
-          { base: 0xff9a4d, light: 0xffb96a, shade: 0xdb7530, cream: 0xffd79a },
-          { base: 0x5fcf9a, light: 0x8ce0b8, shade: 0x35a97c, cream: 0xbdeecf },
-          { base: 0x2fb8d4, light: 0x63d2e6, shade: 0x1a8fa8, cream: 0x9fe4f0 },
-          { base: 0xf5c531, light: 0xffd964, shade: 0xc99a1c, cream: 0xffeeb0 }
-        ],
-        count: 11,
-        // Bases sit ~3.5 below the tile plane, which is now well ABOVE the deck
+        // Seven palette colours with DERIVED facet tones. The authored
+        // structures index into this list, so the order must not change.
+        families: SUNRISE_CRYSTAL_PALETTE,
+        count: 9,
+        // Bases sit ~3.5 below the tile plane, which is well ABOVE the deck
         // (datum −5.6): the crystals rise out of the cloud tops rather than
         // starting inside them.
         baseY: -3.5,
@@ -165,7 +166,7 @@ export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
       },
       {
         family: 'cloudsea',
-        palette: { base: 0xfffaf0, highlight: 0xffffff, shadow: 0xefb193 },
+        palette: { ...PAL.cloud },
         count: 1,
         // The deck's datum sits well BELOW the tiles, and the owner asked for it
         // lower still: the further down it sits, the more the path reads as
@@ -269,3 +270,4 @@ export function contrastRatio(a: number, b: number): number {
   const [hi, lo] = l1 >= l2 ? [l1, l2] : [l2, l1];
   return (hi + 0.05) / (lo + 0.05);
 }
+

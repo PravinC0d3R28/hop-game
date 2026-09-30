@@ -68,6 +68,7 @@ function bootstrap(): void {
   //   window.gameDebug.setScore(n) / giveCoins(n) / unlockAllSkins() / toggleInvincible()
   //   window.gameDebug.unlockAllWorlds() / forceWorld(id | null) / setTotalScore(n)
   //   window.gameDebug.straightLane(on) / noSway(on) / hitboxes(on) / reseedRunway()
+//   window.gameDebug.seedCrystals(seed?)  (crystal field layout, reproducible)
   //   window.gameDebug.spikeScene()  (Week 2 art spike, locked scene)
   //   window.gameDebug.completeAllMissions() / claimAllMissions() / resetProgress()
   //
@@ -107,6 +108,7 @@ type DebugAccessor = {
   platforms: { coinCount(): number };
   devForceWorld(id: WorldId | null): void;
   devReseedRunway(): void;
+  devSeedCrystals(seed?: number): number;
   devSetHitboxes(on: boolean): void;
   devSpikeScene(): Promise<{ duskTileAhead: boolean; hulls: number; playable: number; props: number }>;
   devLookInfo(): unknown;
@@ -162,6 +164,7 @@ function createDebugApi(accessor: DebugAccessor): Record<string, unknown> {
     // for verification shots. Reload the page to revert.
     spikeScene: () => accessor.devSpikeScene(),
     lookInfo: () => accessor.devLookInfo(),
+    seedCrystals: (seed?: number) => accessor.devSeedCrystals(seed),
     reseedRunway: () => {
       accessor.devReseedRunway();
     },
@@ -198,3 +201,6 @@ if (document.readyState === 'loading') {
 } else {
   bootstrap();
 }
+
+
+

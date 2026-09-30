@@ -30,6 +30,8 @@ export class RendererSystem {
   private lastTime = 0;
   /** Gradient sky dome (palette doc §11): follows the camera, fog-exempt. */
   private dome: Mesh | null = null;
+  /** Framing listener, so the scenery can lay itself out for the viewport. */
+  private onFrame: ((fovDeg: number, aspect: number) => void) | null = null;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -138,7 +140,26 @@ export class RendererSystem {
     this.camera.updateProjectionMatrix();
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(rect.width, rect.height, false);
+    this.notifyFrame();
   };
+
+  /**
+   * Push the live framing to anyone who needs it.
+   *
+   * The crystal field lays itself out against the horizontal field of view, and
+   * portrait sees barely half the width a laptop does — so the field has to be
+   * rebuilt whenever the framing changes or crystals end up off screen on a
+   * phone. No-op when unchanged, so an ordinary resize does not thrash.
+   */
+  private notifyFrame(): void {
+    this.onFrame?.(this.camera.fov, this.camera.aspect);
+  }
+
+  /** Register a framing listener (Game forwards this to BackgroundSystem). */
+  setFrameListener(cb: (fovDeg: number, aspect: number) => void): void {
+    this.onFrame = cb;
+    this.notifyFrame();
+  }
 
   start(): void {
     this.lastTime = performance.now();
@@ -171,3 +192,4 @@ export class RendererSystem {
     this.renderer.dispose();
   }
 }
+

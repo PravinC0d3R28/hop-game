@@ -99,6 +99,10 @@ export class Game {
     this.ball = new BallEntity(this.renderer.scene);
     this.background = new BackgroundSystem(this.renderer.scene);
     this.background.init();
+    // The crystal field is laid out against the live horizontal field of view:
+    // portrait sees barely half the width a laptop does, so the same lateral
+    // offset would be on screen on desktop and off it on a phone.
+    this.renderer.setFrameListener((fov, aspect) => this.background.setFrame(fov, aspect));
     this.buildUI();
     this.platforms = new PlatformManager(this.renderer.scene, this.state);
     this.platforms.initializePlatforms();
@@ -1140,6 +1144,21 @@ export class Game {
     } else {
       this.platforms.reset();
     }
+  }
+
+  /**
+   * Reseed the crystal field. The whole arrangement — which formation, which
+   * side, how far out, how big — derives from this one integer, so a layout
+   * that looks good can be shared and recovered by passing the same number
+   * back. Omit the argument for a fresh random one.
+   */
+  devSeedCrystals(seed?: number): number {
+    const next = this.background.reseed(seed);
+    if (this.demoActive) {
+      this.stopAttractDemo();
+      this.startAttractDemo();
+    }
+    return next;
   }
 
   /** Dev hitbox view: toggle wireframe on the ball + every platform mesh. */

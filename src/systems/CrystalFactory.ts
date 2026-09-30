@@ -108,12 +108,14 @@ function pushTri(acc: SegAcc, a: number[], b: number[], c: number[], color: numb
 
 function facetTone(n: [number, number, number], t: CrystalTones, jitter: number): number {
   const d = n[0] * KEY.x + n[1] * KEY.y + n[2] * KEY.z + jitter * 0.1;
-  // The family's BODY colour owns the widest band on purpose. Widen it and the
-  // coral/mint/cyan actually read; narrow it and every crystal washes out to
-  // pale cream, which is what the concept never does.
-  if (d > 0.82) return t.cream;
-  if (d > 0.46) return t.light;
-  if (d < -0.52) return t.shade;
+  // The family's BODY colour owns the widest band on purpose, and wider still
+  // than looks right on paper: the facets actually facing the camera are the
+  // large ones, so if `light`/`cream` claim much of the front the whole crystal
+  // reads as a pale wash and the palette loses its pop. Body dominates; the
+  // highlight is reserved for the facets turned most directly into the key.
+  if (d > 0.86) return t.cream;
+  if (d > 0.62) return t.light;
+  if (d < -0.7) return t.shade;
   return t.base;
 }
 
