@@ -1,40 +1,40 @@
 // DEV-ONLY crystal structure editor.
 //
-// The owner's workflow: shape ONE formation by hand — pick each crystal's
-// colour from the locked palette, set its width/height, rotate it freely in
-// 360°, nudge it along x/y/z — watch it in the real gameplay framing, then
-// export the numbers so the game replays the exact same piece instead of
-// re-generating something that merely resembles it.
+// Two deliberately separate modes, because trying to author a formation while
+// the cloud deck and tile path are in frame is genuinely hard work:
 //
-// Everything is plain data; nothing here is simulated or interpolated. What you
-// see in the viewport is what `emitStructure` will build in the game.
+//   AUTHOR  — the structure alone on a neutral ground plane, with a free 360°
+//             orbit camera. Nothing else on screen, so rotation, proportion and
+//             spacing are easy to judge. This is where you build.
+//   PREVIEW — the locked gameplay camera, the real cloud deck and the real
+//             tiles, at the real spawn distance. This is only for confirming a
+//             finished piece, and it is deliberately not a place to edit.
 //
-// The camera is deliberately LOCKED to the gameplay view (same FOV, offset and
-// look-ahead as RendererSystem) — the whole point is to judge the formation the
-// way a player will see it, and a free orbit would hide exactly the problems
-// that matter.
+// A formation is plain data, so what you author is what the game replays — no
+// re-generating, nothing approximating. `emitStructure` builds the exact same
+// mesh in both modes and in the game.
 import {
+  AxesHelper,
   BoxGeometry,
   Color,
   DoubleSide,
+  Fog,
+  GridHelper,
   Group,
   Mesh,
   MeshBasicMaterial,
   PerspectiveCamera,
   Scene,
-  Fog,
+  Vector3,
   WebGLRenderer
 } from 'three';
-import {
-  bakeCluster,
-  emitStructure,
-  emptyAcc,
-  type ClusterShape
-} from '../systems/CrystalFactory';
+import { bakeCluster, emitStructure, emptyAcc } from '../systems/CrystalFactory';
 import { buildCloudSea } from '../systems/CloudFactory';
 import { CRYSTAL_STRUCTURES, SUNRISE_CRYSTAL_PALETTE } from '../config/CrystalStructures';
 import type { CrystalNode, CrystalStructure } from '../config/CrystalStructures';
 import { GAME_CONFIG } from '../config/GameConfig';
+
+type Mode = 'author' | 'preview';
 
 /** Gameplay framing, mirrored from RendererSystem so the preview is honest. */
 const FOV = 55;
@@ -43,21 +43,16 @@ const CAM_Z = GAME_CONFIG.CAMERA_OFFSET_Z;
 const LOOK_AHEAD = GAME_CONFIG.CAMERA_LOOK_AHEAD;
 const FOG_NEAR = 28;
 const FOG_FAR = 82;
-const SKY_TOP = 0xf9c9c0;
-const SKY_BOTTOM = 0xfff0dc;
+const SKY = 0xfff0dc;
+/** Authoring backdrop — neutral, so it never competes with the colours. */
+const AUTHOR_BG = 0xe8e2da;
 
 /** Matches the shipped Sunrise deck, so the preview shows the real cloud line. */
 const DECK = { length: 70, spread: 64, top: -5.6, depth: 2.8, cols: 64, rows: 40, cell: 3 };
 const DECK_PALETTE = { base: 0xfffaf0, highlight: 0xffffff, shadow: 0xefb193 };
-/** Where a formation's base sits relative to the tiles. */
+/** Where a formation's base sits relative to the tiles in game. */
 const BASE_Y = -3.5;
-/**
- * The game never spawns a formation in the corridor — clusters stand off to
- * one side, ~9-19 units out. The preview must do the same or it lies: a piece
- * placed dead centre beside the camera reads twice as large as it ever will in
- * play. It also sits AHEAD, at a typical in-run viewing distance, so the
- * framing matches what the player actually sees.
- */
+/** The game never spawns in the corridor — clusters stand off to one side. */
 const PREVIEW_X = 13;
 const PREVIEW_Z = 22;
 
@@ -66,16 +61,14 @@ const el = <T extends HTMLElement>(id: string): T => document.getElementById(id)
 // ---------------------------------------------------------------- scene
 const view = el<HTMLDivElement>('view');
 const scene = new Scene();
-scene.background = new Color(SKY_BOTTOM);
-scene.fog = new Fog(SKY_BOTTOM, FOG_NEAR, FOG_FAR);
-const camera = new PerspectiveCamera(FOV, 1, 0.1, 110);
-camera.position.set(0, CAM_Y, CAM_Z);
-camera.lookAt(0, 0, LOOK_AHEAD);
+scene.background = new Color(AUTHOR_BG);
+const camera = new PerspectiveCamera(FOV, 1, 0.1, 400);
 
 const renderer = new WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 view.appendChild(renderer.domElement);
 
+// Preview-only scenery. Hidden entirely while authoring.
 const cloudMesh = new Mesh(
   buildCloudSea({ ...DECK, palette: DECK_PALETTE, seed: 4 }),
   new MeshBasicMaterial({ vertexColors: true, side: DoubleSide })
@@ -93,12 +86,13 @@ for (let i = -1; i <= 8; i++) {
 }
 scene.add(tiles);
 
-const grid = new Mesh(
-  new BoxGeometry(24, 0.02, 24),
-  new MeshBasicMaterial({ color: 0x3b302d, transparent: true, opacity: 0.12 })
-);
-grid.position.y = -0.45;
+// Authoring aids: a ground plane at the formation's base and world axes, so
+// 360° rotation and "is it standing up?" are readable at a glance.
+const grid = new GridHelper(24, 24, 0x8d7f70, 0xb8aa9a);
+grid.position.y = 0;
 scene.add(grid);
+const axes = new AxesHelper(6);
+scene.add(axes);
 
 const crystalGroup = new Group();
 scene.add(crystalGroup);
@@ -108,18 +102,26 @@ const MAX = 10;
 let structures: CrystalStructure[] = JSON.parse(JSON.stringify(CRYSTAL_STRUCTURES)) as CrystalStructure[];
 let index = 0;
 let selected = 0;
+let mode: Mode = 'author';
 let dirty = false;
-/** Which side of the corridor the preview formation stands on. */
-const side = (): number => (el<HTMLInputElement>('sideL').checked ? -PREVIEW_X : PREVIEW_X);
+
+/** Free orbit used only in author mode. */
+const orbit = { az: 0.7, pol: 1.15, dist: 26, auto: false };
 
 const ui = {
   preset: el<HTMLSelectElement>('preset'),
   name: el<HTMLInputElement>('sname'),
   chips: el<HTMLDivElement>('chips'),
   swatches: el<HTMLDivElement>('swatches'),
+  authorBtn: el<HTMLButtonElement>('modeAuthor'),
+  previewBtn: el<HTMLButtonElement>('modePreview'),
+  authorBox: el<HTMLDivElement>('authorBox'),
+  previewBox: el<HTMLDivElement>('previewBox'),
   clouds: el<HTMLInputElement>('clouds'),
   tiles: el<HTMLInputElement>('tiles'),
-  grid: el<HTMLInputElement>('grid'),
+  sideL: el<HTMLInputElement>('sideL'),
+  fit: el<HTMLButtonElement>('fit'),
+  spin: el<HTMLInputElement>('spin'),
   out: el<HTMLTextAreaElement>('out')
 };
 
@@ -133,29 +135,126 @@ const sliders = {
 const current = (): CrystalStructure => structures[index];
 const node = (): CrystalNode | undefined => current().crystals[selected];
 
-// ---------------------------------------------------------------- viewport
-function rebuild(): void {
+// ---------------------------------------------------------------- build
+function rebuild(fit = false): void {
   crystalGroup.clear();
   const acc = emptyAcc();
-  emitStructure(acc, current(), {
-    x: side(), z: PREVIEW_Z, baseY: BASE_Y, scale: 1, families: [...SUNRISE_CRYSTAL_PALETTE]
-  });
+  // In author mode the formation sits on the origin's ground plane with its
+  // base at y=0, so the position sliders mean what you'd expect. In preview it
+  // takes the exact transform the game applies.
+  const placing = mode === 'author'
+    ? { x: 0, z: 0, baseY: 0, scale: 1, families: [...SUNRISE_CRYSTAL_PALETTE] as never }
+    : {
+      x: ui.sideL.checked ? -PREVIEW_X : PREVIEW_X,
+      z: PREVIEW_Z,
+      baseY: BASE_Y,
+      scale: 1,
+      families: [...SUNRISE_CRYSTAL_PALETTE] as never
+    };
+  emitStructure(acc, current(), placing);
   const { face } = bakeCluster(acc);
-  crystalGroup.add(new Mesh(face, new MeshBasicMaterial({ vertexColors: true, side: DoubleSide })));
+  const mesh = new Mesh(face, new MeshBasicMaterial({ vertexColors: true, side: DoubleSide }));
+  crystalGroup.add(mesh);
+  if (fit) fitToStructure();
+}
+
+/** Frame the formation so it always fills a sensible part of the view. */
+function fitToStructure(): void {
+  const mesh = crystalGroup.children[0] as Mesh | undefined;
+  if (!mesh) return;
+  mesh.geometry.computeBoundingBox();
+  const b = mesh.geometry.boundingBox;
+  if (!b) return;
+  const centre = new Vector3();
+  b.getCenter(centre);
+  const size = new Vector3();
+  b.getSize(size);
+  const maxDim = Math.max(size.x, size.y, size.z, 1);
+  const target = new Vector3(centre.x, Math.max(centre.y, size.y * 0.25), centre.z);
+  orbitTarget.copy(target);
+  orbit.dist = Math.max(7, maxDim * 2.3);
+}
+
+// ---------------------------------------------------------------- modes
+function setMode(next: Mode): void {
+  mode = next;
+  const author = mode === 'author';
+  ui.authorBtn.setAttribute('aria-pressed', String(author));
+  ui.previewBtn.setAttribute('aria-pressed', String(!author));
+  ui.authorBox.hidden = !author;
+  ui.previewBox.hidden = author;
+  cloudMesh.visible = !author && ui.clouds.checked;
+  tiles.visible = !author && ui.tiles.checked;
+  grid.visible = author;
+  axes.visible = author;
+  scene.background = new Color(author ? AUTHOR_BG : SKY);
+  scene.fog = author ? null : new Fog(SKY, FOG_NEAR, FOG_FAR);
+  el<HTMLDivElement>('hint').textContent = author
+    ? 'Drag to orbit · wheel to zoom · the formation sits on the grid at y=0'
+    : 'Locked gameplay camera, real clouds and tiles. Confirm-only — go back to author to edit.';
+  rebuild(mode === 'author');
+}
+
+ui.authorBtn.addEventListener('click', () => setMode('author'));
+ui.previewBtn.addEventListener('click', () => setMode('preview'));
+ui.clouds.addEventListener('change', () => { cloudMesh.visible = mode === 'preview' && ui.clouds.checked; });
+ui.tiles.addEventListener('change', () => { tiles.visible = mode === 'preview' && ui.tiles.checked; });
+ui.sideL.addEventListener('change', () => rebuild());
+ui.spin.addEventListener('change', () => { orbit.auto = ui.spin.checked; });
+ui.fit.addEventListener('click', () => fitToStructure());
+
+// ---------------------------------------------------------------- orbit input
+let dragging = false;
+let lastX = 0;
+let lastY = 0;
+const orbitTarget = new Vector3(0, 4, 0);
+
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  if (mode !== 'author') return;
+  dragging = true;
+  lastX = e.clientX;
+  lastY = e.clientY;
+  renderer.domElement.setPointerCapture(e.pointerId);
+});
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (!dragging || mode !== 'author') return;
+  orbit.az -= (e.clientX - lastX) * 0.006;
+  orbit.pol = Math.max(0.08, Math.min(Math.PI - 0.08, orbit.pol - (e.clientY - lastY) * 0.006));
+  lastX = e.clientX;
+  lastY = e.clientY;
+});
+const endDrag = (): void => { dragging = false; };
+renderer.domElement.addEventListener('pointerup', endDrag);
+renderer.domElement.addEventListener('pointercancel', endDrag);
+renderer.domElement.addEventListener('wheel', (e) => {
+  if (mode !== 'author') return;
+  e.preventDefault();
+  orbit.dist = Math.max(6, Math.min(120, orbit.dist * (1 + e.deltaY * 0.001)));
+}, { passive: false });
+
+for (const [id, az, pol] of [
+  ['viewFront', 0, Math.PI / 2],
+  ['viewSide', Math.PI / 2, Math.PI / 2],
+  ['viewTop', 0, 0.12],
+  ['viewIso', 0.7, 1.15]
+] as const) {
+  el<HTMLButtonElement>(id).addEventListener('click', () => {
+    orbit.az = az;
+    orbit.pol = pol;
+    fitToStructure();
+  });
 }
 
 // ---------------------------------------------------------------- panel
-function paletteCss(i: number): string {
-  const p = SUNRISE_CRYSTAL_PALETTE[i];
-  return `#${p.base.toString(16).padStart(6, '0')}`;
-}
+const paletteCss = (i: number): string =>
+  `#${SUNRISE_CRYSTAL_PALETTE[i].base.toString(16).padStart(6, '0')}`;
 
 function renderPresets(): void {
   ui.preset.innerHTML = '';
   structures.forEach((s, i) => {
     const o = document.createElement('option');
     o.value = String(i);
-    o.textContent = `${i + 1}. ${s.name}${s === CRYSTAL_STRUCTURES[i] ? '' : ' *'}`;
+    o.textContent = `${i + 1}. ${s.name} (${s.crystals.length})`;
     ui.preset.appendChild(o);
   });
   ui.preset.value = String(index);
@@ -187,9 +286,7 @@ function renderSwatches(): void {
       if (!n) return;
       n.color = i;
       dirty = true;
-      renderSwatches();
-      renderChips();
-      rebuild();
+      renderSwatches(); renderChips(); rebuild();
     });
     ui.swatches.appendChild(b);
   });
@@ -227,31 +324,36 @@ const HANDLERS: Record<string, (n: CrystalNode, raw: number) => void> = {
   pz: (n, v) => { n.z = v; }
 };
 
+function touch(fit = false): void {
+  dirty = true;
+  // Keep the declared height honest — the game scales formations by it.
+  const tallest = Math.max(...current().crystals.map((c) => c.height));
+  current().height = Math.max(1, Math.round(tallest));
+  renderChips();
+  syncInputs();
+  rebuild(fit);
+}
+
 for (const [key, input] of Object.entries(sliders)) {
   input.addEventListener('input', () => {
     const n = node();
     if (!n) return;
     HANDLERS[key](n, Number(input.value));
-    dirty = true;
-    syncInputs();
-    rebuild();
-    // Keep the structure's declared height honest so the game scales it right.
-    const tallest = Math.max(...current().crystals.map((c) => c.height));
-    current().height = Math.max(1, Math.round(tallest));
+    touch(false);
   });
 }
 
-// ---------------------------------------------------------------- structure ops
 function addCrystal(): void {
   const s = current();
   if (s.crystals.length >= MAX) return;
   s.crystals.push({
     x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0,
-    width: 1.1, height: 6, taper: 0.5, sides: 6, color: s.crystals.length % SUNRISE_CRYSTAL_PALETTE.length
+    width: 1.1, height: 6, taper: 0.5, sides: 6,
+    color: s.crystals.length % SUNRISE_CRYSTAL_PALETTE.length
   });
   selected = s.crystals.length - 1;
-  dirty = true;
-  renderChips(); syncInputs(); rebuild(); renderPresets();
+  touch(true);
+  renderPresets();
 }
 el<HTMLButtonElement>('add').addEventListener('click', addCrystal);
 
@@ -261,8 +363,7 @@ el<HTMLButtonElement>('dup').addEventListener('click', () => {
   const src = s.crystals[selected];
   s.crystals.push({ ...src, x: src.x + 1.2, z: src.z + 0.8 });
   selected = s.crystals.length - 1;
-  dirty = true;
-  renderChips(); syncInputs(); rebuild();
+  touch(true);
 });
 
 el<HTMLButtonElement>('del').addEventListener('click', () => {
@@ -270,31 +371,24 @@ el<HTMLButtonElement>('del').addEventListener('click', () => {
   if (s.crystals.length <= 1) return;
   s.crystals.splice(selected, 1);
   selected = Math.max(0, selected - 1);
-  dirty = true;
-  renderChips(); syncInputs(); rebuild();
+  touch(true);
 });
 
-/** Drop the formation so its base sits on the tile line: handy after moving things. */
+/** Drop the formation so its lowest base sits exactly on the ground plane. */
 el<HTMLButtonElement>('focus').addEventListener('click', () => {
   const s = current();
   const shift = -Math.min(...s.crystals.map((c) => c.y));
   for (const c of s.crystals) c.y += shift;
-  dirty = true;
-  syncInputs(); rebuild();
+  touch(true);
 });
 
 ui.preset.addEventListener('change', () => {
   index = Number(ui.preset.value);
   selected = 0;
   ui.name.value = current().name;
-  renderChips(); syncInputs(); rebuild();
+  renderChips(); syncInputs(); rebuild(true);
 });
 ui.name.addEventListener('input', () => { current().name = ui.name.value; dirty = true; renderPresets(); });
-
-ui.clouds.addEventListener('change', () => { cloudMesh.visible = ui.clouds.checked; });
-ui.tiles.addEventListener('change', () => { tiles.visible = ui.tiles.checked; });
-ui.grid.addEventListener('change', () => { grid.visible = ui.grid.checked; });
-el<HTMLInputElement>('sideL').addEventListener('change', () => rebuild());
 
 // ---------------------------------------------------------------- export
 function toTypeScript(): string {
@@ -313,13 +407,11 @@ el<HTMLButtonElement>('export').addEventListener('click', () => {
   ui.out.select();
   void navigator.clipboard?.writeText(ui.out.value);
 });
-
 el<HTMLButtonElement>('copyJson').addEventListener('click', () => {
   ui.out.value = JSON.stringify(structures, null, 2);
   ui.out.select();
   void navigator.clipboard?.writeText(ui.out.value);
 });
-
 el<HTMLButtonElement>('download').addEventListener('click', () => {
   const blob = new Blob([JSON.stringify(structures, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -343,28 +435,42 @@ addEventListener('resize', resize);
 renderPresets();
 renderChips();
 syncInputs();
-rebuild();
 resize();
-grid.visible = ui.grid.checked;
+setMode('author');
+renderChips();
+syncInputs();
 
 function tick(): void {
   requestAnimationFrame(tick);
+  if (mode === 'author') {
+    if (orbit.auto && !dragging) orbit.az += 0.006;
+    const sp = Math.sin(orbit.pol);
+    camera.position.set(
+      orbitTarget.x + orbit.dist * sp * Math.sin(orbit.az),
+      orbitTarget.y + orbit.dist * Math.cos(orbit.pol),
+      orbitTarget.z + orbit.dist * sp * Math.cos(orbit.az)
+    );
+    camera.lookAt(orbitTarget);
+  } else {
+    camera.position.set(0, CAM_Y, CAM_Z);
+    camera.lookAt(0, 0, LOOK_AHEAD);
+  }
   renderer.render(scene, camera);
 }
 requestAnimationFrame(tick);
 
 (window as unknown as { editor: unknown }).editor = {
   structures,
-  select: (i: number) => { index = i; selected = 0; renderPresets(); renderChips(); syncInputs(); rebuild(); },
+  mode: () => mode,
+  setMode,
+  select: (i: number) => { index = i; selected = 0; renderPresets(); renderChips(); syncInputs(); rebuild(true); },
   set: (path: string, value: number) => {
     const [si, ci, key] = path.split(':');
     const n = structures[Number(si)].crystals[Number(ci)];
     if (!n) return;
     HANDLERS[key](n, value);
-    dirty = true;
-    renderChips(); syncInputs(); rebuild();
+    touch(false);
   },
   add: addCrystal,
-  get dirty() { return dirty; },
-  shapes: [] as ClusterShape[]
+  get dirty() { return dirty; }
 };

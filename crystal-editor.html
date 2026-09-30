@@ -22,7 +22,10 @@
       button { font: inherit; padding: 4px 8px; border: 1px solid #c9b39c; background: #fff;
         border-radius: 5px; cursor: pointer; }
       button:hover { background: #ffeeda; }
-      button.primary { background: #3b302d; color: #fff7e8; border-color: #3b302d; }
+      button.primary, button[aria-pressed=true] {
+        background: #3b302d; color: #fff7e8; border-color: #3b302d;
+      }
+      button[aria-pressed=true]:hover { background: #4d403c; }
       .crystals { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
       .chip { display: flex; align-items: center; gap: 5px; padding: 3px 6px; border-radius: 12px;
         border: 1px solid #c9b39c; background: #fff; cursor: pointer; font-size: 11px; }
@@ -42,7 +45,59 @@
     <div id="view"></div>
     <div id="panel">
       <h1>crystal structure editor</h1>
-      <div class="sub">dev only — camera is locked to the gameplay view</div>
+      <div class="sub">dev only — author it clean, then preview it in game</div>
+
+      <fieldset>
+        <legend>mode</legend>
+        <div class="btns" style="margin:0">
+          <button id="modeAuthor" aria-pressed="true" class="grow">author</button>
+          <button id="modePreview" aria-pressed="false" class="grow">game preview</button>
+        </div>
+        <div class="hint" id="hint"></div>
+      <div class="btns" style="margin-top:6px">
+        <button class="primary" id="export">copy structures TS</button>
+        <button id="copyJson">copy JSON</button>
+        <button id="download">download JSON</button>
+      </div>
+      <textarea id="out" spellcheck="false" readonly></textarea>
+      <div class="hint">Paste the TypeScript into
+        <code>src/config/CrystalStructures.ts</code>. The game replays these
+        numbers exactly — no re-generation.</div>
+      </fieldset>
+
+      <fieldset id="authorBox">
+        <legend>camera</legend>
+        <div class="btns" style="margin:0 0 6px">
+          <button id="viewFront">front</button>
+          <button id="viewSide">side</button>
+          <button id="viewTop">top</button>
+          <button id="viewIso">3/4</button>
+        </div>
+        <div class="btns" style="margin:0">
+          <button id="fit">fit</button>
+          <label style="align-self:center"><input type="checkbox" id="spin" /> auto-spin</label>
+        </div>
+        <div class="hint">Drag anywhere in the viewport to orbit 360°, wheel to zoom.</div>
+      </fieldset>
+
+      <fieldset id="previewBox" hidden>
+        <legend>preview</legend>
+        <div class="row">
+          <label><input type="checkbox" id="clouds" checked /> clouds</label>
+          <div class="grow"></div>
+          <span></span>
+        </div>
+        <div class="row">
+          <label><input type="checkbox" id="tiles" checked /> tiles</label>
+          <div class="grow"></div>
+          <span></span>
+        </div>
+        <div class="row">
+          <label for="sideL"><input type="checkbox" id="sideL" /> left side</label>
+          <div class="grow"></div>
+          <span></span>
+        </div>
+      </fieldset>
 
       <fieldset>
         <legend>structure</legend>
@@ -61,7 +116,7 @@
           <button id="add">+ crystal</button>
           <button id="dup">duplicate</button>
           <button id="del">delete</button>
-          <button id="focus">recentre</button>
+          <button id="focus">sit on ground</button>
         </div>
         <div class="hint">1–10 crystals. Select one with the chips, then edit it below.</div>
       </fieldset>
@@ -82,42 +137,7 @@
       </fieldset>
 
       <fieldset>
-        <legend>preview</legend>
-        <div class="row">
-          <label><input type="checkbox" id="clouds" checked /> clouds</label>
-          <div class="grow"></div>
-          <span></span>
-        </div>
-        <div class="row">
-          <label><input type="checkbox" id="tiles" checked /> tiles</label>
-          <div class="grow"></div>
-          <span></span>
-        </div>
-        <div class="row">
-          <label for="sideL"><input type="checkbox" id="sideL" /> left</label>
-          <div class="grow"></div>
-          <span></span>
-        </div>
-        <div class="row">
-          <label><input type="checkbox" id="grid" /> ground grid</label>
-          <div class="grow"></div>
-          <span></span>
-        </div>
-        <div class="hint">The camera never moves and the formation always stands
-          off to the side at the gameplay distance, so the framing matches play.</div>
-      </fieldset>
-
-      <fieldset>
         <legend>export</legend>
-        <div class="btns">
-          <button class="primary" id="export">copy structures TS</button>
-          <button id="download">download JSON</button>
-          <button id="copyJson">copy JSON</button>
-        </div>
-        <textarea id="out" spellcheck="false" readonly></textarea>
-        <div class="hint">Paste the TypeScript into
-          <code>src/config/CrystalStructures.ts</code>. The game replays these
-          numbers exactly — no re-generation.</div>
       </fieldset>
     </div>
     <script type="module" src="/src/dev/crystalEditor.ts"></script>
