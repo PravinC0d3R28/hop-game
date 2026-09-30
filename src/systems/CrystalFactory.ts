@@ -18,6 +18,9 @@
 // the exact failure the depth-buffered inverted hull kept producing.
 import { BufferGeometry, Color, Float32BufferAttribute } from 'three';
 import { DoubleSide } from 'three';
+import type { CrystalStructure } from '../config/CrystalStructures';
+
+export type { CrystalStructure, CrystalNode } from '../config/CrystalStructures';
 
 /** Outline width as a fraction of the crystal's own size. */
 export const OUTLINE_FACTOR = 0.05;
@@ -147,6 +150,13 @@ export interface CrystalOpts {
   /** World position of the base. */
   pos: [number, number, number];
   tones: CrystalTones;
+  /**
+   * Authored rotation (radians, XYZ euler). When present the prism is built in
+   * local space and rotated rigidly — this is the path the structure editor
+   * exports, and it is exact: the same numbers always produce the same crystal.
+   * When absent the procedural `spin` + shear path is used instead.
+   */
+  rot?: [number, number, number];
 }
 
 export function emitCrystal(acc: SegAcc, o: CrystalOpts, rnd: () => number): void {
@@ -154,6 +164,26 @@ export function emitCrystal(acc: SegAcc, o: CrystalOpts, rnd: () => number): voi
   // fixed world-unit rim is what made distant formations swallow themselves.
   const rim = OUTLINE_FACTOR * o.scale;
   const s = o.scale;
+
+  if (o.rot) {
+    // --- authored path: build along +Y, then rotate and place rigidly
+    const [rx, ry, rz] = o.rot;
+    const cx = Math.cos(rx), sx = Math.sin(rx);
+    const cy = Math.cos(ry), sy = Math.sin(ry);
+    const cz = Math.cos(rz), sz = Math.sin(rz);
+    const place = (p: Ring): number[] => {
+      // scale
+      let vx = p.x * s, vy = p.y * s, vz = p.z * s;
+      // Rz, then Rx, then Ry
+      let t1x = vx * cz - vy * sz, t1y = vx * sz + vy * cz, t1z = vz;
+      let t2x = t1x, t2y = t1y * cx - t1z * sx, t2z = t1y * sx + t1z * cx;
+      const t3x = t2x * cy + t2z * sy, t3y = t2y, t3z = -t2x * sy + t2z * cy;
+      return [t3x + o.pos[0], t3y + o.pos[1], t3z + o.pos[2]];
+    };
+    buildPrism(acc, o, rnd, place, rim);
+    return;
+  }
+
   const cs = Math.cos(o.spin), sn = Math.sin(o.spin);
   // Clamp lean inside the base radius: a stronger shear folds the prism and
   // inverts the winding.
@@ -168,16 +198,28 @@ export function emitCrystal(acc: SegAcc, o: CrystalOpts, rnd: () => number): voi
     const z = (lx * s) * sn + (lz * s) * cs;
     return [x + o.pos[0], p.y * s + o.pos[1], z + o.pos[2]];
   };
-  const r0 = hexRing(o.baseR, 0, 0, o.sides, ringJitter(o.sides, 0.12, rnd));
-  const r1 = hexRing(o.baseR * 1.06, o.height * 0.55, 0.1, o.sides, ringJitter(o.sides, 0.12, rnd));
-  const r2 = hexRing(o.baseR * o.taper, o.height * 0.82, 0.2, o.sides, ringJitter(o.sides, 0.16, rnd));
-  const apex: Ring = { x: 0, y: o.height, z: 0 };
+  buildPrism(acc, o, rnd, place, rim);
+}
+
+/** Shared prism tessellation, given a local→world placement function. */
+function buildPrism(
+  acc: SegAcc,
+  o: CrystalOpts,
+  rnd: () => number,
+  place: (p: Ring) => number[],
+  rim: number
+): void {
+  const o2 = { ...o, baseR: o.baseR };
+  const r0 = hexRing(o2.baseR, 0, 0, o.sides, ringJitter(o.sides, 0.12, rnd));
+  const r1 = hexRing(o2.baseR * 1.06, o2.height * 0.55, 0.1, o.sides, ringJitter(o.sides, 0.12, rnd));
+  const r2 = hexRing(o2.baseR * o2.taper, o2.height * 0.82, 0.2, o.sides, ringJitter(o.sides, 0.16, rnd));
+  const apex: Ring = { x: 0, y: o2.height, z: 0 };
   const base: Ring = { x: 0, y: 0, z: 0 };
   const P = (p: Ring) => place(p);
 
   const add = (A: Ring, B: Ring, C: Ring) => {
     const pa = P(A), pb = P(B), pc = P(C);
-    pushTri(acc, pa, pb, pc, facetTone(cross(pa, pb, pc), o.tones, rnd() * 2 - 1), rim);
+    pushTri(acc, pa, pb, pc, facetTone(cross(pa, pb, pc), o2.tones, rnd() * 2 - 1), rim);
   };
   const quad = (A: Ring, B: Ring, C: Ring, D: Ring) => { add(A, C, B); add(A, D, C); };
 
@@ -291,8 +333,7 @@ export function emitCluster(acc: SegAcc, spec: ClusterSpec, rnd: () => number): 
   }
 }
 
-export function bakeCluster(acc: SegAcc): { face: BufferGeometry; shell: BufferGeometry } {
-  const face = new BufferGeometry();
+export function bakeCluster(acc: SegAcc): { face: BufferGeometry; shell: BufferGeometry } {  const face = new BufferGeometry();
   face.setAttribute('position', new Float32BufferAttribute(acc.pos, 3));
   face.setAttribute('normal', new Float32BufferAttribute(acc.nor, 3));
   face.setAttribute('color', new Float32BufferAttribute(acc.col, 3));
@@ -303,3 +344,39 @@ export function bakeCluster(acc: SegAcc): { face: BufferGeometry; shell: BufferG
 }
 
 export { DoubleSide };
+
+/**
+ * Emit an authored structure at a world position.
+ *
+ * The structure's numbers are used verbatim � the only thing applied on top is
+ * `scale` (atmospheric depth) and `baseY` (where the cloud deck's surface is),
+ * so what the editor shows is what the game renders.
+ */
+export function emitStructure(
+  acc: SegAcc,
+  structure: CrystalStructure,
+  opts: { x: number; z: number; baseY: number; scale: number; families: CrystalFamily[] }
+): void {
+  const fam = opts.families;
+  if (fam.length === 0) return;
+  // Deterministic per structure: the same formation always facets the same
+  // way, so a reload does not reshuffle the look of an authored piece.
+  const rnd = makeRng(structure.id.split('').reduce((a, c) => a + c.charCodeAt(0), 7));
+  for (const node of structure.crystals) {
+    const tone = crystalTones(fam[node.color % fam.length]);
+    emitCrystal(acc, {
+      baseR: node.width,
+      height: node.height,
+      taper: node.taper,
+      sides: node.sides,
+      spin: 0,
+      leanX: 0,
+      leanZ: 0,
+      scale: opts.scale,
+      pos: [opts.x + node.x * opts.scale, opts.baseY + node.y * opts.scale, opts.z + node.z * opts.scale],
+      tones: tone,
+      rot: [node.rx, node.ry, node.rz]
+    }, rnd);
+  }
+}
+

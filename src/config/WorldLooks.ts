@@ -157,27 +157,27 @@ export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
           { base: 0xf5c531, light: 0xffd964, shade: 0xc99a1c, cream: 0xffeeb0 }
         ],
         count: 11,
-        // Crystal bases sit ~4.2 below the tile plane — deep inside the deck —
-        // so clusters tower up out of the clouds. This is what sells "we are
-        // high above a cloud sea": the deck is far BELOW the tiles, not level
-        // with them.
-        baseY: -4.2,
+        // Bases sit ~3.5 below the tile plane, which is now well ABOVE the deck
+        // (datum −5.6): the crystals rise out of the cloud tops rather than
+        // starting inside them.
+        baseY: -3.5,
         parallax: 0.2
       },
       {
         family: 'cloudsea',
         palette: { base: 0xfffaf0, highlight: 0xffffff, shadow: 0xefb193 },
         count: 1,
-        // The deck's datum sits well BELOW the tiles (they span −0.4..+0.4), so
-        // the path reads as floating above a thick cloud layer. Small billows,
-        // low relief: the crystals must stay the tallest thing in frame.
+        // The deck's datum sits well BELOW the tiles, and the owner asked for it
+        // lower still: the further down it sits, the more the path reads as
+        // floating high above a cloud sea. Tiles span −0.4..+0.4, the deck
+        // datum is −5.6, so the cloud tops sit ~5 units underfoot.
         //
         // `spread` must be wide enough that the deck's side edge falls BEYOND
         // fogFar. At 32 the edge was ~46 units out — only 34% fogged — so on a
         // 16:9 frame the sky showed through past it as hard pink wedges. At 64
         // the nearest edge point is ~86 units away, i.e. fully fogged.
         spread: 64,
-        top: -2.8,
+        top: -5.6,
         depth: 2.8,
         cols: 96,
         rows: 48,

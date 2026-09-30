@@ -8,7 +8,8 @@ import {
   type BufferGeometry,  type Scene
 } from 'three';
 import { MaterialFactory } from './MaterialFactory';
-import { bakeCluster, CLUSTER_SHAPES, emitCluster, emptyAcc, makeRng, type ClusterSpec } from './CrystalFactory';
+import { bakeCluster, CLUSTER_SHAPES, emitCluster, emitStructure, emptyAcc, makeRng, type ClusterSpec } from './CrystalFactory';
+import { CRYSTAL_STRUCTURES } from '../config/CrystalStructures';
 import { buildCloudSea } from './CloudFactory';
 import type { CrystalFieldRecipe, CloudSeaRecipe, WorldLook } from '../config/WorldLooks';
 
@@ -67,10 +68,12 @@ export class BackgroundSystem {
     void built;
   }
 
-  /** Crystal formations: face mesh (vertex-coloured) + fixed-width hull. */
+  /** Crystal formations: one vertex-coloured mesh of authored + procedural clusters. */
   private addCrystalLayer(recipe: CrystalFieldRecipe, edge: number): void {
     const rnd = makeRng(this.seed);
     const acc = emptyAcc();
+    const structures = CRYSTAL_STRUCTURES;
+    void edge;
     for (let i = 0; i < recipe.count; i++) {
       // Spread across the segment, alternating sides, never in the corridor.
       const t = (i + 0.5) / recipe.count;
@@ -81,25 +84,42 @@ export class BackgroundSystem {
       // cloud deck, so formations appeared to vanish and pop back in as the
       // ball passed them.
       const depth = 1 - t;
+      const weight = 0.55 + depth * 0.45;
       // Near formations sit WIDER. The clusters are ~8 units across, so at the
       // old 5..11 they overlapped the corridor and crowded the landing path —
       // the reference keeps clear air between the tiles and the crystals.
       const spread = 9 + rnd() * 8 + (depth > 0.6 ? 2 : 0);
       const x = side * spread;
-      // A cluster is a 3D clump (x/y/z all vary) and its SHAPE is picked at
-      // random, so the field never repeats the same silhouette twice.
-      const spec: ClusterSpec = {
-        x,
-        z,
-        weight: 0.55 + depth * 0.45,
-        shape: CLUSTER_SHAPES[Math.floor(rnd() * CLUSTER_SHAPES.length)],
-        families: recipe.families,
-        // Deep: crystals grow up out of the thick cloud, well below the tiles,
-        // so the player reads "high above a cloud sea" instead of "crystals
-        // floating at tile height".
-        baseY: recipe.baseY - rnd() * 2.2
-      };
-      emitCluster(acc, spec, rnd);
+      // Hero formations come from the authored structures (crystal-editor.html);
+      // the procedural variants fill in between them. The 60/40 split keeps the
+      // field varied while the pieces you designed stay recognisable.
+      const authored = rnd() < 0.6;
+      if (authored) {
+        const s = structures[Math.floor(rnd() * structures.length)];
+        // Scale the formation so a big authored piece still sits correctly at
+        // distance, and normalise by the structure's own height so `weight`
+        // means the same thing for every piece.
+        emitStructure(acc, s, {
+          x,
+          z,
+          baseY: recipe.baseY - rnd() * 2.2,
+          scale: (0.35 + depth * 0.65) * (weight / Math.max(1, s.height / 9)),
+          families: recipe.families
+        });
+      } else {
+        const spec: ClusterSpec = {
+          x,
+          z,
+          weight,
+          shape: CLUSTER_SHAPES[Math.floor(rnd() * CLUSTER_SHAPES.length)],
+          families: recipe.families,
+          // Deep: crystals grow up out of the thick cloud, well below the tiles,
+          // so the player reads "high above a cloud sea" instead of "crystals
+          // floating at tile height".
+          baseY: recipe.baseY - rnd() * 2.2
+        };
+        emitCluster(acc, spec, rnd);
+      }
     }
     const { face, shell } = bakeCluster(acc);
     // Unlit + vertex colours: the facet tones (cream/light/base/shade) ARE the
@@ -262,5 +282,7 @@ export class BackgroundSystem {
     }
   }
 }
+
+
 
 

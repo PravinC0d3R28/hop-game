@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>HOP — crystal structure editor (dev only)</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #f7e3c4;
+        font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: #3b302d; }
+      #view { position: fixed; inset: 0 340px 0 0; }
+      #view canvas { display: block; }
+      #panel { position: fixed; top: 0; right: 0; bottom: 0; width: 340px; overflow-y: auto;
+        background: #fffaf2; border-left: 2px solid #3b302d; padding: 10px 12px 40px; }
+      h1 { font-size: 13px; margin: 0 0 2px; letter-spacing: .04em; }
+      .sub { color: #a08a76; margin-bottom: 10px; }
+      fieldset { border: 1px solid #e0cdb8; border-radius: 6px; margin: 0 0 10px; padding: 8px; }
+      legend { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: #a08a76; }
+      .row { display: grid; grid-template-columns: 62px 1fr 46px; gap: 6px; align-items: center; margin: 3px 0; }
+      .row label { font-size: 11px; }
+      .row output { font-size: 11px; text-align: right; color: #7a6653; }
+      input[type=range] { width: 100%; }
+      button { font: inherit; padding: 4px 8px; border: 1px solid #c9b39c; background: #fff;
+        border-radius: 5px; cursor: pointer; }
+      button:hover { background: #ffeeda; }
+      button.primary { background: #3b302d; color: #fff7e8; border-color: #3b302d; }
+      .crystals { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+      .chip { display: flex; align-items: center; gap: 5px; padding: 3px 6px; border-radius: 12px;
+        border: 1px solid #c9b39c; background: #fff; cursor: pointer; font-size: 11px; }
+      .chip[aria-pressed=true] { background: #3b302d; color: #fff7e8; border-color: #3b302d; }
+      .dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid #0003; }
+      .swatches { display: flex; gap: 4px; flex-wrap: wrap; margin: 4px 0; }
+      .sw { width: 26px; height: 26px; border-radius: 6px; border: 2px solid transparent; cursor: pointer; }
+      .sw[aria-pressed=true] { border-color: #3b302d; }
+      .grow { flex: 1; }
+      textarea { width: 100%; height: 110px; font: 10px/1.35 ui-monospace, monospace;
+        border: 1px solid #e0cdb8; border-radius: 5px; padding: 5px; background: #fff; resize: vertical; }
+      .hint { font-size: 10px; color: #a08a76; margin-top: 4px; }
+      .btns { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+    </style>
+  </head>
+  <body>
+    <div id="view"></div>
+    <div id="panel">
+      <h1>crystal structure editor</h1>
+      <div class="sub">dev only — camera is locked to the gameplay view</div>
+
+      <fieldset>
+        <legend>structure</legend>
+        <div class="row">
+          <label for="preset">preset</label>
+          <select id="preset" class="grow"></select>
+          <span></span>
+        </div>
+        <div class="row">
+          <label for="sname">name</label>
+          <input id="sname" class="grow" style="font:inherit;padding:2px 4px" />
+          <span></span>
+        </div>
+        <div class="crystals" id="chips"></div>
+        <div class="btns">
+          <button id="add">+ crystal</button>
+          <button id="dup">duplicate</button>
+          <button id="del">delete</button>
+          <button id="focus">recentre</button>
+        </div>
+        <div class="hint">1–10 crystals. Select one with the chips, then edit it below.</div>
+      </fieldset>
+
+      <fieldset id="edit">
+        <legend>selected crystal</legend>
+        <div class="row"><label>colour</label><div class="swatches" id="swatches"></div><span></span></div>
+        <div class="row"><label for="width">width</label><input type="range" id="width" min="0.3" max="3" step="0.05" /><output id="widthOut"></output></div>
+        <div class="row"><label for="height">height</label><input type="range" id="height" min="1" max="14" step="0.1" /><output id="heightOut"></output></div>
+        <div class="row"><label for="taper">taper</label><input type="range" id="taper" min="0.1" max="1" step="0.02" /><output id="taperOut"></output></div>
+        <div class="row"><label for="sides">facets</label><input type="range" id="sides" min="3" max="8" step="1" /><output id="sidesOut"></output></div>
+        <div class="row"><label for="rx">rot x</label><input type="range" id="rx" min="-180" max="180" step="1" /><output id="rxOut"></output></div>
+        <div class="row"><label for="ry">rot y</label><input type="range" id="ry" min="-180" max="180" step="1" /><output id="ryOut"></output></div>
+        <div class="row"><label for="rz">rot z</label><input type="range" id="rz" min="-180" max="180" step="1" /><output id="rzOut"></output></div>
+        <div class="row"><label for="px">pos x</label><input type="range" id="px" min="-8" max="8" step="0.1" /><output id="pxOut"></output></div>
+        <div class="row"><label for="py">pos y</label><input type="range" id="py" min="-8" max="8" step="0.1" /><output id="pyOut"></output></div>
+        <div class="row"><label for="pz">pos z</label><input type="range" id="pz" min="-8" max="8" step="0.1" /><output id="pzOut"></output></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>preview</legend>
+        <div class="row">
+          <label><input type="checkbox" id="clouds" checked /> clouds</label>
+          <div class="grow"></div>
+          <span></span>
+        </div>
+        <div class="row">
+          <label><input type="checkbox" id="tiles" checked /> tiles</label>
+          <div class="grow"></div>
+          <span></span>
+        </div>
+        <div class="row">
+          <label for="sideL"><input type="checkbox" id="sideL" /> left</label>
+          <div class="grow"></div>
+          <span></span>
+        </div>
+        <div class="row">
+          <label><input type="checkbox" id="grid" /> ground grid</label>
+          <div class="grow"></div>
+          <span></span>
+        </div>
+        <div class="hint">The camera never moves and the formation always stands
+          off to the side at the gameplay distance, so the framing matches play.</div>
+      </fieldset>
+
+      <fieldset>
+        <legend>export</legend>
+        <div class="btns">
+          <button class="primary" id="export">copy structures TS</button>
+          <button id="download">download JSON</button>
+          <button id="copyJson">copy JSON</button>
+        </div>
+        <textarea id="out" spellcheck="false" readonly></textarea>
+        <div class="hint">Paste the TypeScript into
+          <code>src/config/CrystalStructures.ts</code>. The game replays these
+          numbers exactly — no re-generation.</div>
+      </fieldset>
+    </div>
+    <script type="module" src="/src/dev/crystalEditor.ts"></script>
+  </body>
+</html>
