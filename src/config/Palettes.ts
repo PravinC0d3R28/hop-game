@@ -74,7 +74,13 @@ export const PALETTES: Record<string, Palette> = {
     // Tiles stay in the warm ivory/gold family and must never take on the
     // crystal palette — the doc is explicit that the two must not collapse into
     // the same visual category.
-    tiles: { base: 0xfff6d8, bright: 0xf6e65b, mid: 0xf3b74b, accent: 0xf18d67 },
+    //
+    // `bright` is deliberately a deep tangerine, NOT the doc's Lemon Yellow:
+    // lemon yellow sits at almost the same value as the cream cloud sea and the
+    // variant tile vanished into it. A deeper, more saturated warm orange keeps
+    // the tile readable against cloud while staying inside the doc's permitted
+    // warm range.
+    tiles: { base: 0xfff6d8, bright: 0xf0902c, mid: 0xdd7a24, accent: 0xe05f42 },
     ball: 0xfffdf8,
     outline: 0x4a3638,
     ambient: { color: 0xffe8d0, intensity: 0.9 },
@@ -100,7 +106,9 @@ export const PALETTES: Record<string, Palette> = {
       { name: 'blue', base: 0x65bfe8 }
     ],
     paleFacet: 0xfff3dc,
-    tiles: { base: 0xfff5d8, bright: 0xf6de59, mid: 0xf2b748, accent: 0xf18e63 },
+    // Same reasoning as Aqua: the doc's lemon yellow is unreadable on cream
+    // cloud, so the variant tiles are a deep warm tangerine.
+    tiles: { base: 0xfff5d8, bright: 0xef8f2b, mid: 0xd9761f, accent: 0xde5f40 },
     ball: 0xfffdf8,
     outline: 0x4a3638,
     ambient: { color: 0xffe6d2, intensity: 0.92 },

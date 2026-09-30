@@ -1,11 +1,14 @@
 import {
+  AdditiveBlending,
   BackSide,
   BoxGeometry,
   DoubleSide,
   Group,
   Mesh,
   MeshBasicMaterial,
-  type BufferGeometry,  type Scene
+  PlaneGeometry,
+  type BufferGeometry,
+  type Scene
 } from 'three';
 import { MaterialFactory } from './MaterialFactory';
 import { bakeCluster, CLUSTER_SHAPES, emitCluster, emitStructure, emptyAcc, makeRng, type ClusterSpec } from './CrystalFactory';
@@ -15,7 +18,7 @@ import {
   type FrameInfo,
   type PlacementOptions
 } from './CrystalField';
-import { buildCloudSea, cloudHeightAt } from './CloudFactory';
+import { buildCloudSea, cloudHeightAlongSight, type CloudSeaOpts } from './CloudFactory';
 import type { CrystalFieldRecipe, CloudSeaRecipe, WorldLook } from '../config/WorldLooks';
 
 /** Segment length along +Z. */
@@ -54,6 +57,8 @@ export class BackgroundSystem {
    * offset is on screen on a laptop and off it on a phone.
    */
   private frame: FrameInfo = { fovDeg: 55, aspect: 16 / 9 };
+  /** Sun-ray group, drifted each frame. */
+  private rayGroup: Group | null = null;
 
   constructor(private scene: Scene) {
     this.root = new Group();
@@ -94,6 +99,7 @@ export class BackgroundSystem {
     // The crystal layer needs the cloud recipe up front so it can seat each
     // formation on the real cloud surface.
     const cloud = look.props.find((p) => p.family === 'cloudsea');
+    this.addSunRayLayer();
     for (const recipe of look.props) {
       if (recipe.family === 'crystalfield') {
         this.addCrystalLayer(recipe, cloud && cloud.family === 'cloudsea' ? cloud : null);
@@ -106,14 +112,48 @@ export class BackgroundSystem {
     void built;
   }
 
+  /**
+   * Sun rays raking in from the upper left, matching the doc's locked
+   * upper-left key light.
+   *
+   * Additive, fog-exempt and parented to the scene root so they sit behind the
+   * scenery, with a gentle drift so the light feels alive. Deliberately faint:
+   * they are atmosphere, and at full strength they wash out the crystal colours
+   * the palette work just added.
+   */
+  private addSunRayLayer(): void {
+    const g = new Group();
+    const mat = new MeshBasicMaterial({
+      color: 0xffe6b8,
+      transparent: true,
+      opacity: 0.1,
+      blending: AdditiveBlending,
+      depthWrite: false,
+      side: DoubleSide,
+      fog: false
+    });
+    const rays = new Group();
+    for (let i = 0; i < 7; i++) {
+      const w = 1.6 + (i % 3) * 1.5;
+      const len = 90 + (i % 4) * 22;
+      const geo = new PlaneGeometry(w, len);
+      // Origin off-frame at the upper left, splaying down and to the right.
+      const m = new Mesh(geo, mat);
+      m.position.set(-34 + i * 7.5, 40 - i * 2.5, -34 - i * 9);
+      m.rotation.set(0.42, 0, -0.62 + i * 0.05);
+      rays.add(m);
+    }
+    g.add(rays);
+    g.renderOrder = 0;
+    this.root.add(g);
+    this.rayGroup = rays;
+  }
+
   /** Crystal formations: one vertex-coloured mesh of the authored structures. */
   private addCrystalLayer(recipe: CrystalFieldRecipe, cloud: CloudSeaRecipe | null): void {
     const acc = emptyAcc();
     void recipe.parallax;
-    // Seat each formation on the REAL cloud surface at its own (x, z). The deck
-    // is uneven, so a single fixed base height buried formations on the crests
-    // and floated them over the troughs.
-    const cloudOpts = cloud
+    const cloudOpts: CloudSeaOpts | null = cloud
       ? {
         length: SEG_LEN,
         spread: cloud.spread,
@@ -126,8 +166,12 @@ export class BackgroundSystem {
         seed: this.seed
       }
       : null;
+    // Seat each formation on the real cloud surface at its own (x, z) — and, more
+    // importantly, on the HIGHEST crest between it and the camera. Sampling only
+    // the surface directly beneath left formations standing in a trough hidden
+    // behind the crest in front of them, which is the "still submerged" case.
     const cloudHeight = cloudOpts
-      ? (x: number, z: number) => cloudHeightAt(cloudOpts, x, z)
+      ? (x: number, z: number) => cloudHeightAlongSight(cloudOpts, x, z, 0, 12)
       : () => recipe.baseY;
 
     const opts: PlacementOptions = {
@@ -224,6 +268,11 @@ export class BackgroundSystem {
       layer.meshes.forEach((m, i) => {
         m.position.z = base + i * SEG_LEN;
       });
+      if (this.rayGroup) {
+        // Slow sway so the light is alive without ever distracting from play.
+        this.rayGroup.rotation.y = Math.sin(now * 0.00004) * 0.09;
+        this.rayGroup.position.z = Math.sin(now * 0.00003) * 3;
+      }
       if (layer.bob > 0) {
         // Parallax drift: distant layers breathe very slowly so the world never
         // feels frozen (kept well below tile sway).
@@ -304,6 +353,8 @@ export class BackgroundSystem {
     }
   }
 }
+
+
 
 
 

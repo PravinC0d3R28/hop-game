@@ -88,26 +88,48 @@ describe('crystal field placement', () => {
   });
 
   // ---- spacing ----------------------------------------------------------
-  it('keeps a minimum gap between consecutive formations', () => {
-    // Owner: "some are very close to each other, the pattern is not good".
+  it('keeps a minimum gap between formations on the SAME flank', () => {
+    // Owner: "some are very close to each other". Left and right are now
+    // independent sequences, so the meaningful constraint is per flank — a left
+    // and a right formation at the same depth is the intended zigzag, not a
+    // crowding bug.
     for (let seed = 1; seed <= 30; seed++) {
-      const list = place(seed);
-      for (let i = 1; i < list.length; i++) {
-        expect(list[i].z - list[i - 1].z, `seed ${seed}`).toBeGreaterThanOrEqual(
-          opts().minGap * 0.5
-        );
+      for (const side of [-1, 1] as const) {
+        const flank = place(seed).filter((p) => p.side === side);
+        for (let i = 1; i < flank.length; i++) {
+          expect(flank[i].z - flank[i - 1].z, `seed ${seed} side ${side}`)
+            .toBeGreaterThanOrEqual(opts().minGap * 0.5);
+        }
       }
     }
   });
 
-  it('alternates sides so the field reads as a rhythm, not a clump', () => {
-    // Random sides produced runs of three or four on one flank.
+  it('populates both flanks and varies the structure independently per side', () => {
+    // Owner: "differentiate left and right separately and randomly choose out
+    // of 5". Both flanks must be present, and the choice must be genuinely
+    // random per flank rather than a fixed pairing. A single seed can draw the
+    // same formation twice by chance, so variety is asserted across the range.
     for (let seed = 1; seed <= 30; seed++) {
       const list = place(seed);
-      for (let i = 1; i < list.length; i++) {
-        expect(list[i].side, `seed ${seed}`).not.toBe(list[i - 1].side);
-      }
+      expect(list.some((p) => p.side === -1)).toBe(true);
+      expect(list.some((p) => p.side === 1)).toBe(true);
     }
+    for (const side of [-1, 1] as const) {
+      const used = new Set<string>();
+      for (let seed = 1; seed <= 20; seed++) {
+        for (const p of place(seed)) if (p.side === side) used.add(p.structure.id);
+      }
+      expect(used.size, `side ${side}`).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it('over enough seeds each flank reaches all five formations', () => {
+    const seen: Record<string, Set<string>> = { '-1': new Set(), '1': new Set() };
+    for (let seed = 1; seed <= 60; seed++) {
+      for (const p of place(seed)) seen[String(p.side)].add(p.structure.id);
+    }
+    expect(seen['-1'].size).toBe(5);
+    expect(seen['1'].size).toBe(5);
   });
 
   it('does not crowd the near field', () => {

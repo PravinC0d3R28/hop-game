@@ -98,24 +98,55 @@ function seaHeight(x: number, z: number, domes: Dome[], period: number, seed: nu
 /**
  * The deck's surface height at an arbitrary world (x, z).
  *
- * The crystal field needs this: the cloud tops are uneven, so a formation given
- * one fixed base height is either floating in the air over a trough or buried
- * to the tips under a crest — the "clusters are submerged" bug. Sampling the
- * real surface lets each formation be seated exactly where it will be seen.
+ * The crystal field needs this for two reasons:
+ *   1. To seat each formation on the cloud it actually stands over — the tops
+ *      are uneven, so one fixed base height buries formations on the crests and
+ *      floats them over the troughs.
+ *   2. To clear the OCCLUDING crests in front of a formation, not just its own
+ *      surface. Seen from the gameplay camera, a formation standing in a trough
+ *      is hidden by the crest between it and the camera even when its own base
+ *      is correct — that is the "still submerged" case.
  *
- * Shares `hAt`'s maths, so the returned height always matches the built mesh.
+ * Shares `heightAt`'s maths, so the returned height always matches the mesh.
  */
-export function cloudHeightAt(
-  o: CloudSeaOpts,
-  x: number,
-  z: number
-): number {
-  const domes = makeDomes(o.seed * 11 + 3, o.spread, o.length, o.cell ?? 5);
+export function cloudHeightAt(o: CloudSeaOpts, x: number, z: number): number {
+  return heightAt(o, x, z, domesFor(o));
+}
+
+function domesFor(o: CloudSeaOpts): Dome[] {
+  return makeDomes(o.seed * 11 + 3, o.spread, o.length, o.cell ?? 5);
+}
+
+/** The rolling surface height, shared by the mesh builder and the sampler. */
+function heightAt(o: CloudSeaOpts, x: number, z: number, domes: Dome[]): number {
   const roll = seaHeight(x, z, domes, o.length, o.seed) * o.depth;
   const lim = o.depth * 1.3;
   const relief = lim * Math.tanh(roll / lim);
   const edge = Math.abs(x) / o.spread;
   return o.top + relief * (1 - edge * 0.5);
+}
+
+/**
+ * Highest cloud surface anywhere between the camera and `z` at lateral `x`.
+ *
+ * This is what a formation has to clear to actually be visible, rather than the
+ * height directly beneath it.
+ */
+export function cloudHeightAlongSight(
+  o: CloudSeaOpts,
+  x: number,
+  z: number,
+  fromZ = 0,
+  samples = 10
+): number {
+  const domes = domesFor(o);
+  let max = -Infinity;
+  for (let i = 0; i <= samples; i++) {
+    const t = i / samples;
+    const h = heightAt(o, x, fromZ + (z - fromZ) * t, domes);
+    if (h > max) max = h;
+  }
+  return max;
 }
 
 export function buildCloudSea(o: CloudSeaOpts): BufferGeometry {
@@ -157,10 +188,10 @@ export function buildCloudSea(o: CloudSeaOpts): BufferGeometry {
   // Key for the billow shading. Combined with the height tint below.
   const LAMP = { x: -0.5, y: 0.78, z: 0.38 };
 
-  const put = (p: { x: number; y: number; z: number; h: number }, nx: number, nz: number): void => {
+  const put = (p: { x: number; y: number; z: number; h: number }, nx: number, nz: number, ny = 1): void => {
     pos.push(p.x, p.y, p.z);
-    const len = Math.hypot(nx, 1, nz);
-    const ux = nx / len, uy = 1 / len, uz = nz / len;
+    const len = Math.hypot(nx, ny, nz) || 1;
+    const ux = nx / len, uy = ny / len, uz = nz / len;
     nor.push(ux, uy, uz);
     // --- 3. two-part shading, because height tint alone is not enough.
     // The deck is seen almost edge-on from the game camera, so a pure
@@ -179,7 +210,26 @@ export function buildCloudSea(o: CloudSeaOpts): BufferGeometry {
     col.push(tmp.r, tmp.g, tmp.b);
   };
 
-  // Quads across the field, normals from the local slope so the roll reads.
+  // Normal at a grid node, from central differences over the NEIGHBOURING
+  // heights. Computing it per-quad instead gives each of the quad's two
+  // triangles a slightly different normal, and the result is a visible
+  // triangular mesh pattern across the whole cloud sea — the faint white
+  // "wind lines" over the clouds. Sampling at the shared node makes the
+  // shading continuous across every quad boundary.
+  const nodeNormal = (ix: number, iz: number): [number, number, number] => {
+    const x0 = ((ix - 1) / o.cols - 0.5) * 2 * o.spread;
+    const x1 = ((ix + 1) / o.cols - 0.5) * 2 * o.spread;
+    const z0 = ((iz - 1) / o.rows) * o.length;
+    const z1 = ((iz + 1) / o.rows) * o.length;
+    const dx = heightAt(o, x1, z0, domes) - heightAt(o, x0, z0, domes);
+    const dz = heightAt(o, x0, z1, domes) - heightAt(o, x0, z0, domes);
+    const cellZ = o.length / o.rows;
+    const len = Math.hypot(-dx, cellZ * 2, -dz) || 1;
+    return [-dx / len, (cellZ * 2) / len, -dz / len];
+  };
+
+  // Quads across the field. Vertex colours and normals are sampled at the node
+  // and shared by every triangle that touches it, so the surface is smooth.
   for (let iz = 0; iz < o.rows; iz++) {
     for (let ix = 0; ix < o.cols; ix++) {
       const a = hAt(ix, iz);
@@ -188,11 +238,14 @@ export function buildCloudSea(o: CloudSeaOpts): BufferGeometry {
       const d = hAt(ix, iz + 1);
       const dx = b.y - a.y;
       const dz = d.y - a.y;
-      const len = Math.hypot(dx, 1, dz);
-      const nx = -dx / len;
-      const nz = -dz / len;
-      put(a, nx, nz); put(c, nx, nz); put(b, nx, nz);
-      put(a, nx, nz); put(d, nx, nz); put(c, nx, nz);
+      void dx; void dz;
+      // Each node's own normal, shared by both triangles of the quad.
+      const na = nodeNormal(ix, iz);
+      const nb = nodeNormal(ix + 1, iz);
+      const nc = nodeNormal(ix + 1, iz + 1);
+      const nd = nodeNormal(ix, iz + 1);
+      put(a, na[0], na[2], na[1]); put(c, nc[0], nc[2], nc[1]); put(b, nb[0], nb[2], nb[1]);
+      put(a, na[0], na[2], na[1]); put(d, nd[0], nd[2], nd[1]); put(c, nc[0], nc[2], nc[1]);
     }
   }
 

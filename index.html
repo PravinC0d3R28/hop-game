@@ -116,6 +116,15 @@
       white-space: nowrap;
       visibility: hidden;
     }
+    /* Landscape has a short viewport, so the 30% banner slot lands right on top
+       of the ball and the next few tiles — exactly the ones the player needs to
+       read. Lift the STREAK banner clear into the empty sky; the world banner
+       stays put (it fires on the start screen, where nothing is in play). */
+    @media (orientation: landscape) and (max-height: 560px) {
+      .streak-banner { top: 13%; }
+      .streak-banner .world-banner-title { font-size: clamp(30px, 8vmin, 58px); }
+      .streak-banner .world-banner-tag { font-size: clamp(11px, 3vmin, 18px); }
+    }
     .world-banner-title {
       font-size: clamp(40px, 12vmin, 88px);
       font-weight: 900;
@@ -143,7 +152,7 @@
     }
     .streak-banner .world-banner-title { color: #ffd54d; }
     .streak-banner .world-banner-tag { color: #ffe9a8; }
-    .streak-banner { z-index: 21; } /* fire keeps the original 30% banner spot */
+    .streak-banner { z-index: 21; } /* above the fire overlay */
     /* Screen-space "ON FIRE" streak overlay: a 2D canvas drawn by FireOverlay
        (additive fire band + embers + heat vignette + burst flash). */
     .fire-overlay {

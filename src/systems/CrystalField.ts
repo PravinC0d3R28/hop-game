@@ -71,7 +71,7 @@ export const DEFAULT_PLACEMENT: PlacementOptions = {
   minSpread: 5.6,
   maxSpread: 17,
   /** Authored formation height treated as "normal"; others scale off it. */
-  referenceHeight: 9.5,
+  referenceHeight: 15,
   /** Global size boost. The owner asked for bigger crystals. */
   boost: 1.0,
   /** How deep a formation's base is buried in the cloud it stands on. */
@@ -127,66 +127,67 @@ export function generatePlacements(
 ): Placement[] {
   const rnd = makeRng(seed);
   const out: Placement[] = [];
-  // Evenly divide the runnable span into slots, then jitter WITHIN each slot.
-  // Dividing by `count` and adding a full step of jitter on the last slot pushed
-  // it past the segment, so the span is divided by (count - 1) and jitter is
-  // forward-only and clamped to the segment.
   const span = Math.max(1, o.segmentLength - o.minZ);
-  const step = o.count > 1 ? span / (o.count - 1) : span;
-  // Strict alternation, not a coin flip. Random sides produced runs of three or
-  // four on the same flank, which read as a lopsided clump instead of a rhythm.
-  const firstSide: 1 | -1 = rnd() < 0.5 ? -1 : 1;
 
-  for (let i = 0; i < o.count; i++) {
-    const structure = CRYSTAL_STRUCTURES[Math.floor(rnd() * CRYSTAL_STRUCTURES.length)];
-    const side: 1 | -1 = i % 2 === 0 ? firstSide : (-firstSide as 1 | -1);
-    const z = Math.min(o.segmentLength, o.minZ + i * step + rnd() * step * 0.35);
+  // Left and right are built as INDEPENDENT sequences, each picking freely from
+  // the five authored formations with its own jitter. A single shared pass (or
+  // a forced alternation) made the field read as a mirror or a metronome;
+  // independent sampling is what gives each flank its own character.
+  for (const side of [-1, 1] as const) {
+    // Split the budget so the total is exactly `count` rather than rounding each
+    // flank up and overshooting the requested density.
+    const perSide = side === -1
+      ? Math.max(1, Math.floor(o.count / 2))
+      : Math.max(1, o.count - Math.floor(o.count / 2));
+    const step = perSide > 1 ? span / (perSide - 1) : span;
+    for (let i = 0; i < perSide; i++) {
+      const structure = CRYSTAL_STRUCTURES[Math.floor(rnd() * CRYSTAL_STRUCTURES.length)];
+      const z = Math.min(o.segmentLength, o.minZ + i * step + rnd() * step * 0.55);
 
-    // The formation's VISUAL height is the controlled quantity, and the scale
-    // is derived from it. A 12-unit "Needles" and a 7-unit "Ridge" then come out
-    // the same size instead of one dwarfing the other, and near formations still
-    // read larger than far ones. That is what stops a boosted tall piece from
-    // swallowing the frame.
-    const depth = 1 - Math.min(1, z / o.segmentLength);
-    const targetHeight = o.referenceHeight * (0.55 + depth * 0.45) * o.boost;
-    const half0 = structureHalfWidth(structure);
-    let scale = targetHeight / Math.max(1, structure.height);
+      // The formation's VISUAL height is the controlled quantity, and the scale
+      // is derived from it, so a 12-unit "Needles" and a 7-unit "Ridge" come out
+      // the same size instead of one dwarfing the other.
+      const depth = 1 - Math.min(1, z / o.segmentLength);
+      const targetHeight = o.referenceHeight * (0.6 + depth * 0.4) * o.boost;
+      const half0 = structureHalfWidth(structure);
+      let scale = targetHeight / Math.max(1, structure.height);
 
-    // Two constraints fight here: the formation must clear the path, and it must
-    // fit the frustum. The frustum is the harder limit on a phone, so shrink the
-    // formation until BOTH can hold — rather than pushing it out of frame or
-    // letting it overlap the tiles.
-    const GAP = 0.6;
-    const limit = visibleHalfWidth(frame, z) * o.margin;
-    for (let guard = 0; guard < 24; guard++) {
-      const need = o.corridor + half0 * scale + GAP;
-      if (need <= limit) break;
-      scale *= 0.9;
+      // Two constraints fight: clear the path, and fit the frustum. The frustum
+      // is the harder limit on a phone, so shrink until BOTH can hold rather
+      // than pushing the formation off screen or onto the tiles.
+      //
+      // The frustum test counts the formation's OUTER edge, so it needs the width
+      // on BOTH sides: `stand + 2*half + GAP <= limit`. Checking only `stand +
+      // half` let the outer edge leave the frame, which is how formations ended
+      // up half off screen.
+      const GAP = 0.6;
+      const limit = visibleHalfWidth(frame, z) * o.margin;
+      const stand = Math.max(o.corridor, o.minSpread);
+      for (let guard = 0; guard < 40; guard++) {
+        if (stand + 2 * half0 * scale + GAP <= limit) break;
+        scale *= 0.9;
+      }
+      scale = Math.max(scale, 0.08);
+
+      const half = half0 * scale;
+      let spread = Math.max(
+        stand + half + GAP,
+        Math.min(
+          maxSpreadFor(frame, z, half, o),
+          o.minSpread + rnd() * (o.maxSpread - o.minSpread)
+        )
+      );
+      // Belt-and-braces: the formation's outer edge stays inside the margin.
+      spread = Math.min(spread, Math.max(half + 0.1, limit - half));
+
+      const x = side * spread;
+      out.push({ structure, side, spread, z, scale, baseY: cloudHeight(x, z) - o.sink });
     }
-    scale = Math.max(scale, 0.12);
-
-    const half = half0 * scale;
-    let spread = Math.max(
-      o.minSpread,
-      o.corridor + half + GAP,
-      Math.min(
-        maxSpreadFor(frame, z, half, o),
-        o.minSpread + rnd() * (o.maxSpread - o.minSpread)
-      )
-    );
-    // Final guarantee: the formation's OUTER edge is inside the frustum. The
-    // clamps above can each win individually (minSpread on a narrow phone, the
-    // corridor on a wide screen) and together overshoot, so the bound is applied
-    // once more here rather than trusted to the ordering.
-    spread = Math.min(spread, Math.max(half + 0.1, visibleHalfWidth(frame, z) - half - 0.1));
-    // Sit the formation on the cloud it actually stands over, buried just
-    // enough that no base is left hanging in the air.
-    const x = side * spread;
-    out.push({ structure, side, spread, z, scale, baseY: cloudHeight(x, z) - o.sink });
   }
   out.sort((a, b) => a.z - b.z);
   return out;
 }
+
 
 
 
