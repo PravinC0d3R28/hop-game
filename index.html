@@ -127,8 +127,8 @@
       margin: 0 auto;
       width: max-content;
       transform: none;
-      margin-left: calc(50% + var(--pp-shift, 0px));
-      margin-right: 0;
+      margin-left: auto;
+      margin-right: auto;
     }
     .streak-banner .world-banner-title {
       font-size: clamp(22px, 6.4vmin, 44px);
@@ -711,8 +711,10 @@
       line-height: 1;
       opacity: 0;
     }
-    /* Random left/right nudge chosen fresh for each streak. */
-    .perfect-popup { margin-left: calc(50% + var(--pp-shift, 0px)); margin-right: 0; }
+    /* DEAD CENTRE. The random left/right nudge the owner asked for earlier is
+       gone: it pushed the counter visibly off the score, and centring is what
+       they asked for in the end. */
+    .perfect-popup { margin-left: auto; margin-right: auto; }
     .perfect-popup-title {
       font-size: clamp(12px, 2.4vmin, 17px);
       font-weight: 900;
@@ -3046,5 +3048,6 @@
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
+
 
 

@@ -73,12 +73,13 @@ export const PALETTES: Record<string, Palette> = {
       { name: 'blue', base: 0x71bdeb }
     ],
     paleFacet: 0xfff3dc,
-    // Warm ivory / gold / orange family per the concept's tile strip. Kept LIGHT
-    // — the earlier heavy tangerine cycle fought the pastel sky and read as a
-    // different game. Tile readability no longer depends on the fill being dark:
-    // the marker is a white diamond with a black outline, and every tile keeps a
-    // dark edge, so a light tile still separates from the cloud.
-    tiles: { base: 0xfdf0d4, bright: 0xf7e878, mid: 0xec9a4e, accent: 0xea7d5e },
+    // VIBRANT warm family, chosen against the actual scene rather than copied
+    // from the concept: a pastel lavender/green sky, near-white cloud, and
+    // poppy crystals. Cream and lemon tiles sat at almost the same VALUE as the
+    // cloud and dissolved into it — the path has to read instantly, so the tile
+    // family is now clearly darker and far more saturated than any cloud, while
+    // staying warm so it never fights the sky or collides with a crystal family.
+    tiles: { base: 0xff9438, bright: 0xffc62e, mid: 0xf2703a, accent: 0xd9532f },
     /** Tile-top diamond marker outline / fill are fixed white-on-black. */
     tileMark: 0x1b1218,
     ball: 0xfffdf8,
@@ -106,8 +107,8 @@ export const PALETTES: Record<string, Palette> = {
       { name: 'blue', base: 0x65bfe8 }
     ],
     paleFacet: 0xfff3dc,
-    // Same light warm family as Aqua, per the concept's tile strip.
-    tiles: { base: 0xfdf1d8, bright: 0xf7e570, mid: 0xeb9448, accent: 0xe97a58 },
+    // Same vibrant warm reasoning as Aqua.
+    tiles: { base: 0xff8f42, bright: 0xfcc13c, mid: 0xee6a44, accent: 0xd44f39 },
     tileMark: 0x1b1218,
     ball: 0xfffdf8,
     outline: 0x4a3638,

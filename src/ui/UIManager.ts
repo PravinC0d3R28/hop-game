@@ -35,9 +35,7 @@ export class UIManager {
   private goUnlockCallout = this.el<HTMLElement>('go-unlock-callout');
   private goMissionsCallout = this.el<HTMLElement>('go-missions-callout');
   private perfectPopupContainer = this.el<HTMLElement>('perfect-popup-container');
-  /** Random horizontal nudge for the perfect counter, re-rolled per streak. */
-  private streakShift = 0;
-  private perfectPopupActive: HTMLElement | null = null;
+  /** Random horizontal nudge for the perfect counter, re-rolled per streak. */  private perfectPopupActive: HTMLElement | null = null;
   private pauseBtn = this.el<HTMLButtonElement>('pause-btn');
   private pauseOverlay = this.el<HTMLElement>('pause-overlay');
   private pauseResumeBtn = this.el<HTMLButtonElement>('pause-resume-btn');
@@ -2157,12 +2155,8 @@ export class UIManager {
     }
     const el = document.createElement('div');
     el.className = 'perfect-popup';
-    // Random side per streak, NOT alternating. The owner was explicit: it should
-    // be completely random, so no player can learn "it always goes left next".
-    // Re-rolled only when a new streak starts, so the counter does not jitter
-    // between pops inside one streak.
-    if (streak <= 1) this.streakShift = (Math.random() < 0.5 ? -1 : 1) * (2.5 + Math.random() * 4.5);
-    el.style.setProperty('--pp-shift', `${this.streakShift.toFixed(2)}vmin`);
+    // Centred, deliberately. The earlier random left/right nudge pushed the
+    // counter visibly off the score, and centring is what the owner settled on.
     const title = document.createElement('div');
     title.className = 'perfect-popup-title';
     title.textContent = 'PERFECT';
@@ -2343,9 +2337,6 @@ export class UIManager {
     if (payload.milestone !== 'fire') return;
     this.lastFireTime = Date.now();
     const tagline = payload.shield ? 'Shield raised — one free miss' : '10 in a row — on fire!';
-    // Same random side as the perfect counter, and written to the document so
-    // the .streak-banner CSS picks it up too.
-    document.documentElement.style.setProperty('--pp-shift', `${this.streakShift.toFixed(2)}vmin`);
     this.showBanner('FIRE!', tagline, 'streak-banner fire', 2.4, true);
   }
 
@@ -2474,6 +2465,8 @@ export class UIManager {
     this.canvasResizeObserver = null;
   }
 }
+
+
 
 
 

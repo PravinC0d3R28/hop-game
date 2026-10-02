@@ -155,7 +155,22 @@ export function cloudHeightAlongSight(
 }
 
 export function buildCloudSea(o: CloudSeaOpts): BufferGeometry {
-  // The deck tiles over `length`, so that is its period.
+  // Scattered opaque cloud puffs, placed OFF the crystal band (out where the
+  // radial fade has thinned the deck) so the clouds still have dense, believable
+  // masses there instead of the whole flank turning to haze. Seeded, so the
+  // layout is identical on every rebuild.
+  const blobRnd = makeRng(o.seed * 5 + 17);
+  const blobs: { x: number; z: number; r: number }[] = [];
+  const blobCount = Math.max(4, Math.round(o.length / 26));
+  for (let i = 0; i < blobCount; i++) {
+    const s = blobRnd() < 0.5 ? -1 : 1;
+    blobs.push({
+      x: s * o.spread * (0.34 + blobRnd() * 0.5),
+      z: blobRnd() * o.length,
+      r: o.spread * (0.07 + blobRnd() * 0.11)
+    });
+  }
+// The deck tiles over `length`, so that is its period.
   const domes = makeDomes(o.seed * 11 + 3, o.spread, o.length, o.cell ?? 5);
 
   const cBase = new Color(o.palette.base);
@@ -215,13 +230,24 @@ export function buildCloudSea(o: CloudSeaOpts): BufferGeometry {
     tmp.lerp(cSh, (1 - lam) * 0.62);
     // Crests turn into the key catch the light.
     if (t > 0.45) tmp.lerp(cHi, ((t - 0.45) / 0.55) * lam * 0.95);
-    // RADIAL fade: the deck is solid where the crystals stand and thins to
-    // nothing past them, so the sky reads behind the outer flanks instead of
-    // the cloud filling the whole frame. Solid out to the crystal band, then a
-    // smooth ramp to 12% at the deck's outer edge.
+    // RADIAL fade, per the owner's spec: fully opaque white through the crystal
+    // band, falling to nothing past it so the sky reads behind the outer flanks.
+    //
+    // A uniform falloff left the whole frame looking like haze. So the fade is
+    // combined with scattered opaque BLOBS beyond the crystals: the deck is
+    // solid where the crystals stand, fully gone in between, and dense again in
+    // isolated puffs — which is what makes it read as real weather rather than
+    // a gradient.
     const side = Math.abs(p.x) / o.spread;
-    const alpha = 1 - smoothstep(0.42, 0.98, side) * 0.88;
-    col.push(tmp.r, tmp.g, tmp.b, alpha);
+    const radial = 1 - smoothstep(0.26, 0.62, side) * 0.97;
+    let alpha = radial;
+    for (const b of blobs) {
+      const dx = (p.x - b.x) / b.r;
+      const dz = (p.z - b.z) / (b.r * 1.9);
+      const q = dx * dx + dz * dz;
+      if (q < 1) alpha = Math.max(alpha, 1 - q * 0.35);
+    }
+    col.push(tmp.r, tmp.g, tmp.b, Math.max(0, Math.min(1, alpha)));
   };
 
   // Normal at a grid node, from central differences over the NEIGHBOURING
@@ -263,25 +289,12 @@ export function buildCloudSea(o: CloudSeaOpts): BufferGeometry {
     }
   }
 
-  // --- 4. skirt: only on the LEFT/RIGHT edges ----------------------------
-  // The near and far (z) ends deliberately get NO cap. The field is exactly
-  // periodic in z, so segment k's last row and segment k+1's first row are the
-  // same points at the same heights: the decks meet flush. The old end caps
-  // were what produced the stair-stepped rectangles marching down the view.
-  const floor = o.top - o.depth * 2.4;
-  for (let iz = 0; iz <= o.rows; iz++) {
-    for (const side of [0, o.cols]) {
-      const p = hAt(side, iz);
-      const x = side === 0 ? -o.spread * 1.06 : o.spread * 1.06;
-      const nx = side === 0 ? -1 : 1;
-      pos.push(p.x, p.y, p.z); nor.push(nx, 0, 0); col.push(cSh.r, cSh.g, cSh.b, 1);
-      pos.push(x, p.y, p.z); nor.push(nx, 0, 0); col.push(cSh.r, cSh.g, cSh.b, 1);
-      pos.push(x, floor, p.z); nor.push(nx, 0, 0); col.push(cSh.r, cSh.g, cSh.b, 1);
-      pos.push(p.x, p.y, p.z); nor.push(nx, 0, 0); col.push(cSh.r, cSh.g, cSh.b, 1);
-      pos.push(x, floor, p.z); nor.push(nx, 0, 0); col.push(cSh.r, cSh.g, cSh.b, 1);
-      pos.push(x, p.y, p.z); nor.push(nx, 0, 0); col.push(cSh.r, cSh.g, cSh.b, 1);
-    }
-  }
+// --- 4. skirt: REMOVED -------------------------------------------------
+  // The left/right skirt was a vertical wall dropping to a floor. It was
+  // invisible while the deck was opaque, but once the deck gained the radial
+  // alpha fade these huge vertical planes became translucent and read as
+  // inverted triangles floating in the sky. With the deck fading out at its own
+  // outer edge there is nothing left for a skirt to do, so it is gone.
   // No per-vertex jitter here: it was ±0.006 units (invisible) and it broke
   // the exact tiling, since the two vertices sharing a segment seam would each
   // get a different nudge. The field already varies along x and over its 23
@@ -293,6 +306,8 @@ export function buildCloudSea(o: CloudSeaOpts): BufferGeometry {
   geo.setAttribute('color', new Float32BufferAttribute(col, 4));
   return geo;
 }
+
+
 
 
 

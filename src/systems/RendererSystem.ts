@@ -172,17 +172,20 @@ v.fromBufferAttribute(pos, i);
     this.moodStep = step;
     const look = this.look;
 
-    // Long arc: purple -> green across the first few hundred points.
-    const arc = Math.min(1, score / 320);
+    // Long arc: purple -> green across the first couple of hundred points.
+    const arc = Math.min(1, score / 200);
     // Per-step reshuffle: a stable pseudo-random nudge in [-1, 1].
     const h = Math.sin(step * 12.9898) * 43758.5453;
     const jitter = (h - Math.floor(h)) * 2 - 1;
-    const t = Math.max(0, Math.min(1, arc * 0.8 + jitter * 0.14));
+    const t = Math.max(0, Math.min(1, arc * 0.82 + jitter * 0.16));
 
     const blend = (hex: number): number => {
       const c = new Color(hex);
-      // Rotate the hue toward green as the run goes on.
-      c.offsetHSL(-0.11 * t, 0.06 * t, 0.015 * t);
+      // The palette's lavender sits at hue ~0.72 and the green end is ~0.45, so
+      // the shift has to be ~0.27 to actually arrive somewhere different. The
+      // first pass used 0.11, which only moved purple to rose — indistinguishable
+      // on screen, which is why the sky "never changed".
+      c.offsetHSL(-0.30 * t, 0.1 * t, 0.02 * t);
       return c.getHex();
     };
     this.skyTop.setHex(blend(look.skyTop));
