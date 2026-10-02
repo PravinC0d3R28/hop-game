@@ -32,6 +32,13 @@ export class RendererSystem {
   private dome: Mesh | null = null;
   /** Framing listener, so the scenery can lay itself out for the viewport. */
   private onFrame: ((fovDeg: number, aspect: number) => void) | null = null;
+  /** Last applied score-mood step, so the sky is only rebuilt on change. */
+  private moodStep = -1;
+  /** Base world look; the score mood is an offset from this. */
+  private look: WorldLook | null = null;
+  /** Live sky colours, driven by the score mood. */
+  private skyTop = new Color();
+  private skyBottom = new Color();
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -72,7 +79,11 @@ export class RendererSystem {
    * clear color for now; `skyTop` reserves the gradient-dome refinement.
    */
   applyWorldLook(look: WorldLook): void {
-    this.scene.background = new Color(look.skyBottom);
+    this.look = look;
+    this.moodStep = -1;
+    this.skyTop.setHex(look.skyTop);
+    this.skyBottom.setHex(look.skyBottom);
+    this.scene.background = this.skyBottom;
     const fog = this.scene.fog;
     if (fog && 'color' in fog) {
       (fog.color as Color).setHex(look.fogColor);
@@ -109,9 +120,20 @@ export class RendererSystem {
     const geo = this.dome.geometry as SphereGeometry;
     const pos = geo.getAttribute('position') as BufferAttribute;
     const col = geo.getAttribute('color') as BufferAttribute;
-    const top = new Color(look.skyTop);
-    const bottom = new Color(look.skyBottom);
+    this.repaintDome();
+  }
+
+  /** Repaint the dome gradient from the current (score-mood) sky colours. */
+  private repaintDome(): void {
+    if (!this.dome) return;
+    const look = this.look;
+    if (!look) return;
+    const top = this.skyTop;
+    const bottom = this.skyBottom;
     const mid = look.skyMid !== undefined ? new Color(look.skyMid) : null;
+    const geo = this.dome.geometry as SphereGeometry;
+    const pos = geo.getAttribute('position') as BufferAttribute;
+    const col = geo.getAttribute('color') as BufferAttribute;
     const v = new Vector3();
     const c = new Color();
     for (let i = 0; i < pos.count; i++) {
@@ -132,6 +154,42 @@ v.fromBufferAttribute(pos, i);
       col.setXYZ(i, c.r, c.g, c.b);
     }
     col.needsUpdate = true;
+  }
+
+  /**
+   * Score-driven sky mood: the dawn hue walks from the palette's purple toward
+   * its green end as the run progresses, and reshuffles a little on every
+   * 100-point step.
+   *
+   * Deterministic, not random: the jitter comes from a hash of the step index,
+   * so the same score always produces the same sky (a replay or a screenshot is
+   * reproducible) while consecutive steps never look alike.
+   */
+  applyScoreMood(score: number): void {
+    if (!this.look) return;
+    const step = Math.floor(score / 100);
+    if (step === this.moodStep) return;
+    this.moodStep = step;
+    const look = this.look;
+
+    // Long arc: purple -> green across the first few hundred points.
+    const arc = Math.min(1, score / 320);
+    // Per-step reshuffle: a stable pseudo-random nudge in [-1, 1].
+    const h = Math.sin(step * 12.9898) * 43758.5453;
+    const jitter = (h - Math.floor(h)) * 2 - 1;
+    const t = Math.max(0, Math.min(1, arc * 0.8 + jitter * 0.14));
+
+    const blend = (hex: number): number => {
+      const c = new Color(hex);
+      // Rotate the hue toward green as the run goes on.
+      c.offsetHSL(-0.11 * t, 0.06 * t, 0.015 * t);
+      return c.getHex();
+    };
+    this.skyTop.setHex(blend(look.skyTop));
+    this.skyBottom.setHex(blend(look.skyBottom));
+    if (this.dome) this.repaintDome();
+    const fog = this.scene.fog;
+    if (fog && 'color' in fog) (fog.color as Color).setHex(blend(look.fogColor));
   }
 
   setUpdateCallback(cb: (delta: number) => void): void {
@@ -199,5 +257,6 @@ v.fromBufferAttribute(pos, i);
     this.renderer.dispose();
   }
 }
+
 
 

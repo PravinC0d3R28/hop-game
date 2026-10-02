@@ -254,6 +254,11 @@ export class GameStateManager {
     this.state.isWaitingForTap = false;
   }
 
+  /** Current in-run score. */
+  getScore(): number {
+    return this.state.score;
+  }
+
   setScore(score: number): void {
     this.state.score = score;
   }
@@ -877,3 +882,4 @@ export function mergePlayerData(base: PlayerData, incoming: PlayerData): PlayerD
       : base.selectedWorld
   };
 }
+

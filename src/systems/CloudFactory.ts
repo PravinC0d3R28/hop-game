@@ -38,6 +38,11 @@ export interface CloudSeaOpts {
   seed: number;
 }
 
+const smoothstep = (a: number, b: number, x: number): number => {
+  const t = Math.max(0, Math.min(1, (x - a) / Math.max(1e-6, b - a)));
+  return t * t * (3 - 2 * t);
+};
+
 interface Dome { x: number; z: number; r: number; a: number }
 
 /**
@@ -160,6 +165,7 @@ export function buildCloudSea(o: CloudSeaOpts): BufferGeometry {
 
   const pos: number[] = [];
   const nor: number[] = [];
+  // RGBA: the alpha channel carries the radial fade.
   const col: number[] = [];
 
   // --- 1. the solid field -------------------------------------------------
@@ -209,7 +215,13 @@ export function buildCloudSea(o: CloudSeaOpts): BufferGeometry {
     tmp.lerp(cSh, (1 - lam) * 0.62);
     // Crests turn into the key catch the light.
     if (t > 0.45) tmp.lerp(cHi, ((t - 0.45) / 0.55) * lam * 0.95);
-    col.push(tmp.r, tmp.g, tmp.b);
+    // RADIAL fade: the deck is solid where the crystals stand and thins to
+    // nothing past them, so the sky reads behind the outer flanks instead of
+    // the cloud filling the whole frame. Solid out to the crystal band, then a
+    // smooth ramp to 12% at the deck's outer edge.
+    const side = Math.abs(p.x) / o.spread;
+    const alpha = 1 - smoothstep(0.42, 0.98, side) * 0.88;
+    col.push(tmp.r, tmp.g, tmp.b, alpha);
   };
 
   // Normal at a grid node, from central differences over the NEIGHBOURING
@@ -262,12 +274,12 @@ export function buildCloudSea(o: CloudSeaOpts): BufferGeometry {
       const p = hAt(side, iz);
       const x = side === 0 ? -o.spread * 1.06 : o.spread * 1.06;
       const nx = side === 0 ? -1 : 1;
-      pos.push(p.x, p.y, p.z); nor.push(nx, 0, 0); col.push(cSh.r, cSh.g, cSh.b);
-      pos.push(x, p.y, p.z); nor.push(nx, 0, 0); col.push(cSh.r, cSh.g, cSh.b);
-      pos.push(x, floor, p.z); nor.push(nx, 0, 0); col.push(cSh.r, cSh.g, cSh.b);
-      pos.push(p.x, p.y, p.z); nor.push(nx, 0, 0); col.push(cSh.r, cSh.g, cSh.b);
-      pos.push(x, floor, p.z); nor.push(nx, 0, 0); col.push(cSh.r, cSh.g, cSh.b);
-      pos.push(x, p.y, p.z); nor.push(nx, 0, 0); col.push(cSh.r, cSh.g, cSh.b);
+      pos.push(p.x, p.y, p.z); nor.push(nx, 0, 0); col.push(cSh.r, cSh.g, cSh.b, 1);
+      pos.push(x, p.y, p.z); nor.push(nx, 0, 0); col.push(cSh.r, cSh.g, cSh.b, 1);
+      pos.push(x, floor, p.z); nor.push(nx, 0, 0); col.push(cSh.r, cSh.g, cSh.b, 1);
+      pos.push(p.x, p.y, p.z); nor.push(nx, 0, 0); col.push(cSh.r, cSh.g, cSh.b, 1);
+      pos.push(x, floor, p.z); nor.push(nx, 0, 0); col.push(cSh.r, cSh.g, cSh.b, 1);
+      pos.push(x, p.y, p.z); nor.push(nx, 0, 0); col.push(cSh.r, cSh.g, cSh.b, 1);
     }
   }
   // No per-vertex jitter here: it was ±0.006 units (invisible) and it broke
@@ -278,8 +290,10 @@ export function buildCloudSea(o: CloudSeaOpts): BufferGeometry {
   const geo = new BufferGeometry();
   geo.setAttribute('position', new Float32BufferAttribute(pos, 3));
   geo.setAttribute('normal', new Float32BufferAttribute(nor, 3));
-  geo.setAttribute('color', new Float32BufferAttribute(col, 3));
+  geo.setAttribute('color', new Float32BufferAttribute(col, 4));
   return geo;
 }
+
+
 
 

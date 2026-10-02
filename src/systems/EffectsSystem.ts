@@ -130,34 +130,28 @@ export class EffectsSystem {
   /**
    * Landing puffs.
    *
-   * These were white spheres wrapped in a near-black inverted hull at 90%
-   * opacity, which merged into an opaque black smudge sitting on the tile — the
-   * "black dust/cloud". Now it is a warm cream puff with a soft dark ring at low
-   * opacity, which still reads as a puff of dust but no longer punches a black
-   * hole in the playfield.
+   * Iterated on three times. White spheres in a near-black hull at 0.9 opacity
+   * merged into an opaque black smudge on the tile; a cream puff with a brown
+   * ring was still muddy. Now: a soft near-white puff with NO outline at all, at
+   * low opacity. A dust puff should be lighter than the surface it sits on and
+   * vanish quickly — it is a hint of impact, not an object.
    */
   spawnJumpDust(x: number, y: number, z: number): void {
     const count = 5 + Math.floor(Math.random() * 2);
     for (let i = 0; i < count; i++) {
       const angle = (i / count) * Math.PI * 2 + Math.random() * 0.4;
       const radius = 0.15 + Math.random() * 0.1;
-      const mat = new MeshBasicMaterial({ color: 0xfff2dc, transparent: true, opacity: 0.75, depthWrite: false });
+      const mat = new MeshBasicMaterial({ color: 0xfff8ec, transparent: true, opacity: 0.5, depthWrite: false });
       const mesh = new Mesh(dustGeo, mat);
       const size = 0.08 + Math.random() * 0.06;
       mesh.scale.setScalar(size);
       mesh.position.set(x + Math.cos(angle) * radius, y, z + Math.sin(angle) * radius);
-
-      // Soft warm-dark ring, not a hard black outline.
-      const outlineMat = new MeshBasicMaterial({ color: 0x8a6a52, side: BackSide, transparent: true, opacity: 0.28, depthWrite: false });
-      const outline = new Mesh(dustOutlineGeo, outlineMat);
-      outline.scale.setScalar(1.3);
-      mesh.add(outline);
+      this.scene.add(mesh);
 
       this.scene.add(mesh);
       const speed = 0.8 + Math.random() * 0.6;
       this.particles.push({
         mesh,
-        outlineMat,
         vx: Math.cos(angle) * speed,
         vy: 0.3 + Math.random() * 0.4,
         vz: Math.sin(angle) * speed,
@@ -191,7 +185,7 @@ export class EffectsSystem {
       const fade = n > 0.5 ? 1 - (n - 0.5) / 0.5 : 1;
       const size = p.startSize * (1 + grow * 1.2) * fade;
       p.mesh.scale.setScalar(Math.max(size, 0.001));
-      const alpha = Math.max(0, 1 - n * n) * 0.9;
+      const alpha = Math.max(0, 1 - n * n) * 0.5;
       (p.mesh.material as MeshBasicMaterial).opacity = alpha;
       if (p.outlineMat) p.outlineMat.opacity = alpha;
     }
@@ -202,27 +196,10 @@ export class EffectsSystem {
    * full-screen gold flash overlay, score elastic.
    */
   playPerfectEffect(ballX: number, ballY: number, ballZ: number, streak: number, scoreEl: HTMLElement): void {
-    // White ring with a dark outline behind it, matching the white/black tile
-    // marker. A bare translucent ring disappeared against the warm tile.
-    const outlineMat = new MeshBasicMaterial({
-      color: 0x1b1218, transparent: true, opacity: 0.55, depthWrite: false, side: DoubleSide
-    });
-    const ringOutline = new Mesh(ringOutlineGeo, outlineMat);
-    ringOutline.rotation.x = -Math.PI / 2;
-    ringOutline.position.set(ballX, GAME_CONFIG.PLATFORM_HEIGHT / 2 + 0.016, ballZ);
-    this.scene.add(ringOutline);
-    gsap.to(ringOutline.scale, { x: 6 + streak * 0.5, y: 6 + streak * 0.5, z: 1, duration: 0.5, ease: 'power2.out' });
-    gsap.to(outlineMat, {
-      opacity: 0,
-      duration: 0.5,
-      ease: 'power2.out',
-      onComplete: () => {
-        this.scene.remove(ringOutline);
-        outlineMat.dispose();
-      }
-    });
-
-    const mat = new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, depthWrite: false, side: DoubleSide });
+    // Back to the gold ring the owner had before, at lower opacity. A white
+    // ring on the warm tile washed out, and the dark backing ring read as a
+    // black smudge around the ball.
+    const mat = new MeshBasicMaterial({ color: 0xffd23a, transparent: true, opacity: 0.42, depthWrite: false, side: DoubleSide });
     const ring = new Mesh(ringGeo, mat);
     ring.rotation.x = -Math.PI / 2;
     ring.position.set(ballX, GAME_CONFIG.PLATFORM_HEIGHT / 2 + 0.02, ballZ);
@@ -816,3 +793,5 @@ export class EffectsSystem {
     this.clearFailureFlags();
   }
 }
+
+

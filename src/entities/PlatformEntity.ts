@@ -79,7 +79,7 @@ function createDiamondGeo(ro: number): ShapeGeometry {
  * diamond drawn just underneath — real geometry, so it works at any zoom.
  */
 const diamondGeo = createDiamondGeo(0.15);
-const diamondOutlineGeo = createDiamondGeo(0.185);
+const diamondOutlineGeo = createDiamondGeo(0.163);
 
 export class PlatformEntity {
   static create(index: number, platformX: number, z: number, baseScale: number, startY: number, scene: Scene): PlatformData {
@@ -304,4 +304,5 @@ static setCoinColor(color: number | null): void {
     PlatformEntity.paletteStart = Math.floor(Math.random() * GAME_CONFIG.COLOR_PALETTES.length);
   }
 }
+
 

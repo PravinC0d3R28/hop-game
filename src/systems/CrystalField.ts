@@ -60,6 +60,8 @@ export interface PlacementOptions {
   sink: number;
   /** Never let consecutive formations crowd each other. */
   minGap: number;
+  /** Hard cap on how far the first formation may be pushed back. */
+  nearCap: number;
 }
 
 export const DEFAULT_PLACEMENT: PlacementOptions = {
@@ -77,7 +79,8 @@ export const DEFAULT_PLACEMENT: PlacementOptions = {
   /** How deep a formation's base is buried in the cloud it stands on. */
   sink: 0.9,
   /** Never let consecutive formations crowd each other. */
-  minGap: 7
+  minGap: 7,
+  nearCap: 34
 };
 
 /**
@@ -143,7 +146,14 @@ export function generatePlacements(
   const stand = Math.max(o.corridor, o.minSpread);
   const refHalf = structureHalfWidth(CRYSTAL_STRUCTURES[0]) * (o.referenceHeight / 9);
   const needed = (stand + 2 * refHalf + 0.6) / Math.max(0.02, halfPerUnit);
-  const minZ = Math.min(o.segmentLength * 0.5, Math.max(o.minZ, needed));
+  // CAP the solved minimum, so the opening slot is never so far away that the
+  // player starts a run with an empty sky. The shrink-to-fit loop below then
+  // trims the first formation to whatever actually fits that close — a small
+  // nearby cluster reads far better than no cluster at all.
+  const minZ = Math.min(
+    o.segmentLength * 0.5,
+    Math.max(o.minZ, Math.min(needed, o.nearCap))
+  );
   const span = Math.max(1, o.segmentLength - minZ);
 
   // Left and right are built as INDEPENDENT sequences, each picking freely from
@@ -207,6 +217,7 @@ export function generatePlacements(
   out.sort((a, b) => a.z - b.z);
   return out;
 }
+
 
 
 

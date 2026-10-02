@@ -278,7 +278,7 @@ export class BackgroundSystem {
     });
     // Unlit + vertex colours: the crown/shadow tone is baked per billow, so
     // lighting on top only muddied them. No dots (they read as steam).
-    const mesh = new Mesh(geo, new MeshBasicMaterial({ vertexColors: true, side: DoubleSide, transparent: true, opacity: 0.9 }));
+    const mesh = new Mesh(geo, new MeshBasicMaterial({ vertexColors: true, side: DoubleSide, transparent: true, opacity: 1 }));
     this.spawnLayer([mesh], recipe.parallax);
   }
 
@@ -411,6 +411,7 @@ export class BackgroundSystem {
     }
   }
 }
+
 
 
 

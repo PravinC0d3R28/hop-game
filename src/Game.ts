@@ -867,6 +867,9 @@ export class Game {
     this.platforms.updateSway(Date.now());
     this.effects.updateFailureFlags(Date.now());
     this.background.update(this.renderer.camera.position.z, Date.now());
+    // Sky mood advances with the run: purple walks toward green and reshuffles
+    // every 100 points (deterministic, so a given score always looks the same).
+    this.renderer.applyScoreMood(this.state.getScore());
     MaterialFactory.updateLightDirection(this.renderer.directional);
   }
 
@@ -1216,4 +1219,8 @@ export class Game {
     MaterialFactory.dispose();
   }
 }
+
+
+
+
 
