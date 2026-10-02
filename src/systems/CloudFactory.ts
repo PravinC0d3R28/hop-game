@@ -123,7 +123,7 @@ function heightAt(o: CloudSeaOpts, x: number, z: number, domes: Dome[]): number 
   const lim = o.depth * 1.3;
   const relief = lim * Math.tanh(roll / lim);
   const edge = Math.abs(x) / o.spread;
-  return o.top + relief * (1 - edge * 0.5);
+  return o.top + relief * (1 + edge * 1.15);
 }
 
 /**
@@ -178,10 +178,12 @@ export function buildCloudSea(o: CloudSeaOpts): BufferGeometry {
     // spike up through the path and hide it.
     const lim = o.depth * 1.3;
     const relief = lim * Math.tanh(roll / lim);
-    // Lower toward the edges so the deck hugs the ground rather than walling
-    // the corridor in.
+    // The concept has the cloud deck form a BOWL: it dips toward the path and
+    // RISES at the flanks, so the crystals stand out of the high sides with
+    // open sky in the middle. This used to do the opposite (clouds highest in
+    // the middle), which walled the corridor in and hid the sky entirely.
     const edge = Math.abs(x) / o.spread;
-    const h = o.top + relief * (1 - edge * 0.5);
+    const h = o.top + relief * (1 + edge * 1.15);
     return { x, y: h, z, h };
   };
 
@@ -279,4 +281,5 @@ export function buildCloudSea(o: CloudSeaOpts): BufferGeometry {
   geo.setAttribute('color', new Float32BufferAttribute(col, 3));
   return geo;
 }
+
 

@@ -150,7 +150,7 @@ export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
     // crystal palette, so the two never collapse into one visual category.
     // No cream anywhere in the cycle: every face must separate from the cream
     // cloud sea. Slots alternate warm base / bright / deep warm.
-    platformFaces: [PAL.tiles.base, PAL.tiles.bright, PAL.tiles.base, PAL.tiles.mid, PAL.tiles.base, PAL.tiles.accent],
+    platformFaces: [PAL.tiles.base, 0xfdf0d4, PAL.tiles.bright, PAL.tiles.base, PAL.tiles.mid, PAL.tiles.accent],
     tileMark: PAL.tileMark,
     // Doc-locked warm dark outline, shared across both palette variants.
     platformEdge: PAL.outline,
@@ -280,6 +280,8 @@ export function contrastRatio(a: number, b: number): number {
   const [hi, lo] = l1 >= l2 ? [l1, l2] : [l2, l1];
   return (hi + 0.05) / (lo + 0.05);
 }
+
+
 
 
 

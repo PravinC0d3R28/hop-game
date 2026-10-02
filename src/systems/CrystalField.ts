@@ -64,7 +64,7 @@ export interface PlacementOptions {
 
 export const DEFAULT_PLACEMENT: PlacementOptions = {
   count: 16,
-  segmentLength: 120,
+  segmentLength: 240,
   corridor: 3.4,
   minZ: 26,
   margin: 0.82,
@@ -207,6 +207,7 @@ export function generatePlacements(
   out.sort((a, b) => a.z - b.z);
   return out;
 }
+
 
 
 

@@ -116,22 +116,19 @@
       white-space: nowrap;
       visibility: hidden;
     }
-    /* Landscape has a short viewport, so the 30% banner slot lands right on top
-       of the ball and the next few tiles — exactly the ones the player needs to
-       read. Lift the STREAK banner clear into the empty sky; the world banner
-       stays put (it fires on the start screen, where nothing is in play). */
-    @media (orientation: landscape) and (max-height: 560px) {
-      .streak-banner { top: 7%; }
-      .streak-banner .world-banner-title { font-size: clamp(24px, 6.5vmin, 42px); }
-      .streak-banner .world-banner-tag { font-size: clamp(9px, 2.6vmin, 14px); }
-      .streak-banner { margin-left: var(--pp-shift, 0px); }
+    /* The streak banner hangs directly under the score. It used to sit at 30%,
+       which on any frame taller than 560px — i.e. most laptops — landed it on
+       the ball and the next tiles, exactly where the player is looking. */
+    .streak-banner {
+      top: var(--callout-top);
+      font-size: clamp(22px, 6.4vmin, 44px);
+      transform: translate(-50%, 0);
     }
-    /* Portrait phones: the banner also sat over the ball. Lift it into the sky
-       band and shrink it, matching the perfect counter's new slot. */
-    @media (orientation: portrait) and (max-width: 560px) {
-      .streak-banner { top: 11%; }
-      .streak-banner .world-banner-title { font-size: clamp(28px, 8.5vmin, 52px); }
-      .streak-banner .world-banner-tag { font-size: clamp(10px, 3vmin, 16px); }
+    .streak-banner .world-banner-title {
+      font-size: clamp(22px, 6.4vmin, 44px);
+    }
+    .streak-banner .world-banner-tag {
+      font-size: clamp(9px, 2.4vmin, 14px);
     }
     .world-banner-title {
       font-size: clamp(40px, 12vmin, 88px);
@@ -177,15 +174,23 @@
         4px 4px 0 rgba(58, 13, 0, 0.25),
         0 0 24px rgba(255, 110, 30, 0.25);
     }
-    #score {
+    /* One source of truth for where the score sits, so the callouts can be
+       positioned RELATIVE TO IT instead of guessing a percentage. Both used
+       their own `top: 30%`, which on a 720-tall laptop frame lands at 216px —
+       right on the ball and the next few tiles. */
+    :root {
+      --score-top: clamp(12px, 4vh, 40px);
+      /* Just under the score number: readable without ever covering the path. */
+      --callout-top: calc(var(--score-top) + clamp(30px, 7.5vmin, 62px));
+    }
+    #score-wrap {
       position: absolute;
-      top: clamp(12px, 4vh, 40px);
+      top: var(--score-top);
       left: 50%;
-      /* `translate` (not `transform`) so the score-pop GSAP tween — which sets
-         transform: scale(...) — composes with the centring instead of
-         replacing it. With transform, a 2- or 3-digit score was shoved right of
-         centre because the -50% translateX was lost on the first pop. */
-      translate: -50% 0;
+      transform: translateX(-50%);
+    }
+    #score {
+      position: relative;
       font-size: clamp(36px, 10vmin, 72px);
       font-weight: 900;
       color: #fff;
@@ -677,7 +682,7 @@
       /* Side is set per streak (random, not alternating) via --pp-shift so the
          counter never sits on top of the ball or the next tiles. The vertical
          slot is high in the frame, clear of the playfield. */
-      left: 50%; top: clamp(78px, 15vh, 150px);
+      left: 50%; top: var(--callout-top);
       transform: translate(-50%, -50%) scale(0.4);
       display: flex;
       flex-direction: column;
@@ -711,16 +716,8 @@
     @media (min-width: 1024px) {
       .perfect-popup { top: clamp(90px, 13vh, 140px); }
     }
-    /* Short/landscape frames: the score and both callouts stack tightly at the
-       very top so nothing reaches the ball or the upcoming tiles. */
-    @media (orientation: landscape) and (max-height: 560px) {
-      .perfect-popup { top: clamp(52px, 15vh, 74px); }
-      .perfect-popup-title { font-size: clamp(10px, 2.6vmin, 14px); }
-      .perfect-popup-streak { font-size: clamp(18px, 5vmin, 26px); }
-    }
-    @media (max-height: 620px) and (orientation: portrait) {
-      .perfect-popup { top: clamp(64px, 12vh, 110px); }
-    }
+    /* The counter sits just below the score in every orientation, so it
+       never reaches the ball or the upcoming tiles. */
     /* Pause button — top-left during gameplay, manual + auto (tab/notification) */
     #pause-btn {
       position: absolute;
@@ -2711,7 +2708,7 @@
   <div id="layout">
     <div id="game-container">
       <div id="ui-overlay">
-        <div id="score">0</div>
+        <div id="score-wrap"><div id="score">0</div></div>
         <div id="coin-counter"><span class="coin-icon"><img src="Coin.png" alt="coin"></span><span id="coin-amount">0</span></div>
         <div id="perfect-popup-container"></div>
         <button id="pause-btn" title="Pause" aria-label="Pause"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="7.5" y="7" width="4" height="10" rx="1.4"/><rect x="12.5" y="7" width="4" height="10" rx="1.4"/></svg></button>
@@ -3030,3 +3027,4 @@
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
+

@@ -73,17 +73,14 @@ export const PALETTES: Record<string, Palette> = {
       { name: 'blue', base: 0x71bdeb }
     ],
     paleFacet: 0xfff3dc,
-    // Tiles stay in the warm family and must never take on the crystal palette.
-    //
-    // Both the base AND the variant are deliberately WARMER and DARKER than the
-    // doc's ivory/lemon: cream tile faces sat at almost the same value as the
-    // cream cloud sea and the whole path dissolved into the background, which is
-    // fatal for a game where the path must read instantly. A warm apricot base
-    // with a tangerine/orange variant family keeps the doc's warm identity and
-    // separates cleanly from near-white cloud at any distance.
-    tiles: { base: 0xffd98f, bright: 0xf5901f, mid: 0xdd6f18, accent: 0xe0502f },
-    /** Tile-top diamond marker. Dark so it reads on the light tile faces. */
-    tileMark: 0x4a3020,
+    // Warm ivory / gold / orange family per the concept's tile strip. Kept LIGHT
+    // — the earlier heavy tangerine cycle fought the pastel sky and read as a
+    // different game. Tile readability no longer depends on the fill being dark:
+    // the marker is a white diamond with a black outline, and every tile keeps a
+    // dark edge, so a light tile still separates from the cloud.
+    tiles: { base: 0xfdf0d4, bright: 0xf7e878, mid: 0xec9a4e, accent: 0xea7d5e },
+    /** Tile-top diamond marker outline / fill are fixed white-on-black. */
+    tileMark: 0x1b1218,
     ball: 0xfffdf8,
     outline: 0x4a3638,
     ambient: { color: 0xffe8d0, intensity: 0.9 },
@@ -109,10 +106,9 @@ export const PALETTES: Record<string, Palette> = {
       { name: 'blue', base: 0x65bfe8 }
     ],
     paleFacet: 0xfff3dc,
-    // Same reasoning as Aqua: the doc's ivory and lemon yellow are unreadable
-    // against cream cloud, so the whole tile family is warmer and darker.
-    tiles: { base: 0xffd79a, bright: 0xf2901f, mid: 0xdb6a18, accent: 0xdf4d33 },
-    tileMark: 0x4a2f33,
+    // Same light warm family as Aqua, per the concept's tile strip.
+    tiles: { base: 0xfdf1d8, bright: 0xf7e570, mid: 0xeb9448, accent: 0xe97a58 },
+    tileMark: 0x1b1218,
     ball: 0xfffdf8,
     outline: 0x4a3638,
     ambient: { color: 0xffe6d2, intensity: 0.92 },

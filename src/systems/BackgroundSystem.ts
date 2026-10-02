@@ -25,7 +25,17 @@ import { buildCloudSea, cloudHeightAlongSight, type CloudSeaOpts } from './Cloud
 import type { CrystalFieldRecipe, CloudSeaRecipe, WorldLook } from '../config/WorldLooks';
 
 /** Segment length along +Z. */
-const SEG_LEN = 120;
+/**
+ * Segment length along +Z.
+ *
+ * This must comfortably exceed the mobile minimum formation depth. A portrait
+ * phone only fits a full-size formation ~60 units out, so a 120-unit period
+ * left the field occupying just the back half of every segment � crystals were
+ * absent for the first 60 units of each period and then popped in when it
+ * wrapped. 240 gives a ~180-unit live window on a phone and ~215 on a laptop,
+ * so there is never a dead interval at the start of a cycle.
+ */
+const SEG_LEN = 240;
 /**
  * Segments kept alive per layer. The camera can see `fogFar` (82) units of
  * haze plus its own offset, and it sits somewhere inside segment 0 of the
@@ -235,15 +245,22 @@ export class BackgroundSystem {
         families: recipe.families
       });
     }
-    const { face, edges } = bakeCluster(acc);
+    const { face } = bakeCluster(acc);
     const faceMesh = new Mesh(face, new MeshBasicMaterial({ vertexColors: true, side: DoubleSide }));
-    // Facet strokes: LineSegments lying exactly on the face geometry. Because
-    // they share the face's depth, they cannot ghost through the cloud deck or
-    // the tiles — the failure that killed the expanded-hull outline.
-    const edgeMesh = new LineSegments(edges, new LineBasicMaterial({ color: edge, transparent: true, opacity: 0.32, depthWrite: false }));
-    edgeMesh.renderOrder = 3;
+    // NO facet stroke, deliberately. Three implementations were tried:
+    //   1. inverted hull  — ghosts through cloud and tiles (depth).
+    //   2. LineSegments   — WebGL clamps line width to 1px, so it aliased into
+    //                        invisible speckle.
+    //   3. extruded bars  — real width, but a sub-pixel stroke on a distant
+    //                        crystal resolves to floating dark scribbles with no
+    //                        visible crystal behind them.
+    // The concept gets this because its crystals fill the frame; ours are small
+    // and distant, where a 1px-equivalent dark stroke is simply not resolvable.
+    // The facet TONES (cream/light/base/shade) already read as low-poly facets.
+    // A screen-space post-process outline is the only technique that would do
+    // this properly, and that is deliberate follow-up work, not another tweak.
     faceMesh.renderOrder = 2;
-    this.spawnLayer([faceMesh, edgeMesh], 0);
+    this.spawnLayer([faceMesh], 0);
   }
 
   /** The cloud blanket: one vertex-coloured mesh, no outlines. */
@@ -261,7 +278,7 @@ export class BackgroundSystem {
     });
     // Unlit + vertex colours: the crown/shadow tone is baked per billow, so
     // lighting on top only muddied them. No dots (they read as steam).
-    const mesh = new Mesh(geo, new MeshBasicMaterial({ vertexColors: true, side: DoubleSide }));
+    const mesh = new Mesh(geo, new MeshBasicMaterial({ vertexColors: true, side: DoubleSide, transparent: true, opacity: 0.9 }));
     this.spawnLayer([mesh], recipe.parallax);
   }
 
@@ -394,6 +411,10 @@ export class BackgroundSystem {
     }
   }
 }
+
+
+
+
 
 
 

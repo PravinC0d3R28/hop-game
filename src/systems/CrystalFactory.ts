@@ -91,9 +91,47 @@ export function emptyAcc(): SegAcc {
   return { pos: [], nor: [], col: [], hPos: [], hNor: [], edge: [] };
 }
 
-/** Push one facet edge as a line segment (two vertices). */
-function pushEdge(acc: SegAcc, a: number[], b: number[]): void {
-  acc.edge.push(a[0], a[1], a[2], b[0], b[1], b[2]);
+/**
+ * Push one facet edge as a thin 3D BAR.
+ *
+ * `LineSegments` was tried first and is unusable here: WebGL clamps line width
+ * to 1px on every desktop driver, so at this scale the stroke either vanished
+ * or aliased into speckle — the owner saw "only shadows", which was correct.
+ *
+ * Instead each edge becomes a quad with real width, depth-correct like the
+ * faces (no ghosting through cloud or tiles). `ref` is the ring tangent; the bar
+ * extrudes along `cross(edge, tangent)`, which for a prism's vertical arrises and
+ * tip spokes is exactly the horizontal direction the stroke should run. An
+ * earlier attempt reconstructed face normals per edge and produced chaotic bars;
+ * the tangent is well defined everywhere and cannot do that.
+ */
+function sub(a: number[], b: number[]): number[] {
+  return [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+}
+
+function pushEdge(
+  acc: SegAcc,
+  a: number[],
+  b: number[],
+  ref: number[],
+  halfWidth: number
+): void {
+  const ex = b[0] - a[0], ey = b[1] - a[1], ez = b[2] - a[2];
+  let rx = ey * ref[2] - ez * ref[1];
+  let ry = ez * ref[0] - ex * ref[2];
+  let rz = ex * ref[1] - ey * ref[0];
+  const l = Math.hypot(rx, ry, rz);
+  // Never emit NaN geometry if the edge is parallel to the tangent.
+  if (l < 1e-6) return;
+  rx = (rx / l) * halfWidth;
+  ry = (ry / l) * halfWidth;
+  rz = (rz / l) * halfWidth;
+  const p = (v: number[], dx: number, dy: number, dz: number): number[] => [
+    v[0] + dx, v[1] + dy, v[2] + dz
+  ];
+  const a1 = p(a, rx, ry, rz), a2 = p(a, -rx, -ry, -rz);
+  const b1 = p(b, rx, ry, rz), b2 = p(b, -rx, -ry, -rz);
+  for (const v of [a1, a2, b1, b1, a2, b2]) acc.edge.push(v[0], v[1], v[2]);
 }
 
 function cross(a: number[], b: number[], c: number[]): [number, number, number] {
@@ -235,7 +273,8 @@ function buildPrism(
 
   const add = (A: Ring, B: Ring, C: Ring) => {
     const pa = P(A), pb = P(B), pc = P(C);
-    pushTri(acc, pa, pb, pc, facetTone(cross(pa, pb, pc), o2.tones, rnd() * 2 - 1), rim);
+    const n = cross(pa, pb, pc);
+    pushTri(acc, pa, pb, pc, facetTone(n, o2.tones, rnd() * 2 - 1), rim);
   };
   const quad = (A: Ring, B: Ring, C: Ring, D: Ring) => { add(A, C, B); add(A, D, C); };
 
@@ -250,9 +289,21 @@ function buildPrism(
     // the horizontal rings, and the result was a dark lattice that buried the
     // colour under a cage. The long arrises alone are what the concept shows:
     // they read as separate facets without drawing a ladder over the crystal.
-    pushEdge(acc, P(r0[i]), P(r1[i]));
-    pushEdge(acc, P(r1[i]), P(r2[i]));
-    pushEdge(acc, P(r2[i]), P(apex));
+    //
+    // Each bar is sized off the crystal so it holds a consistent weight whether
+    // the formation is near or far.
+    // Stroke weight. This is the whole difficulty of the effect: WebGL cannot
+    // draw a thick screen-space line, so the stroke is real geometry and must be
+    // wide enough to survive being only a few pixels across at distance. Too thin
+    // and it aliases into a dark tangle of hairs (which is what the first two
+    // attempts looked like); the reference needs roughly 1/12th of the crystal.
+    const barHalf = o.baseR * 0.13;
+    const tan0 = sub(P(r0[j]), P(r0[i]));
+    const tan1 = sub(P(r1[j]), P(r1[i]));
+    const tan2 = sub(P(r2[j]), P(r2[i]));
+    pushEdge(acc, P(r0[i]), P(r1[i]), tan0, barHalf);
+    pushEdge(acc, P(r1[i]), P(r2[i]), tan1, barHalf);
+    pushEdge(acc, P(r2[i]), P(apex), tan2, barHalf);
   }
 }
 
@@ -409,4 +460,5 @@ export function emitStructure(
     }, rnd);
   }
 }
+
 

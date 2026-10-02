@@ -63,8 +63,7 @@ export function deriveSideColor(top: number): number {
 }
 
 // Diamond shape (from the original `os` path)
-function createDiamondGeo(): ShapeGeometry {
-  const ro = 0.15;
+function createDiamondGeo(ro: number): ShapeGeometry {
   const shape = new Shape();
   shape.moveTo(0, ro);
   shape.lineTo(ro, 0);
@@ -73,7 +72,14 @@ function createDiamondGeo(): ShapeGeometry {
   shape.closePath();
   return new ShapeGeometry(shape);
 }
-const diamondGeo = createDiamondGeo();
+/**
+ * The landing marker is a WHITE diamond with a BLACK outline, per the concept:
+ * a black fill vanished against the warm tile, and a white fill with no outline
+ * vanished against the cream cloud. The outline is a second, slightly larger
+ * diamond drawn just underneath — real geometry, so it works at any zoom.
+ */
+const diamondGeo = createDiamondGeo(0.15);
+const diamondOutlineGeo = createDiamondGeo(0.185);
 
 export class PlatformEntity {
   static create(index: number, platformX: number, z: number, baseScale: number, startY: number, scene: Scene): PlatformData {
@@ -93,19 +99,19 @@ export class PlatformEntity {
     group.add(outlineMesh);
 
     // Perfect indicator: diamond + ring, lying flat
-    // The tile-top diamond marker. This was white at 50% opacity, which is
-    // invisible on a light tile face — and the tile faces are light by design.
-    // It now uses the palette's dedicated dark mark colour so the landing marker
-    // reads at a glance, and is fully opaque so it never washes out.
-    const dotMat = new MeshBasicMaterial({
-      color: PlatformEntity.tileMarkOverride ?? 0x4a3020,
-      transparent: true,
-      opacity: 0.85,
-      depthWrite: false
-    });
+    // White diamond, black outline: the black fill vanished against the warm
+    // tile and the unoutlined white vanished against the cloud, so the marker
+    // needs BOTH. The outline is a slightly larger diamond behind it.
+    const markOutlineMat = new MeshBasicMaterial({ color: 0x1b1218, depthWrite: false });
+    const markOutline = new Mesh(diamondOutlineGeo, markOutlineMat);
+    markOutline.rotation.x = -Math.PI / 2;
+    markOutline.position.y = GAME_CONFIG.PLATFORM_HEIGHT / 2 + 0.008;
+    group.add(markOutline);
+
+    const dotMat = new MeshBasicMaterial({ color: 0xffffff });
     const perfectDot = new Mesh(diamondGeo, dotMat);
     perfectDot.rotation.x = -Math.PI / 2;
-    perfectDot.position.y = GAME_CONFIG.PLATFORM_HEIGHT / 2 + 0.01;
+    perfectDot.position.y = GAME_CONFIG.PLATFORM_HEIGHT / 2 + 0.012;
     group.add(perfectDot);
 
     const ringMat = new MeshBasicMaterial({

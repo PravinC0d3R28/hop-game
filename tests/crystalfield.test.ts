@@ -62,11 +62,13 @@ describe('crystal field placement', () => {
   });
 
   it('produces no giant formation', () => {
-    // A 12-unit authored piece scaled up 2x would swallow the frame, so scale
-    // is normalised against a reference height.
+    // `referenceHeight` IS the designed maximum: the near-depth factor tops out
+    // at 1.0, so no formation may exceed it. A 12-unit authored piece scaled 2x
+    // would swallow the frame, which is what this guards.
+    const cap = opts().referenceHeight;
     for (let seed = 1; seed <= 30; seed++) {
       for (const p of place(seed)) {
-        expect(p.structure.height * p.scale).toBeLessThan(14);
+        expect(p.structure.height * p.scale, `seed ${seed}`).toBeLessThanOrEqual(cap * 1.001);
       }
     }
   });

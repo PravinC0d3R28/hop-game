@@ -187,7 +187,7 @@ describe('clusters are real 3D clumps', () => {
 describe('cloud sea', () => {
   // Mirrors the shipped Sunrise deck so the guards test the real config.
   const opts = (seed: number) => ({
-    length: 70, spread: 64, top: -2.8, depth: 1.8, cols: 96, rows: 48, cell: 3,
+    length: 240, spread: 64, top: -8.5, depth: 1.8, cols: 60, rows: 100, cell: 3,
     palette: { base: 0xfff7e8, highlight: 0xfffbef, shadow: 0xf0cdb4 },
     seed
   });
