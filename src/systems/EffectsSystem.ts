@@ -74,10 +74,7 @@ interface FailureFlag {
 }
 
 const dustGeo = new SphereGeometry(1, 8, 6);
-const dustOutlineGeo = new SphereGeometry(1, 8, 6);
 const ringGeo = new RingGeometry(0.2, 0.3, 32);
-/** Slightly larger dark ring drawn behind the white one, for its outline. */
-const ringOutlineGeo = new RingGeometry(0.175, 0.325, 32);
 const burstGeo = new CircleGeometry(0.06, 6);
 /**
  * Curved ribbon used by the swirl wind.
@@ -793,5 +790,6 @@ export class EffectsSystem {
     this.clearFailureFlags();
   }
 }
+
 
 

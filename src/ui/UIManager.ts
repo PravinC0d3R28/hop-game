@@ -954,8 +954,26 @@ export class UIManager {
   /**
    * Brief top callout when the first-run tutorial fully hands over to normal
    *  play ("keep hopping!") — a positive beat, then the run continues seamlessly. */
-  showKeepHoppingCallout(): void {
+  /**
+   * Force the "keep hopping!" callout away, whatever state the tween is in.
+   *
+   * This callout used to rely SOLELY on the fade-out's `onComplete` to add the
+   * `hidden` class. Dying mid-beat (or any `killTweensOf`, or the global
+   * timeline pausing with the game) stranded it at whatever opacity it had
+   * reached — reported as a permanently half-transparent "keep hopping" that
+   * survived Play Again and needed a page refresh. Hiding is now explicit and
+   * resets the inline opacity too, so no stale style can survive.
+   */
+  hideKeepHoppingCallout(): void {
     gsap.killTweensOf(this.keepHoppingCallout);
+    this.keepHoppingCallout.classList.add('hidden');
+    this.keepHoppingCallout.style.opacity = '0';
+  }
+
+  showKeepHoppingCallout(): void {
+    // Always start from a known-clean state, so a re-fire mid-fade cannot leave
+    // the previous tween's inline opacity behind.
+    this.hideKeepHoppingCallout();
     this.keepHoppingCallout.classList.remove('hidden');
     gsap.fromTo(
       this.keepHoppingCallout,
@@ -2357,6 +2375,10 @@ export class UIManager {
     this.missionQueue = [];
     this.missionBusy = false;
     this.stopCountdown();
+    // The "keep hopping!" callout is a STATIC element, not a per-run node, so
+    // the querySelectorAll sweep below never touched it — which is why it
+    // outlived a death and a Play Again. It needs clearing explicitly.
+    this.hideKeepHoppingCallout();
     const overlay = document.getElementById('ui-overlay');
     if (!overlay) return;
     for (const sel of ['.mission-card', '.world-banner', '.streak-banner', '.world-flash']) {

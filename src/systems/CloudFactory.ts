@@ -114,10 +114,6 @@ function seaHeight(x: number, z: number, domes: Dome[], period: number, seed: nu
  *
  * Shares `heightAt`'s maths, so the returned height always matches the mesh.
  */
-export function cloudHeightAt(o: CloudSeaOpts, x: number, z: number): number {
-  return heightAt(o, x, z, domesFor(o));
-}
-
 function domesFor(o: CloudSeaOpts): Dome[] {
   return makeDomes(o.seed * 11 + 3, o.spread, o.length, o.cell ?? 5);
 }

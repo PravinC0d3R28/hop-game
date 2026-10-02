@@ -1,7 +1,6 @@
 import {
   MeshToonMaterial,
   MeshBasicMaterial,
-  BackSide,
   CanvasTexture,
   Color,
   Vector3,
@@ -239,45 +238,12 @@ export class MaterialFactory {
 
 /**
  * Constant-width contour that does NOT change depth.
- *
- * The old approach expanded the mesh along its normals in world space and drew
- * the result as a back-side shell. That is a true inverted hull, and it has an
- * unavoidable flaw: the expansion moves the shell TOWARD the camera, so
- * wherever a crystal meets an occluder (the cloud deck, a platform) the shell
- * pokes through while the coloured face stays hidden. The result is a black
- * outline floating on empty cloud or lying across the tiles � the "black hull
- * with no crystal" ghost.
- *
- * Expanding in CLIP space instead leaves `z` untouched, so the outline can
- * never overtake anything it is behind, at any distance. `normal` and
- * `normalMatrix` are declared in three.js's vertex prefix for every non-raw
- * shader, so this needs no attributes of its own.
- *
- * @param color contour colour
- * @param ndc  half-NDC width; ~0.004 is roughly a 2px hairline on a tall frame
- */
-export function makeContourMaterial(color: number, ndc = 0.006): MeshBasicMaterial {
-  const mat = new MeshBasicMaterial({ color, side: BackSide, depthWrite: false });
-  // three.js keys its program cache on the shader id + parameters, and a
-  // plain MeshBasicMaterial shares that key with every other one. Without a
-  // custom key this material can silently reuse an ALREADY-COMPILED, unpatched
-  // program — the contour then renders with no expansion at all and is simply
-  // invisible. This is the whole reason the edge "didn't show up".
-  mat.customProgramCacheKey = () => 'hop-contour-v1';
-  mat.onBeforeCompile = (shader): void => {
-    shader.uniforms.uContourNdc = { value: ndc };
-    shader.vertexShader = `uniform float uContourNdc;\n${shader.vertexShader}`.replace(
-      '#include <project_vertex>',
-      `#include <project_vertex>
-      {
-        vec4 contourClip = projectionMatrix * mvPosition;
-        vec2 dir = (projectionMatrix * vec4(normalize(normalMatrix * normal), 0.0)).xy;
-        float len = length(dir);
-        if (len > 1e-5) contourClip.xy += (dir / len) * uContourNdc * contourClip.w;
-        gl_Position = contourClip;
-      }`
-    );
-  };
-  return mat;
-}
 
+
+/* The vertex-expansion "contour" material was removed: it rendered a broken
+   black hull around crystals instead of a clean outline. The lesson is worth
+   keeping, because it is a genuine three.js trap: a plain MeshBasicMaterial
+   shares its program cache key with every other one, so a patched
+   onBeforeCompile can silently reuse an ALREADY-COMPILED, unpatched program
+   and the effect then renders with no expansion at all. Any future outline
+   work should go through a post-process pass, which sidesteps this entirely. */
