@@ -35,7 +35,8 @@ export class UIManager {
   private goUnlockCallout = this.el<HTMLElement>('go-unlock-callout');
   private goMissionsCallout = this.el<HTMLElement>('go-missions-callout');
   private perfectPopupContainer = this.el<HTMLElement>('perfect-popup-container');
-  /** Random horizontal nudge for the perfect counter, re-rolled per streak. */  private perfectPopupActive: HTMLElement | null = null;
+  /** The perfect counter currently on screen, if any. */
+  private perfectPopupActive: HTMLElement | null = null;
   private pauseBtn = this.el<HTMLButtonElement>('pause-btn');
   private pauseOverlay = this.el<HTMLElement>('pause-overlay');
   private pauseResumeBtn = this.el<HTMLButtonElement>('pause-resume-btn');
@@ -2375,13 +2376,46 @@ export class UIManager {
     this.missionQueue = [];
     this.missionBusy = false;
     this.stopCountdown();
-    // The "keep hopping!" callout is a STATIC element, not a per-run node, so
-    // the querySelectorAll sweep below never touched it — which is why it
-    // outlived a death and a Play Again. It needs clearing explicitly.
+    this.cancelTutorialRetry();
+
+    // Every one of these is a STATIC element whose hiding depends on a GSAP
+    // tween's `onComplete`. `gsap.globalTimeline.clear()` (Game.retryRun /
+    // Game.returnHome) drops in-flight tweens WITHOUT firing their callbacks, so
+    // the callback that adds `hidden` / sets `display:none` never runs and the
+    // element is stranded at partial opacity until a page refresh. Each is
+    // therefore hidden directly here, with its inline opacity reset.
     this.hideKeepHoppingCallout();
+
+    // The first-run guide ring/caption/drag arrow. Reachable: `fadeOutFirstRunGuide`
+    // runs on hop 5, but a miss during the RAMP hops (6-10) does end the run, so
+    // dying inside that ~0.9s fade froze the guide on screen.
+    gsap.killTweensOf([this.frgCaption, this.frgRing, this.frgDrag]);
+    gsap.set([this.frgCaption, this.frgRing, this.frgDrag], { opacity: 0 });
+    this.setGuideHidden();
+
+    // The world-change bubble.
+    gsap.killTweensOf(this.worldBubble);
+    this.worldBubble.style.display = 'none';
+    this.worldBubble.style.opacity = '0';
+
+    // Spotlight / teach overlays.
+    gsap.killTweensOf([this.spotlightOverlay, this.spotlightHole, this.spotlightRing, this.spotlightCard]);
+    this.spotlightOverlay.classList.add('hidden');
+    this.spotlightOverlay.style.opacity = '1';
+    this.setSpotlightBlocking(false);
+
+    // The live perfect counter is removed on its own `onComplete` too, so it
+    // could survive a reset and hang on screen until the NEXT perfect replaced
+    // it. Clear it here and drop the handle so the next popup starts clean.
+    if (this.perfectPopupActive) {
+      gsap.killTweensOf(this.perfectPopupActive);
+      this.perfectPopupActive.remove();
+      this.perfectPopupActive = null;
+    }
+
     const overlay = document.getElementById('ui-overlay');
     if (!overlay) return;
-    for (const sel of ['.mission-card', '.world-banner', '.streak-banner', '.world-flash']) {
+    for (const sel of ['.mission-card', '.world-banner', '.streak-banner', '.world-flash', '.perfect-popup']) {
       overlay.querySelectorAll(sel).forEach((node) => node.remove());
     }
   }
