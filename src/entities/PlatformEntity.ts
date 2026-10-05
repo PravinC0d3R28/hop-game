@@ -1,13 +1,19 @@
 import {
   BoxGeometry,
+  CanvasTexture,
+  Curve,
   CylinderGeometry,
+  TubeGeometry,
+  Vector3,
   Group,
   Mesh,
   MeshBasicMaterial,
   MeshToonMaterial,
+  RepeatWrapping,
   RingGeometry,
   Shape,
   ShapeGeometry,
+  SRGBColorSpace,
   BackSide,
   DoubleSide,
   Color,
@@ -81,6 +87,123 @@ function createDiamondGeo(ro: number): ShapeGeometry {
 const diamondGeo = createDiamondGeo(0.15);
 const diamondOutlineGeo = createDiamondGeo(0.163);
 
+/**
+ * Cyan tube around the middle of the slab. The path sits outside the box,
+ * so the round section is visible instead of a flat stripe on the face.
+ */
+class RoundedRectCurve extends Curve<Vector3> {
+  constructor(private hx: number, private hz: number, private radius: number) {
+    super();
+  }
+
+  getPoint(t: number, target = new Vector3()): Vector3 {
+    const r = Math.min(this.radius, this.hx - 0.02, this.hz - 0.02);
+    const sx = (this.hx - r) * 2;
+    const sz = (this.hz - r) * 2;
+    const arc = r * Math.PI * 0.5;
+    const total = 2 * sx + 2 * sz + 4 * arc;
+    let d = ((t % 1) + 1) % 1 * total;
+    const take = (len: number): number | null => {
+      if (d <= len) {
+        const u = len === 0 ? 0 : d / len;
+        d = 0;
+        return u;
+      }
+      d -= len;
+      return null;
+    };
+    let u = take(sz);
+    if (u !== null) return target.set(this.hx, 0, -(this.hz - r) + u * sz);
+    u = take(arc);
+    if (u !== null) {
+      const a = u * Math.PI * 0.5;
+      return target.set(this.hx - r + Math.cos(a) * r, 0, this.hz - r + Math.sin(a) * r);
+    }
+    u = take(sx);
+    if (u !== null) return target.set(this.hx - r - u * sx, 0, this.hz);
+    u = take(arc);
+    if (u !== null) {
+      const a = Math.PI * 0.5 + u * Math.PI * 0.5;
+      return target.set(-(this.hx - r) + Math.cos(a) * r, 0, this.hz - r + Math.sin(a) * r);
+    }
+    u = take(sz);
+    if (u !== null) return target.set(-this.hx, 0, this.hz - r - u * sz);
+    u = take(arc);
+    if (u !== null) {
+      const a = Math.PI + u * Math.PI * 0.5;
+      return target.set(-(this.hx - r) + Math.cos(a) * r, 0, -(this.hz - r) + Math.sin(a) * r);
+    }
+    u = take(sx);
+    if (u !== null) return target.set(-(this.hx - r) + u * sx, 0, -this.hz);
+    u = take(arc);
+    const a = Math.PI * 1.5 + (u ?? 0) * Math.PI * 0.5;
+    return target.set(this.hx - r + Math.cos(a) * r, 0, -(this.hz - r) + Math.sin(a) * r);
+  }
+}
+
+const RIBBON_RADIUS = 0.09;
+const ribbonGeo = new TubeGeometry(
+  new RoundedRectCurve(
+    GAME_CONFIG.PLATFORM_WIDTH / 2 + RIBBON_RADIUS,
+    GAME_CONFIG.PLATFORM_DEPTH / 2 + RIBBON_RADIUS,
+    0.46
+  ),
+  64,
+  RIBBON_RADIUS,
+  10,
+  true
+);
+const ribbonMat = new MeshBasicMaterial({ color: 0x20e6ea, side: DoubleSide });
+
+/** One shared top. Offsets per tile keep the freckles from repeating in lockstep. */
+let freckleTex: CanvasTexture | null = null;
+
+function freckleTexture(): CanvasTexture | null {
+  if (freckleTex) return freckleTex;
+  if (typeof document === 'undefined' || typeof document.createElement !== 'function') return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, 256, 256);
+  const spots: [number, number, number, number, number][] = [
+    [38, 34, 14, 7, 0.4],
+    [96, 58, 8, 5, -0.3],
+    [168, 28, 6, 4, 0.6],
+    [214, 72, 12, 6, 0.2],
+    [52, 108, 5, 8, 1.1],
+    [124, 96, 9, 5, -0.5],
+    [188, 124, 7, 4, 0.3],
+    [28, 168, 11, 5, 0.8],
+    [86, 188, 4, 4, 0],
+    [150, 176, 10, 6, -0.4],
+    [220, 160, 6, 9, 0.7],
+    [70, 220, 8, 4, 0.2],
+    [196, 214, 5, 3, -0.2],
+    [140, 48, 3, 3, 0.5],
+    [230, 40, 4, 3, 0.1],
+    [16, 80, 4, 3, 0.9]
+  ];
+  for (const [x, y, rx, ry, rot] of spots) {
+    ctx.fillStyle = 'rgba(92, 58, 36, 0.28)';
+    ctx.beginPath();
+    ctx.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(120, 78, 48, 0.16)';
+    ctx.beginPath();
+    ctx.ellipse(x + 18, y + 22, rx * 0.45, ry * 0.45, rot, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const tex = new CanvasTexture(canvas);
+  tex.colorSpace = SRGBColorSpace;
+  tex.wrapS = RepeatWrapping;
+  tex.wrapT = RepeatWrapping;
+  freckleTex = tex;
+  return tex;
+}
+
 export class PlatformEntity {
   static create(index: number, platformX: number, z: number, baseScale: number, startY: number, scene: Scene): PlatformData {
     const topColor = this.platformColor(index);
@@ -97,6 +220,13 @@ export class PlatformEntity {
     const group = new Group();
     group.add(mesh);
     group.add(outlineMesh);
+
+    const ribbon = new Mesh(ribbonGeo, ribbonMat);
+    ribbon.name = 'dusk-ribbon';
+    ribbon.position.y = 0;
+    ribbon.renderOrder = 3;
+    ribbon.visible = this.motionCue.strength > 0;
+    group.add(ribbon);
 
     // Perfect indicator: diamond + ring, lying flat
     // White diamond, black outline: the black fill vanished against the warm
@@ -294,10 +424,66 @@ static setCoinColor(color: number | null): void {
     this.edgeColor = color;
   }
 
-  /** Paint a platform's top + derived side. Pure color math — unit-tested. */
+  /** Parallel to the face cycle. Null keeps the derived darker side. */
+  static sidePalette: number[] | null = null;
+
+  static setSidePalette(sides: number[] | null): void {
+    this.sidePalette = sides && sides.length > 0 ? [...sides] : null;
+  }
+
+  /**
+   * Dusk tiles stay close to their painted colours. The shared toon ramp
+   * crushes a vertical face toward gray, which turned the cream slabs brown.
+   */
+  static flatTiles = false;
+
+  static setFlatTiles(on: boolean): void {
+    this.flatTiles = on;
+  }
+
+  /** Cyan lower-edge ribbon. strength 0 hides it (Sunrise, Void). */
+  static motionCue: { color: number; strength: number } = { color: 0x20e6ea, strength: 0 };
+
+  static setMotionCue(cue: { color: number; strength: number }): void {
+    this.motionCue = { color: cue.color, strength: cue.strength };
+    ribbonMat.color.setHex(cue.color);
+  }
+
+  static syncMotionCue(platform: PlatformData): void {
+    const ribbon = platform.group.getObjectByName('dusk-ribbon');
+    if (ribbon) ribbon.visible = this.motionCue.strength > 0;
+  }
+
+  /** Paint a platform's top + side. Sides come from the world list when one is set. */
   static setFaceColors(platform: PlatformData, top: number): void {
     platform.topMat.color.setHex(top);
-    platform.sideMat.color.setHex(deriveSideColor(top));
+    const sides = this.sidePalette;
+    const side = sides && sides.length > 0
+      ? sides[((platform.index % sides.length) + sides.length) % sides.length]
+      : deriveSideColor(top);
+    platform.sideMat.color.setHex(side);
+    const lift = this.flatTiles ? 0.22 : 0;
+    platform.topMat.emissive.setHex(this.flatTiles ? top : 0x000000);
+    platform.topMat.emissiveIntensity = lift;
+    platform.sideMat.emissive.setHex(this.flatTiles ? side : 0x000000);
+    platform.sideMat.emissiveIntensity = lift * 0.65;
+    const spots = this.flatTiles ? freckleTexture() : null;
+    if (spots) {
+      let map = platform.topMat.userData.freckle as CanvasTexture | undefined;
+      if (!map) {
+        map = spots.clone();
+        map.wrapS = RepeatWrapping;
+        map.wrapT = RepeatWrapping;
+        platform.topMat.userData.freckle = map;
+      }
+      const n = platform.index;
+      map.offset.set((n * 0.37) % 1, (n * 0.53) % 1);
+      map.needsUpdate = true;
+      platform.topMat.map = map;
+    } else {
+      platform.topMat.map = null;
+    }
+    platform.topMat.needsUpdate = true;
   }
 
   static randomizePaletteStart(): void {

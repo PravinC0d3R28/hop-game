@@ -21,6 +21,13 @@ import type { SpikeLab, SpikeSceneHandles } from './dev/SpikeLab';
 import { PersistenceManager, LocalStorageBackend } from './managers/PersistenceManager';
 import { UIManager } from './ui/UIManager';
 
+/** Hull colours this project has shipped. World switches repaint any of them. */
+const OUTLINE_HEXES = new Set([0x111111, 0x3b302d, 0x4a3638]);
+
+function isOutlineHex(hex: number): boolean {
+  return OUTLINE_HEXES.has(hex);
+}
+
 /** Optional construction knobs (dev mode uses the isolated save key). */
 export interface GameOptions {
   /** localStorage key for the save. Dev mode passes `hop_dev_player_data`. */
@@ -1068,9 +1075,12 @@ export class Game {
     // shadow tint follows the world look now, not the removed toggle.
     this.shadow.setThemeColor(look.shadow);
     PlatformEntity.setFacePalette(look.platformFaces);
+    PlatformEntity.setSidePalette(look.platformSides ?? null);
     PlatformEntity.setCoinColor(look.coin);
     PlatformEntity.setTileMark(look.tileMark);
     PlatformEntity.setEdgeColor(look.platformEdge);
+    PlatformEntity.setMotionCue(look.motionCue);
+    PlatformEntity.setFlatTiles(id === 'dusk');
     // Recolor live hulls (new outlines use the edge from birth): any BackSide
     // mesh in the old blacks is one of ours (rings/dots/shells are not BackSide).
     const hullRoots: Object3D[] = [
@@ -1086,7 +1096,7 @@ export class Game {
           side?: number;
           color?: { getHex(): number; setHex(n: number): void };
         };
-        if (mat.side === BackSide && mat.color && (mat.color.getHex() === 0x111111 || mat.color.getHex() === 0x3b302d)) {
+        if (mat.side === BackSide && mat.color && isOutlineHex(mat.color.getHex())) {
           mat.color.setHex(look.platformEdge);
         }
       });
@@ -1094,6 +1104,7 @@ export class Game {
     // Repaint the live pool (reset()/recycle() pick the override up alone).
     for (const p of this.platforms.getPlatforms()) {
       PlatformEntity.setFaceColors(p, PlatformEntity.platformColor(p.index));
+      PlatformEntity.syncMotionCue(p);
       for (const coin of p.coins) {
         coin.group.traverse((obj) => {
           const mesh = obj as Mesh;

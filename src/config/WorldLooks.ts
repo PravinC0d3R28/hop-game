@@ -84,6 +84,13 @@ export interface WorldLook {
   /** Optional mid stop for a three-band sky. */
   skyMid?: number;
   skyBottom: number;
+  /**
+   * Full sky ramp, horizon (index 0) → top of frame. When set, the Sunrise
+   * score-mood hue walk leaves this sky alone.
+   */
+  skyStops?: number[];
+  /** Sunrise sun-ray fan. Worlds with their own horizon leave this off. */
+  sunRays?: boolean;
   fogColor: number;
   fogNear: number;
   fogFar: number;
@@ -94,6 +101,8 @@ export interface WorldLook {
   directionalPos?: [number, number, number];
   /** World-local platform face cycle (§11.5) + locked edge color. */
   platformFaces: number[];
+  /** Optional side colours. Absent = derive a darker side from the top. */
+  platformSides?: number[];
   platformEdge: number;
   /** Tile-top diamond marker colour. */
   tileMark: number;
@@ -107,6 +116,15 @@ export interface WorldLook {
 }
 
 import { SUNRISE_CRYSTAL_PALETTE, getActivePalette } from './CrystalStructures';
+import {
+  DUSK_FACADE,
+  DUSK_FOG,
+  DUSK_OUTLINE,
+  DUSK_RIBBON,
+  DUSK_SIDES,
+  DUSK_SKY,
+  DUSK_TILES
+} from '../worlds/dusk/DuskPalette';
 
 /** The active colour system; see docs/ART/Sunrise_Peaks_Selected_Palettes.md. */
 const PAL = getActivePalette();
@@ -158,6 +176,7 @@ export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
     coin: PAL.coin,
     // White on ivory reads via outlines + side shade (concept-confirmed).
     perfect: { fill: 0xffffff, ring: 0xffffff },
+    sunRays: true,
     motionCue: NO_CUE,
     props: [
       {
@@ -195,29 +214,47 @@ export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
       }
     ]
   },
-  // ---- Dusk District: provisional (Day 2 completes + validates) ----
+  // ---- Dusk District: locked to the canyon concept (docs/ART/WORLD 2) ----
   dusk: {
     id: 'dusk',
-    skyTop: 0x6b5bb8,
-    skyBottom: 0xe8956e,
-    fogColor: 0xdd8a6e,
-    fogNear: 14,
-    fogFar: 40,
-    ambient: { color: 0xffd9c0, intensity: 0.38 },
-    directional: { color: 0xffb98a, intensity: 2 },
-    // Warm paper faces for static tiles; movers carry the cyan cue.
-    platformFaces: [0xffd9a0, 0xffb98a, 0xe08a6b],
-    tileMark: 0x4a2a2c,
-    platformEdge: BLACK_HULL,
-    shadow: 0x9a6a70,
-    coin: 0xffb347,
-    // Provisional: validated against peach in the Day 2 contrast check.
+    // Deep plum overhead, golden peach on the horizon. skyStops is the real
+    // ramp; these two keep the clear colour and any two-stop fallback honest.
+    skyTop: DUSK_SKY[DUSK_SKY.length - 1],
+    skyBottom: DUSK_SKY[0],
+    skyStops: DUSK_SKY,
+    fogColor: DUSK_FOG,
+    // Same idea as Sunrise: fogNear keeps the tiles clean, fogFar swallows
+    // the city before it runs to the far plane. Shorter than Sunrise's 82
+    // so the canyon does not stay sharp all the way down the street.
+    fogNear: 38,
+    fogFar: 70,
+    // Tiles are lit by the real scene lights. A strong warm ambient keeps the
+    // toon ramp from crushing the near face of a tile to black.
+    ambient: { color: 0xffe0cc, intensity: 0.72 },
+    directional: { color: 0xffb36f, intensity: 1.35 },
+    // Ahead and above: the sunset the player is walking toward.
+    directionalPos: [1.5, 14, 26],
+    platformFaces: DUSK_TILES,
+    platformSides: DUSK_SIDES,
+    tileMark: 0xffffff,
+    platformEdge: DUSK_OUTLINE,
+    shadow: 0x3a2044,
+    coin: 0xffd36b,
     perfect: { fill: 0xffffff, ring: 0xffffff },
-    motionCue: FULL_CUE,
+    // The cyan ribbon on the tile's lower edge. Not an architectural colour.
+    motionCue: { color: DUSK_RIBBON, strength: 1 },
     props: [
-      { family: 'city', colors: [0x6b5bb8, 0xc86ba6], count: 5, scaleMin: 0.8, scaleMax: 1.4, side: 'both', parallax: 0.25 },
-      { family: 'lantern', colors: [0x38f0e8, 0xffd9a0], count: 8, scaleMin: 0.4, scaleMax: 0.8, side: 'both', parallax: 0.4 }
-    ]  },
+      {
+        family: 'city',
+        colors: DUSK_FACADE,
+        count: 1,
+        scaleMin: 1,
+        scaleMax: 1,
+        side: 'both',
+        parallax: 1
+      }
+    ]
+  },
   // ---- Deep Void: provisional (Day 3 completes + validates) ----
   void: {
     id: 'void',

@@ -23,6 +23,7 @@ import {
 } from './CrystalField';
 import { buildCloudSea, cloudHeightAlongSight, type CloudSeaOpts } from './CloudFactory';
 import type { CrystalFieldRecipe, CloudSeaRecipe, WorldLook } from '../config/WorldLooks';
+import { buildDuskCity } from '../worlds/dusk/DuskCity';
 
 /** Segment length along +Z. */
 /**
@@ -76,6 +77,13 @@ export class BackgroundSystem {
   private frame: FrameInfo = { fovDeg: 55, aspect: 16 / 9 };
   /** Sun-ray group, drifted each frame. */
   private rayGroup: Group | null = null;
+  /**
+   * Objects that are not recycled segment layers: the sun-ray fan, and the
+   * dusk skyline that stays a fixed distance ahead of the camera.
+   */
+  private extras: Group[] = [];
+  /** Dusk horizon. Its local +Z points down the canyon; world Z tracks the camera. */
+  private follow: Group | null = null;
 
   constructor(private scene: Scene) {
     this.root = new Group();
@@ -116,11 +124,12 @@ export class BackgroundSystem {
     // The crystal layer needs the cloud recipe up front so it can seat each
     // formation on the real cloud surface.
     const cloud = look.props.find((p) => p.family === 'cloudsea');
-    this.addSunRayLayer();
+    if (look.sunRays) this.addSunRayLayer();
     for (const recipe of look.props) {
       if (recipe.family === 'crystalfield') {
         this.addCrystalLayer(recipe, cloud && cloud.family === 'cloudsea' ? cloud : null, look.platformEdge);
       } else if (recipe.family === 'cloudsea') this.addCloudLayer(recipe);
+      else if (recipe.family === 'city') this.addCityLayer(look.platformEdge);
       else if (import.meta.env.DEV) {
         console.warn(`BackgroundSystem: no builder for prop family "${recipe.family}" yet — skipping`);
       }
@@ -173,7 +182,7 @@ export class BackgroundSystem {
     pivot.rotation.x = -0.34;
     rays.add(pivot);
     g.add(rays);
-    this.root.add(g);
+    this.trackExtra(g);
     this.rayGroup = rays;
   }
 
@@ -282,6 +291,56 @@ export class BackgroundSystem {
     this.spawnLayer([mesh], recipe.parallax);
   }
 
+  /**
+   * Dusk canyon: one merged city per recycle chunk. Lanterns are part of
+   * the buildings. Distance falls off through fog, the way Sunrise does.
+   */
+  private addCityLayer(edge: number): void {
+    const built = buildDuskCity(this.seed, this.frame, SEG_LEN);
+    const face = new Mesh(built.face, new MeshBasicMaterial({ vertexColors: true }));
+    face.renderOrder = 2;
+    this.spawnLayer([face], 0);
+
+    const shell = new Mesh(built.shell, new MeshBasicMaterial({
+      color: edge,
+      depthWrite: false
+    }));
+    shell.renderOrder = 1;
+    this.spawnLayer([shell], 0);
+
+    const lamps = new Mesh(built.lanterns, new MeshBasicMaterial({ vertexColors: true }));
+    lamps.renderOrder = 3;
+    this.spawnLayer([lamps], 0);
+
+    const glows = new Mesh(built.glows, new MeshBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.4,
+      blending: AdditiveBlending,
+      depthWrite: false,
+      side: DoubleSide
+    }));
+    glows.renderOrder = 4;
+    this.spawnLayer([glows], 0);
+
+    const mist = new Mesh(built.mist, new MeshBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false,
+      side: DoubleSide
+    }));
+    mist.renderOrder = 5;
+    this.spawnLayer([mist], 0);
+
+  }
+
+  /** Parent a non-recycled group (sun rays, dusk horizon) and remember it for disposal. */
+  private trackExtra(group: Group): void {
+    this.root.add(group);
+    this.extras.push(group);
+  }
+
   private spawnLayer(meshes: LayerObject[], bob: number): void {
     const layer: Layer = { meshes, geo: meshes[0].geometry, bob };
     // NOTE: `root.add(m)` moves an Object3D, it does not clone it — adding the
@@ -326,11 +385,6 @@ export class BackgroundSystem {
       layer.meshes.forEach((m, i) => {
         m.position.z = base + i * SEG_LEN;
       });
-      if (this.rayGroup) {
-        // Slow sway so the light is alive without ever distracting from play.
-        this.rayGroup.rotation.y = Math.sin(now * 0.00004) * 0.09;
-        this.rayGroup.position.z = Math.sin(now * 0.00003) * 3;
-      }
       if (layer.bob > 0) {
         // Parallax drift: distant layers breathe very slowly so the world never
         // feels frozen (kept well below tile sway).
@@ -338,6 +392,14 @@ export class BackgroundSystem {
         for (const m of layer.meshes) m.position.y = y;
       }
     }
+    if (this.rayGroup) {
+      // Slow sway so the light is alive without ever distracting from play.
+      this.rayGroup.rotation.y = Math.sin(now * 0.00004) * 0.09;
+      this.rayGroup.position.z = Math.sin(now * 0.00003) * 3;
+    }
+    // The dusk skyline is authored ahead of the origin. Pinning the group to
+    // the camera keeps that lead constant, so the sunset is never reached.
+    if (this.follow) this.follow.position.z = camZ;
   }
 
   /** Reset for a new run: rewind every segment to its start slot. */
@@ -397,6 +459,7 @@ export class BackgroundSystem {
   }
 
   dispose(full = true): void {
+    this.clearExtras();
     for (const layer of this.layers) {
       for (const m of layer.meshes) {
         this.root.remove(m);
@@ -409,6 +472,25 @@ export class BackgroundSystem {
     if (full) {
       this.scene.remove(this.root);
     }
+  }
+
+  private clearExtras(): void {
+    for (const group of this.extras) {
+      this.root.remove(group);
+      group.traverse((obj) => {
+        const mesh = obj as Mesh;
+        if (!mesh.isMesh) return;
+        mesh.geometry?.dispose();
+        const mat = mesh.material;
+        if (!mat || Array.isArray(mat)) return;
+        const mapped = mat as MeshBasicMaterial;
+        mapped.map?.dispose();
+        mapped.dispose();
+      });
+    }
+    this.extras = [];
+    this.rayGroup = null;
+    this.follow = null;
   }
 }
 

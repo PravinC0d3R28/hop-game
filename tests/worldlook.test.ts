@@ -66,7 +66,9 @@ describe('WorldLook completeness', () => {
     // Dusk/Void keep spike-lock black until their passes.
     expect(WORLD_LOOKS.sunrise.platformEdge).toBe(getActivePalette().outline);
     expect(WORLD_LOOKS.sunrise.platformEdge).toBe(0x4a3638);
-    expect(WORLD_LOOKS.dusk.platformEdge).toBe(0x111111);
+    // Dusk shares the warm dark outline. Void stays on the spike-lock black
+    // until its own pass.
+    expect(WORLD_LOOKS.dusk.platformEdge).toBe(0x4a3638);
     expect(WORLD_LOOKS.void.platformEdge).toBe(0x111111);
   });
 
@@ -89,6 +91,26 @@ describe('Dusk motion cue', () => {
   it('Dusk cue color is distinct from its static platform edge', () => {
     const look = WORLD_LOOKS.dusk;
     expect(look.motionCue.color).not.toBe(look.platformEdge);
+    expect(look.motionCue.color).toBe(0x20e6ea);
+  });
+
+  it('Sunrise owns the sun rays and the score-mood sky; Dusk owns a sunset ramp', () => {
+    expect(WORLD_LOOKS.sunrise.sunRays).toBe(true);
+    expect(WORLD_LOOKS.dusk.sunRays).toBeUndefined();
+    const stops = WORLD_LOOKS.dusk.skyStops ?? [];
+    expect(stops.length).toBeGreaterThanOrEqual(5);
+    const lums = stops.map((hex) => luminance(hex));
+    const brightest = Math.max(...lums);
+    const at = lums.indexOf(brightest);
+    // The sun sits in the upper-middle of this downward camera, not at either edge.
+    expect(at).toBeGreaterThan(1);
+    expect(at).toBeLessThan(stops.length - 1);
+    expect(lums[0]).toBeLessThan(brightest);
+    expect(lums[lums.length - 1]).toBeLessThan(brightest);
+    const families = WORLD_LOOKS.dusk.props.map((p) => p.family);
+    expect(families).toContain('city');
+    expect(families).not.toContain('crystalfield');
+    expect(families).not.toContain('cloudsea');
   });
 });
 

@@ -52,7 +52,7 @@ export class RendererSystem {
     // are never clipped before they finish fading — but not further: every
     // extra unit of range costs depth precision, and a thin outline needs the
     // depth buffer to separate it from the face it hugs.
-    this.camera = new PerspectiveCamera(55, rect.width / rect.height, 0.1, 110);
+    this.camera = new PerspectiveCamera(55, rect.width / rect.height, 0.1, 150);
     this.camera.position.set(0, GAME_CONFIG.CAMERA_OFFSET_Y, GAME_CONFIG.CAMERA_OFFSET_Z);
     this.camera.lookAt(0, 0, GAME_CONFIG.CAMERA_LOOK_AHEAD);
 
@@ -131,11 +131,15 @@ export class RendererSystem {
     const top = this.skyTop;
     const bottom = this.skyBottom;
     const mid = look.skyMid !== undefined ? new Color(look.skyMid) : null;
+    const stops = look.skyStops && look.skyStops.length >= 2
+      ? look.skyStops.map((hex) => new Color(hex))
+      : null;
     const geo = this.dome.geometry as SphereGeometry;
     const pos = geo.getAttribute('position') as BufferAttribute;
     const col = geo.getAttribute('color') as BufferAttribute;
     const v = new Vector3();
     const c = new Color();
+    const duskGap = new Color(0xff9a4a);
     for (let i = 0; i < pos.count; i++) {
       // Visible-band gradient: the gameplay camera looks steeply down, so
       // the frame's sky spans dome-local y ≈ -25 (horizon cream) to -10
@@ -149,8 +153,28 @@ v.fromBufferAttribute(pos, i);
       // the purple/green read as sky rather than a flat ceiling.
       const t = Math.min(1, Math.max(0, (v.y / 60 + 0.52) / 0.46));
       const s = t * t * (3 - 2 * t);
-      if (mid && s < 0.5) c.copy(bottom).lerp(mid, s * 2);
+      if (stops) {
+        // s = 0 is the low band (horizon), s = 1 is the top of the frame.
+        const scaled = s * (stops.length - 1);
+        const idx = Math.min(stops.length - 2, Math.floor(scaled));
+        c.copy(stops[idx]).lerp(stops[idx + 1], scaled - idx);
+      } else if (mid && s < 0.5) c.copy(bottom).lerp(mid, s * 2);
       else c.copy(mid ?? bottom).lerp(top, mid ? (s - 0.5) * 2 : s);
+      // Dusk looks down the street, so the middle of the frame is a downward
+      // view. Pull that canyon gap toward the sunset. The floor under the
+      // camera (straight down, not ahead) stays dark.
+      if (look.id === 'dusk') {
+        const nx = v.x / 60;
+        const ny = v.y / 60;
+        const nz = v.z / 60;
+        // Only the high forward band, where the street vanishes. A wider
+        // lobe painted the canyon floor orange.
+        const ahead = Math.max(0, nz);
+        const horizon = Math.max(0, 1 - Math.abs(ny + 0.2) * 3.2);
+        const center = Math.max(0, 1 - Math.abs(nx) * 1.8);
+        const lobe = ahead * horizon * center;
+        if (lobe > 0) c.lerp(duskGap, Math.min(0.88, lobe));
+      }
       col.setXYZ(i, c.r, c.g, c.b);
     }
     col.needsUpdate = true;
@@ -167,6 +191,9 @@ v.fromBufferAttribute(pos, i);
    */
   applyScoreMood(score: number): void {
     if (!this.look) return;
+    // A authored sunset ramp is the look. Walking it toward green is the
+    // Sunrise dawn mood, and it would ruin Dusk.
+    if (this.look.skyStops && this.look.skyStops.length >= 2) return;
     const step = Math.floor(score / 100);
     if (step === this.moodStep) return;
     this.moodStep = step;

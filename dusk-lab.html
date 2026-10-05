@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>HOP — dusk piece lab</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #4a214f; }
+      canvas { display: block; }
+      #hud {
+        position: fixed; left: 12px; top: 12px; z-index: 2;
+        font: 13px/1.5 ui-monospace, monospace; color: #fff6ea;
+        background: rgba(30, 12, 36, 0.78); padding: 10px 12px; border-radius: 8px;
+      }
+      #hud select { font: inherit; margin-left: 6px; }
+    </style>
+  </head>
+  <body>
+    <div id="hud">
+      <strong>dusk piece</strong>
+      <div>piece <select id="piece"></select></div>
+      <div id="note">drag to turn</div>
+    </div>
+    <script type="module" src="/src/dev/duskLab.ts"></script>
+  </body>
+</html>

@@ -82,6 +82,12 @@ function bootstrap(): void {
   if (import.meta.env.DEV || import.meta.env.VITE_DEV_MODE === 'true') {
     (window as unknown as { gameDebug?: Record<string, unknown> }).gameDebug =
       createDebugApi(accessor);
+    // Dev art review: /?world=dusk opens that world without touching the
+    // production build. The branch is eliminated from portal builds.
+    const requested = new URLSearchParams(location.search).get('world');
+    if (requested === 'sunrise' || requested === 'dusk' || requested === 'void') {
+      accessor.devForceWorld(requested);
+    }
   }
 }
 
