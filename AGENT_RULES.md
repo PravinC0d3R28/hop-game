@@ -25,22 +25,15 @@ HOP is a polished single-page runner game (World 1 → Dusk District → Deep Vo
 
 ## 3. Playtesting Policy
 
-- **The human is the playtester.** If something can be tested physically on the user's machine, never simulate a full gameplay run via MCP chrome-devtools — it wastes effort and the agent struggles to simulate runs reliably. Ask the user to playtest and report back.
-- **Delegate playtesting/smoke work to subagents** (`@playtest` for smoke checks, `@screens` for visual review) rather than doing it inline in the main build loop.
-- **Save-state discipline:** you can always reset progress to bring back the save. Before editing save data via CDP, back up `hop_player_data` (localStorage) to the temp dir and restore it afterwards — never leave the save altered.
+- **The human is the playtester.** Feel, timing, and “does this hop well” are theirs. Do not simulate a full gameplay run. Ask them to play and report back.
+- **Layout and camera checks are in scope.** A still frame from the real game camera is fine for placement, orientation, and whether a piece reads. Use the dev save key `hop_dev_player_data`, never the player’s real `hop_player_data`.
+- **Save-state discipline:** before editing save data, back up `hop_player_data` and restore it afterwards. `hop_save` is stale and must be ignored.
 
-## 4. Model & Agent Routing
+## 4. One agent
 
-| Agent | Kind | Model | Use for |
-|---|---|---|---|
-| `build` | primary (default, Tab) | `opencode/deepseek-v4-flash-free` | Fast daily coding, tests, commits, most tasks |
-| `deep` | primary + subagent (`@deep`) | `opencode/mimo-v2.5-free` | Hard logic, architecture, refactors, visual debugging (only primary with image support besides `@screens`) |
-| `screens` | subagent (`@screens`) | `opencode/mimo-v2.5-free` | Screenshot/UI review — the only agent that can see images |
-| `playtest` | subagent (`@playtest`) | `opencode/deepseek-v4-flash-free` | Smoke checks: console errors, UI states, save-based state verification |
+There is one agent on this project. The old routing table (`build`, `deep`, `@screens`, `@playtest`, and the free-tier model names) is retired. Do not stop to ask for a model switch, and do not hand a task off to a subagent that is not actually available.
 
-- `build` **automatically delegates**: `@deep` for hard problems, `@screens` for visual verification, `@playtest` for smoke checks — no need to ask the user first.
-- `deep` is both Tab-switchable and `@`-invocable, so the build agent can hand off mid-task.
-- **No automatic model fallback exists in opencode.** If a model's free quota is exhausted or a request errors, stop and tell the user to switch (Tab between `build`/`deep`, or `/models`). Do not silently retry.
+Visual checks, typecheck, tests, and the commit all happen in the same session.
 
 ## 5. HOP Technical Notes
 
@@ -55,7 +48,7 @@ HOP is a polished single-page runner game (World 1 → Dusk District → Deep Vo
 ## 6. Task Workflow
 
 1. Read this file, the repo status, and any relevant context.
-2. Analyze the task; delegate to subagents where their specialization fits.
+2. Analyze the task and do it in this session.
 3. Implement; keep changes minimal and idiomatic to the existing code.
 4. Verify: typecheck + tests; live-verify in browser when possible (CDP smoke only).
 5. Commit (per §2) and append the commit-list entry.

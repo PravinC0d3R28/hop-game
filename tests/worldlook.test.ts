@@ -82,10 +82,10 @@ describe('WorldLook completeness', () => {
 });
 
 describe('Dusk motion cue', () => {
-  it('Sunrise never shows the cue; Dusk/Void always do', () => {
+  it('Sunrise and Void hide the dusk ribbon; Dusk shows it', () => {
     expect(WORLD_LOOKS.sunrise.motionCue.strength).toBe(0);
+    expect(WORLD_LOOKS.void.motionCue.strength).toBe(0);
     expect(WORLD_LOOKS.dusk.motionCue.strength).toBeGreaterThan(0);
-    expect(WORLD_LOOKS.void.motionCue.strength).toBeGreaterThan(0);
   });
 
   it('Dusk cue color is distinct from its static platform edge', () => {
@@ -119,6 +119,36 @@ describe('Void contrast floor', () => {
     const look = WORLD_LOOKS.void;
     const best = Math.max(...look.platformFaces.map((f) => contrastRatio(f, look.skyBottom)));
     expect(best).toBeGreaterThanOrEqual(VOID_CONTRAST_FLOOR);
+  });
+
+  it('a dark void tile still separates from the navy sky', () => {
+    const look = WORLD_LOOKS.void;
+    const dark = look.platformFaces.filter((f) => luminance(f) < 0.08);
+    expect(dark.length).toBeGreaterThan(0);
+    const best = Math.max(...dark.map((f) => contrastRatio(f, look.skyBottom)));
+    expect(best).toBeGreaterThanOrEqual(VOID_CONTRAST_FLOOR);
+  });
+
+  it('void sky is a navy ramp and does not borrow Sunrise or Dusk scenery', () => {
+    const look = WORLD_LOOKS.void;
+    expect(look.sunRays).toBeUndefined();
+    expect(look.skyStops?.length).toBeGreaterThanOrEqual(5);
+    expect(look.fogNear).toBeGreaterThanOrEqual(40);
+    expect(look.fogFar).toBeGreaterThan(look.fogNear);
+    const families = look.props.map((p) => p.family);
+    expect(families).toEqual(expect.arrayContaining(['starfield', 'crescent', 'aurora']));
+    expect(families).not.toContain('crystalfield');
+    expect(families).not.toContain('cloudsea');
+    expect(families).not.toContain('city');
+    const nearWhite = look.platformFaces.filter((f) => {
+      const r = (f >> 16) & 255;
+      const g = (f >> 8) & 255;
+      const b = f & 255;
+      return r > 210 && g > 210 && b > 200;
+    });
+    expect(nearWhite).toHaveLength(0);
+    const blues = look.platformFaces.filter((f) => f === 0x2a4c92 || f === 0x3a62be || f === 0x3458ae || f === 0x243f78);
+    expect(blues.length).toBeGreaterThan(look.platformFaces.length / 2);
   });
 
   it('contrast helper matches WCAG math (black vs white = 21)', () => {

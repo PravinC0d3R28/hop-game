@@ -84,9 +84,15 @@ function bootstrap(): void {
       createDebugApi(accessor);
     // Dev art review: /?world=dusk opens that world without touching the
     // production build. The branch is eliminated from portal builds.
-    const requested = new URLSearchParams(location.search).get('world');
+    const params = new URLSearchParams(location.search);
+    const requested = params.get('world');
     if (requested === 'sunrise' || requested === 'dusk' || requested === 'void') {
       accessor.devForceWorld(requested);
+    }
+    // Dev art shots: hide the menu so the world itself is what gets captured.
+    if (params.get('shot') === '1') {
+      const start = document.getElementById('start-screen');
+      if (start) start.style.display = 'none';
     }
   }
 }

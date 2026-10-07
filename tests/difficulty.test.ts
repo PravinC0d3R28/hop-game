@@ -130,6 +130,7 @@ describe('world selection via unlock score and overrides', () => {
     gm.setScore(10);
     gm.setWorldOverride('void');
     expect(gm.getActiveWorld().id).toBe('void');
+    expect(gm.canSelectWorld(gm.getActiveWorld())).toBe(true);
     expect(gm.getXRange()).toBe(1.2);
     gm.setWorldOverride(null);
     expect(gm.getActiveWorld().id).toBe('sunrise');

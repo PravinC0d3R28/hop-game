@@ -125,13 +125,20 @@ import {
   DUSK_SKY,
   DUSK_TILES
 } from '../worlds/dusk/DuskPalette';
+import {
+  VOID_FOG,
+  VOID_RIM,
+  VOID_SIDES,
+  VOID_SKY,
+  VOID_STAR,
+  VOID_TILES
+} from '../worlds/void/VoidPalette';
 
 /** The active colour system; see docs/ART/Sunrise_Peaks_Selected_Palettes.md. */
 const PAL = getActivePalette();
 
 const BLACK_HULL = 0x111111;
 const NO_CUE = { color: 0x38f0e8, strength: 0 };
-const FULL_CUE = { color: 0x38f0e8, strength: 1 };
 
 export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
   // ---- Sunrise Peaks: locked 2026-09-02 (docs/ART concept + palette) ----
@@ -255,31 +262,34 @@ export const WORLD_LOOKS: Record<WorldId, WorldLook> = {
       }
     ]
   },
-  // ---- Deep Void: provisional (Day 3 completes + validates) ----
+  // ---- Deep Void: sky and tiles locked to the paintings. Structures follow. ----
   void: {
     id: 'void',
-    skyTop: 0x141830,
-    skyBottom: 0x1b1f3a,
-    fogColor: 0x1b1f3a,
-    fogNear: 14,
-    fogFar: 40,
-    ambient: { color: 0x8a9ac8, intensity: 0.3 },
-    directional: { color: 0xb8c8ff, intensity: 1.6 },
-    // Dark sky must never swallow the next platform — Day 3 contrast pass
-    // owns this list (lightest face vs sky stays above VOID_CONTRAST_FLOOR).
-    platformFaces: [0x2a2f52, 0x3d4470, 0x4a5180],
-    tileMark: 0xd8dcf0,
+    skyTop: VOID_SKY[VOID_SKY.length - 1],
+    skyBottom: VOID_SKY[0],
+    skyStops: VOID_SKY,
+    fogColor: VOID_FOG,
+    // Same rule as Sunrise and Dusk: the path stays sharp, and only the far
+    // field dissolves. The old 14/40 pair fogged the next tile.
+    fogNear: 48,
+    fogFar: 120,
+    // Cool moonlight. A dim ambient was crushing the navy tiles to black.
+    ambient: { color: 0xb7c6ea, intensity: 0.62 },
+    directional: { color: 0xdff6ff, intensity: 1.05 },
+    directionalPos: [-8, 22, 12],
+    platformFaces: VOID_TILES,
+    platformSides: VOID_SIDES,
+    tileMark: 0xffe8a0,
     platformEdge: BLACK_HULL,
-    shadow: 0x141428,
-    coin: 0xfff3c8,
-    // Provisional: star-cream coin + white perfect must not compete on one
-    // landing — Day 3 decides the final split.
+    shadow: 0x070e22,
+    coin: VOID_STAR,
     perfect: { fill: 0xffffff, ring: 0xffffff },
-    motionCue: FULL_CUE,
+    // The dusk tube stays off. Void's own thin rim is a later tile pass.
+    motionCue: { color: VOID_RIM, strength: 0 },
     props: [
-      { family: 'starfield', colors: [0xfff3c8], count: 1, scaleMin: 1, scaleMax: 1, side: 'sky', parallax: 0 },
-      { family: 'crescent', colors: [0xfff3c8], count: 1, scaleMin: 0.8, scaleMax: 1.2, side: 'sky', parallax: 0.02 },
-      { family: 'aurora', colors: [0x38f0e8, 0xff4dd8], count: 2, scaleMin: 0.8, scaleMax: 1.2, side: 'sky', parallax: 0.05 }
+      { family: 'starfield', colors: [VOID_STAR], count: 1, scaleMin: 1, scaleMax: 1, side: 'sky', parallax: 0 },
+      { family: 'crescent', colors: [0xddf7ff], count: 1, scaleMin: 1, scaleMax: 1, side: 'sky', parallax: 0 },
+      { family: 'aurora', colors: [0x32d8e5, 0xc45ae5], count: 1, scaleMin: 1, scaleMax: 1, side: 'sky', parallax: 0 }
     ]
   }
 };

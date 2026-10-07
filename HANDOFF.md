@@ -71,7 +71,7 @@ Root: `C:\Users\Poonam\Desktop\YTGames\HOP`
 |---|---|---|
 | 1 | Sunrise Peaks | **Done.** Crystal field on a cloud sea. Art: `docs/ART/WORLD 1/` |
 | 2 | Dusk District | **Done** (`7495901`). Canyon city. Art: `docs/ART/WORLD 2/` |
-| 3 | Deep Void | **In progress, uncommitted** (see §1). Art: `docs/ART/WORLD 3/` |
+| 3 | Deep Void | **Art revamp done, still uncommitted.** Sky, rocks, gates, planets, tiles, and placement are in the working tree. Art: `docs/ART/WORLD 3/` |
 | — | Coming-soon teaser | A locked slot. Never show a world bubble for it. |
 
 ---
@@ -279,27 +279,12 @@ burn budget and misdiagnose. Use it for camera framing, console errors, and stat
 
 ## 10. Delegation
 
-`AGENT_RULES.md` §4 has the routing table. **At the time of writing, the `@screens` and
-`@playtest` subagent models were unavailable** (`Model not found: mimo-v2.5-free`,
-`deepseek-v4-flash-free`). If delegation fails with a model error, **stop and ask the
-user to switch via Tab → `/models`.** Do not silently retry or degrade.
-
-The primary agent can read images directly via `chrome-devtools_take_screenshot` +
-`read`, so visual review does not strictly require `@screens` — but delegating still
-saves budget for the primary's own reasoning.
+Retired. One agent does the work. Do not route tasks to `@screens`, `@playtest`, `@deep`, or `@build`, and do not stop because a named model is missing.
 
 ---
 
 ## 11. If you are resuming, the natural next steps
 
-1. **Decide about the uncommitted World 3 work** (§1). Commit it or finish it — do not
-   leave it ambiguous.
-2. Run the three gates and confirm the tree state before starting anything new.
-3. World 3 has art direction in `docs/ART/WORLD 3/` — read the images first, then the
-   docs, then `Deep_Void_Build_Plan.md`.
-4. Open-ended polish that needs no art direction:
-   - the screen-space outline (§7) — would improve all worlds
-   - end-to-end verification of the tutorial callout fix in a real run
-   - the world-nav reveal threshold as a UX issue
-5. Keep the tree clean and `COMMIT_LOG.md` current. That is what makes the next
-   handoff possible at all.
+1. **The World 3 art revamp is done and still uncommitted** (§1). Ask the user before committing that pile. Do not start a second revamp.
+2. Run the three gates before any new commit.
+3. Keep the tree clean and `COMMIT_LOG.md` current after each commit.

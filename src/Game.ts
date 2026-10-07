@@ -873,7 +873,8 @@ export class Game {
     this.platforms.updateCoins(delta, Date.now());
     this.platforms.updateSway(Date.now());
     this.effects.updateFailureFlags(Date.now());
-    this.background.update(this.renderer.camera.position.z, Date.now());
+    const cam = this.renderer.camera.position;
+    this.background.update(cam.z, Date.now(), cam.x, cam.y);
     // Sky mood advances with the run: purple walks toward green and reshuffles
     // every 100 points (deterministic, so a given score always looks the same).
     this.renderer.applyScoreMood(this.state.getScore());
@@ -1081,6 +1082,8 @@ export class Game {
     PlatformEntity.setEdgeColor(look.platformEdge);
     PlatformEntity.setMotionCue(look.motionCue);
     PlatformEntity.setFlatTiles(id === 'dusk');
+    PlatformEntity.setColorLift(id === 'void' ? 0.72 : 0);
+    PlatformEntity.setVoidRim(id === 'void');
     // Recolor live hulls (new outlines use the edge from birth): any BackSide
     // mesh in the old blacks is one of ours (rings/dots/shells are not BackSide).
     const hullRoots: Object3D[] = [
@@ -1138,6 +1141,7 @@ export class Game {
     this.state.setWorldOverride(id);
     void this.persistence.save(this.state.getMutablePlayerData());
     this.applyWorldLook(this.state.getActiveWorld().id);
+    this.ui.renderStartScreen();
     this.platforms.reset();
     if (this.demoActive) {
       this.stopAttractDemo();

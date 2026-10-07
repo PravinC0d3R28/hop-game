@@ -143,7 +143,7 @@ export class GameStateManager {
    * Used by the nav arrows, world chips and mission lock tooltips.
    */
   canSelectWorld(world: WorldConfig): boolean {
-    return this.unlockAllWorlds || isWorldUnlocked(world, this.totalScore);
+    return this.unlockAllWorlds || this.worldOverride === world.id || isWorldUnlocked(world, this.totalScore);
   }
 
   /**

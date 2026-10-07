@@ -15,12 +15,15 @@ import {
   ShapeGeometry,
   SRGBColorSpace,
   BackSide,
+  BufferGeometry,
   DoubleSide,
+  Float32BufferAttribute,
   Color,
   type Scene
 } from 'three';
 import { GAME_CONFIG } from '../config/GameConfig';
 import { MaterialFactory } from '../systems/MaterialFactory';
+import { voidRimColor } from '../worlds/void/VoidPalette';
 import { gsap } from 'gsap';
 
 export interface CoinObject {
@@ -155,6 +158,63 @@ const ribbonGeo = new TubeGeometry(
 );
 const ribbonMat = new MeshBasicMaterial({ color: 0x20e6ea, side: DoubleSide });
 
+/**
+ * A short neon mark on each corner. It sits on the top edge and continues
+ * a little way down the side, so it takes a few pixels of the tile height.
+ * The middle of each edge stays the tile colour.
+ */
+function voidCornerGeometry(): BufferGeometry {
+  const half = GAME_CONFIG.PLATFORM_WIDTH / 2;
+  const top = GAME_CONFIG.PLATFORM_HEIGHT / 2 + 0.02;
+  const arm = 0.28;
+  const t = 0.05;
+  const drop = 0.11;
+  const pos: number[] = [];
+  const quad = (a: number[], b: number[], c: number[], d: number[]) => {
+    pos.push(...a, ...b, ...c, ...a, ...c, ...d);
+  };
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const x = sx * (half - 0.02);
+      const z = sz * (half - 0.02);
+      const ix = -sx;
+      const iz = -sz;
+      const y1 = top - drop;
+      quad(
+        [x, top, z],
+        [x + ix * arm, top, z],
+        [x + ix * arm, top, z + iz * t],
+        [x, top, z + iz * t]
+      );
+      quad(
+        [x, top, z],
+        [x + ix * t, top, z],
+        [x + ix * t, top, z + iz * arm],
+        [x, top, z + iz * arm]
+      );
+      const ox = x + sx * 0.03;
+      const oz = z + sz * 0.03;
+      quad(
+        [ox, top, z],
+        [ox, y1, z],
+        [ox, y1, z + iz * t],
+        [ox, top, z + iz * t]
+      );
+      quad(
+        [x, top, oz],
+        [x + ix * t, top, oz],
+        [x + ix * t, y1, oz],
+        [x, y1, oz]
+      );
+    }
+  }
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  return geo;
+}
+
+const voidRimGeo = voidCornerGeometry();
+
 /** One shared top. Offsets per tile keep the freckles from repeating in lockstep. */
 let freckleTex: CanvasTexture | null = null;
 
@@ -227,6 +287,15 @@ export class PlatformEntity {
     ribbon.renderOrder = 3;
     ribbon.visible = this.motionCue.strength > 0;
     group.add(ribbon);
+
+    const rim = new Mesh(voidRimGeo, new MeshBasicMaterial({
+      color: voidRimColor(index),
+      side: DoubleSide
+    }));
+    rim.name = 'void-rim';
+    rim.renderOrder = 5;
+    rim.visible = this.voidRim;
+    group.add(rim);
 
     // Perfect indicator: diamond + ring, lying flat
     // White diamond, black outline: the black fill vanished against the warm
@@ -441,6 +510,31 @@ static setCoinColor(color: number | null): void {
     this.flatTiles = on;
   }
 
+  /**
+   * Void tiles are navy. The shared toon ramp's shadow step would crush them
+   * to black, so a little of the face colour is added back. Dusk uses
+   * flatTiles instead, and that path also paints freckles — this one does not.
+   */
+  static colorLift = 0;
+
+  static setColorLift(amount: number): void {
+    this.colorLift = amount;
+  }
+
+  /** Corner glow on the void tile. Off for Sunrise and Dusk. */
+  static voidRim = false;
+
+  static setVoidRim(on: boolean): void {
+    this.voidRim = on;
+  }
+
+  private static paintVoidRim(platform: PlatformData): void {
+    const rim = platform.group.getObjectByName('void-rim') as Mesh | undefined;
+    if (!rim) return;
+    rim.visible = this.voidRim;
+    (rim.material as MeshBasicMaterial).color.setHex(voidRimColor(platform.index));
+  }
+
   /** Cyan lower-edge ribbon. strength 0 hides it (Sunrise, Void). */
   static motionCue: { color: number; strength: number } = { color: 0x20e6ea, strength: 0 };
 
@@ -462,10 +556,12 @@ static setCoinColor(color: number | null): void {
       ? sides[((platform.index % sides.length) + sides.length) % sides.length]
       : deriveSideColor(top);
     platform.sideMat.color.setHex(side);
-    const lift = this.flatTiles ? 0.22 : 0;
-    platform.topMat.emissive.setHex(this.flatTiles ? top : 0x000000);
+    const brightTop = ((top >> 16) & 255) > 170 && ((top >> 8) & 255) > 170;
+    const lift = this.flatTiles ? 0.22 : brightTop ? Math.min(0.06, this.colorLift) : this.colorLift;
+    const glow = this.flatTiles || this.colorLift > 0;
+    platform.topMat.emissive.setHex(glow ? top : 0x000000);
     platform.topMat.emissiveIntensity = lift;
-    platform.sideMat.emissive.setHex(this.flatTiles ? side : 0x000000);
+    platform.sideMat.emissive.setHex(glow ? side : 0x000000);
     platform.sideMat.emissiveIntensity = lift * 0.65;
     const spots = this.flatTiles ? freckleTexture() : null;
     if (spots) {
@@ -484,6 +580,7 @@ static setCoinColor(color: number | null): void {
       platform.topMat.map = null;
     }
     platform.topMat.needsUpdate = true;
+    this.paintVoidRim(platform);
   }
 
   static randomizePaletteStart(): void {

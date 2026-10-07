@@ -24,6 +24,8 @@ import {
 import { buildCloudSea, cloudHeightAlongSight, type CloudSeaOpts } from './CloudFactory';
 import type { CrystalFieldRecipe, CloudSeaRecipe, WorldLook } from '../config/WorldLooks';
 import { buildDuskCity } from '../worlds/dusk/DuskCity';
+import { buildVoidSky, tickVoidSky } from '../worlds/void/VoidSky';
+import { buildVoidFieldSegments } from '../worlds/void/VoidField';
 
 /** Segment length along +Z. */
 /**
@@ -84,6 +86,8 @@ export class BackgroundSystem {
   private extras: Group[] = [];
   /** Dusk horizon. Its local +Z points down the canyon; world Z tracks the camera. */
   private follow: Group | null = null;
+  /** Deep Void sky. Pinned to the camera so the moon stays in the upper frame. */
+  private skyAnchor: Group | null = null;
 
   constructor(private scene: Scene) {
     this.root = new Group();
@@ -130,11 +134,14 @@ export class BackgroundSystem {
         this.addCrystalLayer(recipe, cloud && cloud.family === 'cloudsea' ? cloud : null, look.platformEdge);
       } else if (recipe.family === 'cloudsea') this.addCloudLayer(recipe);
       else if (recipe.family === 'city') this.addCityLayer(look.platformEdge);
-      else if (import.meta.env.DEV) {
+      else if (recipe.family === 'starfield' || recipe.family === 'crescent' || recipe.family === 'aurora') {
+        if (!this.skyAnchor) this.addVoidSky();
+      } else if (import.meta.env.DEV) {
         console.warn(`BackgroundSystem: no builder for prop family "${recipe.family}" yet — skipping`);
       }
       built++;
     }
+    if (look.id === 'void') this.addVoidField();
     void built;
   }
 
@@ -335,7 +342,37 @@ export class BackgroundSystem {
 
   }
 
-  /** Parent a non-recycled group (sun rays, dusk horizon) and remember it for disposal. */
+  /**
+   * Recycled scenery for the live segments. A wide frame adds the farther
+   * band. A phone keeps that band out. The gate segment leaves a gap
+   * around the ring.
+   */
+  private addVoidField(): void {
+    const portrait = this.frame.aspect < 1;
+    const geos = buildVoidFieldSegments(this.seed, SEG_COUNT, portrait);
+    const mat = new MeshBasicMaterial({ vertexColors: true });
+    const meshes: Mesh[] = [];
+    for (let k = 0; k < geos.length; k++) {
+      const mesh = new Mesh(geos[k], mat);
+      mesh.position.z = k * SEG_LEN;
+      mesh.renderOrder = 2;
+      mesh.frustumCulled = false;
+      this.root.add(mesh);
+      meshes.push(mesh);
+    }
+    this.layers.push({ meshes, geo: geos[0], bob: 0 });
+  }
+
+  /** Aurora, stars, constellations, and the crescent. One group, camera-locked. */
+  private addVoidSky(): void {
+    const anchor = new Group();
+    anchor.name = 'void-sky-anchor';
+    anchor.add(buildVoidSky());
+    this.trackExtra(anchor);
+    this.skyAnchor = anchor;
+  }
+
+  /** Parent a non-recycled group (sun rays, dusk horizon, void sky) and remember it for disposal. */
   private trackExtra(group: Group): void {
     this.root.add(group);
     this.extras.push(group);
@@ -379,11 +416,18 @@ export class BackgroundSystem {
    * world ran away and the screen went empty; anchoring to the ball's own
    * position is the only stable rule.)
    */
-  update(camZ: number, now: number): void {
-    const base = Math.floor(camZ / SEG_LEN) * SEG_LEN;
+  update(camZ: number, now: number, camX = 0, camY = 9.5): void {
+    const seg = Math.floor(camZ / SEG_LEN);
     for (const layer of this.layers) {
+      const span = layer.meshes.length;
       layer.meshes.forEach((m, i) => {
-        m.position.z = base + i * SEG_LEN;
+        // Mesh i owns segments i, i+span, i+2span... It stays there until the
+        // camera has passed it, then jumps forward by one full cycle. Identical
+        // copies still tile. A segment with its own pieces is not swapped out
+        // from under the ball.
+        let place = i;
+        if (span > 0) while (place < seg) place += span;
+        m.position.z = place * SEG_LEN;
       });
       if (layer.bob > 0) {
         // Parallax drift: distant layers breathe very slowly so the world never
@@ -400,6 +444,10 @@ export class BackgroundSystem {
     // The dusk skyline is authored ahead of the origin. Pinning the group to
     // the camera keeps that lead constant, so the sunset is never reached.
     if (this.follow) this.follow.position.z = camZ;
+    if (this.skyAnchor) {
+      this.skyAnchor.position.set(camX, camY, camZ);
+      tickVoidSky(this.skyAnchor, now);
+    }
   }
 
   /** Reset for a new run: rewind every segment to its start slot. */
@@ -491,6 +539,7 @@ export class BackgroundSystem {
     this.extras = [];
     this.rayGroup = null;
     this.follow = null;
+    this.skyAnchor = null;
   }
 }
 
