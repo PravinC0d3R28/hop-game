@@ -13,28 +13,10 @@ no memory of prior sessions. Read this file fully before touching anything, then
 
 ---
 
-## 1. CRITICAL — uncommitted work exists right now
+## 1. Working tree
 
-At the time of writing, **101 paths are modified or untracked and NOT committed**,
-including a substantial, typechecking-clean World 3 implementation:
-
-```
-M  package.json, package-lock.json, src/Game.ts, src/main.ts,
-   src/config/WorldLooks.ts, src/core/GameStateManager.ts,
-   src/entities/PlatformEntity.ts, src/systems/BackgroundSystem.ts,
-   tests/difficulty.test.ts, tests/worldlook.test.ts
-
-?? src/worlds/void/          VoidField, VoidGates, VoidIslands, VoidMonoliths,
-                             VoidPalette, VoidPlanets, VoidSky   (~134 KB total)
-?? src/dev/voidLab.ts
-?? tests/void.test.ts
-?? scripts/shot-void.mjs, scripts/shot-void-lab.mjs
-?? docs/ART/WORLD 3/         4 reference images + 3 md docs + lab/ screenshots
-```
-
-**Before doing anything else, run `git status` and decide with the user whether to
-commit this.** It is not in `.gitignore` — it is simply uncommitted. Do not assume a
-clean `git status` means there is no work in progress; verify.
+World 3 landed in `a19db8a`. Run `git status` before starting. Do not assume the tree
+is clean, and do not start a second void revamp unless the user asks.
 
 ---
 
@@ -71,7 +53,7 @@ Root: `C:\Users\Poonam\Desktop\YTGames\HOP`
 |---|---|---|
 | 1 | Sunrise Peaks | **Done.** Crystal field on a cloud sea. Art: `docs/ART/WORLD 1/` |
 | 2 | Dusk District | **Done** (`7495901`). Canyon city. Art: `docs/ART/WORLD 2/` |
-| 3 | Deep Void | **Art revamp done, still uncommitted.** Sky, rocks, gates, planets, tiles, and placement are in the working tree. Art: `docs/ART/WORLD 3/` |
+| 3 | Deep Void | **Done** (`a19db8a`). Sky, rocks, gates, planets, tiles, and seeded scenery. Art: `docs/ART/WORLD 3/` |
 | — | Coming-soon teaser | A locked slot. Never show a world bubble for it. |
 
 ---
@@ -285,6 +267,6 @@ Retired. One agent does the work. Do not route tasks to `@screens`, `@playtest`,
 
 ## 11. If you are resuming, the natural next steps
 
-1. **The World 3 art revamp is done and still uncommitted** (§1). Ask the user before committing that pile. Do not start a second revamp.
+1. World 3 is committed (`a19db8a`). Do not start a second revamp unless the user asks.
 2. Run the three gates before any new commit.
 3. Keep the tree clean and `COMMIT_LOG.md` current after each commit.
