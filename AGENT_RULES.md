@@ -2,6 +2,11 @@
 
 Source of truth for how agents work on this project. Read this file at the start of every task and follow it.
 
+> **A new agent should also read `HANDOFF.md`** — it carries the repo map, current
+> state per world, the art workflow that works, and the rendering/shell gotchas that
+> cost real time to learn. This file says *how* to work; `HANDOFF.md` says *what you
+> are walking into*.
+
 ---
 
 ## 1. Vision
@@ -16,7 +21,7 @@ HOP is a polished single-page runner game (World 1 → Dusk District → Deep Vo
 - **Commit after each prompt** in which changes are proposed. Commit message follows repo style: `iter#-fix#: brief summary`.
 - **Maintain a commit list**: after every commit, append an entry to `COMMIT_LOG.md` (hash, message, 1-line summary of what changed).
 - **Never leave the tree dirty** at the end of a task — commit or explicitly report what remains uncommitted.
-- **Quality gates before commit:** `tsc`/typecheck clean and all vitest tests passing (currently 154).
+- **Quality gates before commit:** `tsc`/typecheck clean and all vitest tests passing. Get the current count from `npx vitest run` — do not trust a number written in this file, it goes stale.
 
 ## 3. Playtesting Policy
 
