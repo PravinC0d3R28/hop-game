@@ -268,7 +268,7 @@ Retired. One agent does the work. Do not route tasks to `@screens`, `@playtest`,
 ## 11. If you are resuming, the natural next steps
 
 1. Week 2's build is in: three worlds, three local songs, and synthesized effects. Do not restyle Sunrise or Dusk, and do not reopen Deep Void, unless the user asks.
-2. Still for a person, not for code: try the game on a real phone, and watch 3–5 first-time players. Those were left open from Week 1.
+2. The owner finished the two human checks on 2026-10-08: a real phone, and a first look by people who did not build the game. No code changes came out of that.
 3. Week 3 (skins, icon family, game-over hierarchy) waits until the user asks.
 4. Run the three gates before any new commit.
 5. Keep the tree clean and `COMMIT_LOG.md` current after each commit.

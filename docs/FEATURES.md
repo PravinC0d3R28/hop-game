@@ -335,10 +335,9 @@ impact, a new best, and the unlock cards each have their own short cue.
 
 ## 16. Still open
 
-Music gets its own notes when the tracks exist.
-
-- **Music.** The settings slider saves a number. It does not play anything yet.
-- **A real phone play,** and a first look by someone who did not build it.
 - **Week 3:** skins painted against these three lights, a matching icon set,
   game-over layout polish, a streak indicator, and unlock progress near
   selection and game over.
+
+The owner finished the real-phone play and the first look by people who
+did not build the game on 2026-10-08. No code changes came out of that.

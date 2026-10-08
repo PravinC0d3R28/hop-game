@@ -303,5 +303,6 @@ Typecheck was clean. The suite was 280 tests, 20 files, all passing.
 Adaptive quality stays off. The songs did not move the attract demo off
 60 fps.
 
-Still for a person: play on a real phone, and watch 3–5 first-time
-players. Those were open from Week 1 and were not done here.
+The owner finished the two human checks on 2026-10-08: a play on a
+real phone, and a first look by people who did not build the game. No
+code changes came out of that.
