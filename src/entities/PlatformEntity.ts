@@ -7,6 +7,7 @@ import {
   Vector3,
   Group,
   Mesh,
+  Quaternion,
   MeshBasicMaterial,
   MeshToonMaterial,
   RepeatWrapping,
@@ -29,6 +30,10 @@ import { gsap } from 'gsap';
 export interface CoinObject {
   group: Group;
   collected: boolean;
+  /** Radians per second around Y. Negative turns the face away clockwise. */
+  spin: number;
+  /** Shifts the bob so neighboring coins are not on the same beat. */
+  bobPhase: number;
 }
 
 export interface PlatformData {
@@ -57,7 +62,13 @@ const coinGeo = new CylinderGeometry(
   GAME_CONFIG.COIN_RADIUS,
   GAME_CONFIG.COIN_RADIUS,
   0.06,
-  16
+  24
+);
+/** Cap (+Y) points down the track (+Z), so the picture faces the camera.
+ *  The group then turns on Y: the face swings away, goes edge-on, and comes back. */
+const coinFacing = new Quaternion().setFromUnitVectors(
+  new Vector3(0, 1, 0),
+  new Vector3(0, 0, 1)
 );
 const ringGeo = new RingGeometry(
   GAME_CONFIG.PERFECT_DOT_RADIUS,
@@ -360,25 +371,35 @@ export class PlatformEntity {
     if (!force && Math.random() >= GAME_CONFIG.COIN_CHANCE) return;
 
     const coinMat = MaterialFactory.createCoinMaterial();
-    if (this.coinColorOverride !== null) coinMat.color.setHex(this.coinColorOverride);
+    // The shared coin picture is already colored. A world tint would multiply
+    // over the star and hide the artwork. Gold is only the fallback before it loads.
+    if (!coinMat.map && this.coinColorOverride !== null) coinMat.color.setHex(this.coinColorOverride);
     const coinMesh = new Mesh(coinGeo, coinMat);
-    coinMesh.rotation.z = Math.PI / 2;
+    coinMesh.quaternion.copy(coinFacing);
 
     const outlineMat = new MeshBasicMaterial({ color: this.edgeColor, side: BackSide });
     const outlineMesh = new Mesh(coinGeo, outlineMat);
     outlineMesh.scale.multiplyScalar(1.08);
-    outlineMesh.rotation.z = Math.PI / 2;
+    outlineMesh.quaternion.copy(coinFacing);
 
     const coinGroup = new Group();
     coinGroup.add(coinMesh);
     coinGroup.add(outlineMesh);
+    // Already part-way through a turn, so a new tile does not show the face
+    // square to the camera like every other coin.
+    coinGroup.rotation.y = Math.random() * Math.PI * 2;
     coinGroup.position.set(
       0,
       GAME_CONFIG.PLATFORM_HEIGHT / 2 + GAME_CONFIG.COIN_RADIUS + 0.15,
       0
     );
     platform.group.add(coinGroup);
-    platform.coins.push({ group: coinGroup, collected: false });
+    platform.coins.push({
+      group: coinGroup,
+      collected: false,
+      spin: -4,
+      bobPhase: Math.random() * Math.PI * 2
+    });
   }
 
   static clearCoins(platform: PlatformData): void {

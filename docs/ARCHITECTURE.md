@@ -284,4 +284,25 @@ The HOP reimplementation is a **pure standalone** build, so relative to the orig
 See `GAME_MECHANICS.md` for exact behavioral specs and `CUSTOMIZATION_GUIDE.md`
 for the extension surface.
 
+---
+
+## 8. Shipped scene (2026-10)
+
+Sections 1–7 are the original BounceTiles bundle. The game that runs now
+is built on that loop, with a different scene:
+
+- Each world is a `WorldLook` in `src/config/WorldLooks.ts`: sky, fog, lights,
+  and tile colors. Selecting, previewing, or starting a run applies that look.
+  Sunrise is the crystal field. Dusk is the canyon city. Deep Void is the
+  night sky, rocks, rings, gates, and planets. Scenery recycles in segments
+  and stays outside the landing lane.
+- Edges are one choice: thick black inverted hulls. That decision is locked.
+- UI pictures share `public/ui-icons.png`. `public/ui-icons.json` names each
+  rectangle. The coin mesh uses the `coin` rectangle, faced toward the camera.
+- The attract demo hops with no coins. A per-tile sway mark was declined;
+  Dusk keeps its cyan ribbon on every tile.
+- Three local songs live in `public/audio/`, one per world. Effects are
+  synthesized. Where the songs came from is `docs/ART/MUSIC/Music_License.md`.
+  Frame time and download size are in `docs/WEEK2_BASELINE.md`.
+
 

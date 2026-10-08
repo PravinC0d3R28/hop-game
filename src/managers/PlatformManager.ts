@@ -124,12 +124,12 @@ export class PlatformManager {
     for (const platform of this.platforms) {
       for (const coin of platform.coins) {
         if (coin.collected) continue;
-        coin.group.rotation.y += delta * 2.5;
+        coin.group.rotation.y += delta * coin.spin;
         coin.group.position.y =
           GAME_CONFIG.PLATFORM_HEIGHT / 2 +
           GAME_CONFIG.COIN_RADIUS +
           0.15 +
-          Math.sin(now * 0.004) * 0.08;
+          Math.sin(now * 0.004 + coin.bobPhase) * 0.08;
       }
     }
   }

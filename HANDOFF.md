@@ -35,7 +35,7 @@ Root: `C:\Users\Poonam\Desktop\YTGames\HOP`
 | `src/managers/` | `PersistenceManager` (save I/O), `PlatformManager` (tile run) |
 | `src/worlds/<id>/` | Per-world modules. `dusk/` and `void/` are self-contained art modules |
 | `src/dev/` | Dev-only lab harnesses, not bundled into production |
-| `tests/` | 19 files, ~249 `it()` cases. Pure logic, node env, no jsdom |
+| `tests/` | 20 files, 277 tests. Pure logic, node env, no jsdom |
 | `COMMIT_LOG.md` | Append-only history. Every commit gets an entry. |
 
 ### Dev-only pages (Vite serves these; only `index.html` ships)
@@ -267,6 +267,12 @@ Retired. One agent does the work. Do not route tasks to `@screens`, `@playtest`,
 
 ## 11. If you are resuming, the natural next steps
 
-1. World 3 is committed (`a19db8a`). Do not start a second revamp unless the user asks.
-2. Run the three gates before any new commit.
-3. Keep the tree clean and `COMMIT_LOG.md` current after each commit.
+1. Week 2's build is in: three worlds, three local songs, and synthesized effects. Do not restyle Sunrise or Dusk, and do not reopen Deep Void, unless the user asks.
+2. Still for a person, not for code: try the game on a real phone, and watch 3–5 first-time players. Those were left open from Week 1.
+3. Week 3 (skins, icon family, game-over hierarchy) waits until the user asks.
+4. Run the three gates before any new commit.
+5. Keep the tree clean and `COMMIT_LOG.md` current after each commit.
+
+## 12. Locked decisions
+
+- **Sway tell: do not build.** Week 2 workstream C (a mark only on tiles that will slide) is declined, 2026-10-07. The moving tiles are already visible in play, including the attract demo. Leave the Dusk cyan ribbon as it is. Do not add a Void sway mark, and do not hide the ribbon on static tiles.

@@ -59,6 +59,7 @@ function bootstrap(): void {
       // The demo only needs the live world once the game is up; a boot that's
       // still retrying skips it (the splash fallback still reveals the screen).
       game?.startAttractDemo();
+      game?.startMenuMusic();
     };
     splash.addEventListener('pointerdown', dismiss, { once: true });
     window.setTimeout(dismiss, holdMs);

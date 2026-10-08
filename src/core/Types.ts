@@ -20,7 +20,7 @@ export interface PlayerData {
   totalCoinsEarned: number;
   /** SFX volume 0–100. */
   soundVolume: number;
-  /** Music volume 0–100 (music channel reserved for a future track). */
+  /** Music volume 0–100. Scales the world song only. */
   musicVolume: number;
   /** Drag sensitivity 0–100 (50 = the original feel). */
   sensitivity: number;

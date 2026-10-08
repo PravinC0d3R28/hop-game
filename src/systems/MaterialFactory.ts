@@ -6,6 +6,7 @@ import {
   Vector3,
   NearestFilter,
   RepeatWrapping,
+  ClampToEdgeWrapping,
   ShaderMaterial,
   SRGBColorSpace,
   TextureLoader,
@@ -80,7 +81,7 @@ export class MaterialFactory {
   private static halftoneTex: CanvasTexture;
   private static gradientMap: CanvasTexture;
   private static uniforms: HalftoneUniforms;
-  /** Shared 2D coin art (Coin.png), loaded once and applied to every 3D coin. */
+  /** Shared 2D coin art, the `coin` frame of ui-icons.png. */
   private static coinTexture: Texture | null = null;
   /** Materials created before the texture finished loading get patched when it does. */
   private static coinTextureWaiters: ((tex: Texture) => void)[] = [];
@@ -104,25 +105,44 @@ export class MaterialFactory {
     // Skip in non-DOM environments (unit tests stub only createElement).
     if (typeof document === 'undefined' || typeof document.createElementNS !== 'function') return;
     const base = import.meta.env.BASE_URL || './';
-    new TextureLoader().load(`${base}Coin.png`, (tex) => {
-      tex.colorSpace = SRGBColorSpace;
-      tex.anisotropy = 4;
-      this.coinTexture = tex;
-      const waiters = this.coinTextureWaiters;
-      this.coinTextureWaiters = [];
-      for (const apply of waiters) apply(tex);
-    });
+    void fetch(`${base}ui-icons.json`)
+      .then((res) => res.json())
+      .then((sheet: {
+        meta: { image: string; size: { w: number; h: number } };
+        frames: { coin: { frame: { x: number; y: number; w: number; h: number } } };
+      }) => {
+        const frame = sheet.frames.coin.frame;
+        const sw = sheet.meta.size.w;
+        const sh = sheet.meta.size.h;
+        new TextureLoader().load(`${base}${sheet.meta.image}`, (tex) => {
+          const inset = 0.5;
+          tex.colorSpace = SRGBColorSpace;
+          tex.anisotropy = 4;
+          tex.wrapS = ClampToEdgeWrapping;
+          tex.wrapT = ClampToEdgeWrapping;
+          tex.repeat.set((frame.w - inset * 2) / sw, (frame.h - inset * 2) / sh);
+          tex.offset.set((frame.x + inset) / sw, 1 - (frame.y + frame.h - inset) / sh);
+          this.coinTexture = tex;
+          const waiters = this.coinTextureWaiters;
+          this.coinTextureWaiters = [];
+          for (const apply of waiters) apply(tex);
+        });
+      });
   }
 
   /** Unlit coin material textured with the 2D coin art (falls back to the coin
-   *  color until Coin.png loads, then every material is patched in). */
+   *  color until the icon sheet loads, then every material is patched in). */
   static createCoinMaterial(): MeshBasicMaterial {
-    const mat = new MeshBasicMaterial({ color: GAME_CONFIG.COLOR_COIN });
+    const mat = new MeshBasicMaterial({
+      color: this.coinTexture ? 0xffffff : GAME_CONFIG.COLOR_COIN,
+      alphaTest: 0.5
+    });
     if (this.coinTexture) {
       mat.map = this.coinTexture;
     } else {
       this.coinTextureWaiters.push((tex) => {
         mat.map = tex;
+        mat.color.setHex(0xffffff);
         mat.needsUpdate = true;
       });
     }

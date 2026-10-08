@@ -12,7 +12,7 @@ import { ShadowSystem } from './systems/ShadowSystem';
 import { MaterialFactory } from './systems/MaterialFactory';
 import { BackgroundSystem } from './systems/BackgroundSystem';
 import { EffectsSystem } from './systems/EffectsSystem';
-import { AudioSystem } from './systems/AudioSystem';
+import { AudioSystem, type MusicLevel } from './systems/AudioSystem';
 import { InputSystem } from './systems/InputSystem';
 import { BallEntity } from './entities/BallEntity';
 import { PlatformEntity, type CoinObject, type PlatformData } from './entities/PlatformEntity';
@@ -142,16 +142,15 @@ export class Game {
       this.applySkin(this.state.getPlayerData().selectedSkin);
     };
     this.ui.onMissionClaim = () => {
-      this.audio.playCoin();
+      this.audio.playClaim();
     };
+    this.ui.onUiSound = (kind) => this.audio.playUi(kind);
     this.ui.onDataChanged = () => {
       void this.persistence.save(this.state.getMutablePlayerData());
     };
     this.ui.onPersistSettings = () => this.persistence.save(this.state.getMutablePlayerData());
     this.ui.onSoundVolumeChange = (volume) => this.audio.setSoundVolume(volume);
-    this.ui.onMusicVolumeChange = () => {
-      // Music channel reserved for a future track — slider persists, plays nothing.
-    };
+    this.ui.onMusicVolumeChange = (volume) => this.audio.setMusicVolume(volume);
     // PLAY AGAIN re-runs the same world in place (Workstream B); Home returns
     // to the start screen. Both finalize the previous run (already done by
     // gameOver) and only differ in where the next run begins.
@@ -168,6 +167,7 @@ export class Game {
       // resets everything), clear pause state, go to the start screen.
       gsap.killTweensOf(this.ball.group.position);
       gsap.killTweensOf(this.ball.group.scale);
+      this.audio.setMusicLevel('menu');
       this.unpause();
       this.ui.hidePauseOverlay();
       this.returnHome();
@@ -195,6 +195,7 @@ export class Game {
         this.resetEntities();
         this.startAttractDemo();
       }
+      this.syncWorldMusic('menu');
     };
   }
 
@@ -268,10 +269,33 @@ export class Game {
         this.audio.resume();
       }
     });
-    window.addEventListener('pointerdown', () => this.audio.resume());
+    window.addEventListener('pointerdown', () => {
+      this.audio.resume();
+      this.ensureMenuMusic();
+    });
   }
 
   // ---- flow ----
+
+  /** Splash dismiss starts the menu bed. A later click is not required. */
+  startMenuMusic(): void {
+    this.audio.resume();
+    this.ensureMenuMusic();
+  }
+
+  /** Start the selected world's bed on the menu. A locked preview keeps the previous bed. */
+  private syncWorldMusic(level: MusicLevel): void {
+    const world = this.state.getActiveWorld();
+    if (!this.state.canSelectWorld(world)) return;
+    this.audio.playWorld(world.id, level);
+  }
+
+  /** Start the menu bed once the splash is gone. A live run is left alone. */
+  private ensureMenuMusic(): void {
+    if (this.state.getState().isStarted) return;
+    this.syncWorldMusic('menu');
+  }
+
 
   /**
    * Restore the ball, platforms, camera and background to a clean pre-run
@@ -316,6 +340,7 @@ export class Game {
     // The missions-unlocked callout is a one-time gate: the player must click
     // the missions button before the next run is allowed.
     if (this.state.hasPendingMissionsUnlock()) return;
+    this.audio.playUi('confirm');
     // First-run tutorial: 5 teaching hops (lessons) + a 5-hop speed ramp.
     this.guidedFirst = false;
     this.guidedStep = 0;
@@ -335,6 +360,7 @@ export class Game {
     // (resetEntities applies the guided lesson layout via guidedFirst).
     this.resetEntities();
     this.audio.resume();
+    this.syncWorldMusic('run');
     this.state.startGame();
     this.ui.showStartScreen(false);
     this.ui.hideShop();
@@ -436,6 +462,7 @@ export class Game {
     this.ui.showScoreUI(false);
     this.ui.showCoinCounter(false);
     this.ui.showStartScreen(true);
+    this.syncWorldMusic('menu');
     this.startAttractDemo();
     this.effects.clearParticles();
     this.effects.clearSpeedLines();
@@ -489,7 +516,9 @@ export class Game {
     const st = this.state.getState();
     if (!st.isStarted || st.isFailed || this.isPaused) return;
     this.isPaused = true;
+    this.audio.playUi('tick');
     document.body.classList.add('game-paused');
+    this.audio.pauseMusic();
     gsap.globalTimeline.pause();
     this.ui.hidePauseButton();
     this.ui.showPauseOverlay();
@@ -508,6 +537,7 @@ export class Game {
   private unpause(): void {
     this.isPaused = false;
     document.body.classList.remove('game-paused');
+    this.audio.resumeMusic();
     gsap.globalTimeline.resume();
     if (this.pauseCountdownTimer !== null) {
       window.clearTimeout(this.pauseCountdownTimer);
@@ -525,6 +555,7 @@ export class Game {
     const tick = () => {
       if (count > 0) {
         this.ui.showPauseCountdown(count);
+        this.audio.playUi('tick');
         count--;
         this.pauseCountdownTimer = window.setTimeout(tick, 700);
       } else {
@@ -545,12 +576,13 @@ export class Game {
       this.unpause();
       this.ui.hidePauseOverlay();
     }
+    this.audio.duckForMiss();
     // Kill any lingering jump tweens (e.g. frozen by a just-cleared pause) so
     // they can't fight the fall animation on the same targets.
     gsap.killTweensOf(this.ball.group.position);
     gsap.killTweensOf(this.ball.group.scale);
     this.ui.showFirstRunGuide(false);
-    this.audio.playGameOver();
+    this.audio.playMiss(this.state.getActiveWorld().id);
     this.effects.clearSpeedLines();
     this.ui.setStreakGlow('off');
     this.ball.setShield(false);
@@ -568,12 +600,15 @@ export class Game {
     // parented to the platform (rides its sway), takes the active world's color
     // palette, kicks up a crater + mixed debris + dust, and triggers a stronger
     // camera shake on impact.
+    let celebrateBest = false;
     if (GAME_CONFIG.FAIL_FLAG.enabled) {
       const failed = this.platforms.getPlatformByIndex(st.currentStep);
       if (failed) {
-        this.effects.playFailureFlag(failed, this.state.getActiveWorld().id, () =>
-          this.camera.shake(GAME_CONFIG.FAIL_FLAG.impactShake)
-        );
+        this.effects.playFailureFlag(failed, this.state.getActiveWorld().id, () => {
+          this.camera.shake(GAME_CONFIG.FAIL_FLAG.impactShake);
+          this.audio.playImpact();
+          if (celebrateBest) this.audio.playBest();
+        });
       }
     }
 
@@ -582,6 +617,7 @@ export class Game {
     // the best ever made in the world being played.
     this.state.updateBestScore(st.score);
     const isNewBest = this.state.updateBestPerWorld(st.score);
+    celebrateBest = isNewBest;
     this.state.bankTotalScore();
     // Missions only count once the feature is unlocked, and the run that
     // crosses the threshold (the 3rd game over) must not bank its own
@@ -699,7 +735,7 @@ export class Game {
               if (inTutorial) {
                 // No streak / no popup during tutorial — prevents spam (every perfect showed x1) and keeps
                 // the tutorial focused on movement; streak starts at tile 11. Only play the subtle dot effect.
-                this.audio.playPerfect(1);
+                this.audio.playPerfect(1, this.state.getActiveWorld().id);
                 this.effects.playPerfectEffect(
                   this.ball.group.position.x,
                   this.ball.group.position.y,
@@ -712,14 +748,14 @@ export class Game {
               } else {
                 st.perfectStreak++;
                 st.score += st.perfectStreak;
-                this.audio.playPerfect(st.perfectStreak);
+                this.audio.playPerfect(st.perfectStreak, this.state.getActiveWorld().id);
                 this.perfectHit(target);
                 this.state.trackPerfectLanding();
                 this.totalStreakReward();
               }
             } else {
               if (!inTutorial) st.perfectStreak = 0;
-              this.audio.playJump(st.score);
+              this.audio.playJump(st.score, this.state.getActiveWorld().id);
             }
             this.checkMissions();
             this.ui.setScore(st.score);
@@ -1142,6 +1178,7 @@ export class Game {
     void this.persistence.save(this.state.getMutablePlayerData());
     this.applyWorldLook(this.state.getActiveWorld().id);
     this.ui.renderStartScreen();
+    this.syncWorldMusic('menu');
     this.platforms.reset();
     if (this.demoActive) {
       this.stopAttractDemo();

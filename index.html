@@ -5,6 +5,68 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <title>HOP</title>
   <link rel="icon" href="favicon.png" type="image/png">
+  <link rel="preload" href="ui-icons.png" as="image">
+  <script>
+    /* UI icons share one picture. ui-icons.json names each rectangle
+       (x, y, w, h), the same frame map Arrow uses for its spritesheet. */
+    (function () {
+      var ready = fetch('ui-icons.json').then(function (r) { return r.json(); });
+      function paint(el, sheet, frameName) {
+        var entry = sheet.frames[frameName];
+        if (!entry || !sheetImage.complete) return;
+        var f = entry.frame;
+        var canvas = document.createElement('canvas');
+        canvas.width = f.w;
+        canvas.height = f.h;
+        canvas.getContext('2d').drawImage(sheetImage, f.x, f.y, f.w, f.h, 0, 0, f.w, f.h);
+        el.style.backgroundImage = "url('" + canvas.toDataURL() + "')";
+        el.style.backgroundRepeat = 'no-repeat';
+        el.style.backgroundSize = '100% 100%';
+        el.style.backgroundPosition = '0 0';
+        el.dataset.painted = frameName;
+      }
+      function frameFor(el, sheet) {
+        var name = el.getAttribute('data-sprite');
+        var anim = sheet.animations && sheet.animations[name];
+        if (!anim) return name;
+        var i = el._hopFrame || 0;
+        return anim.frames[i % anim.frames.length];
+      }
+      function apply(sheet) {
+        var nodes = document.querySelectorAll('.ui-sprite[data-sprite]');
+        for (var i = 0; i < nodes.length; i++) {
+          var frameName = frameFor(nodes[i], sheet);
+          if (nodes[i].dataset.painted === frameName) continue;
+          paint(nodes[i], sheet, frameName);
+        }
+      }
+      var sheetImage = new Image();
+      function boot(sheet) {
+        sheetImage.onload = function () { apply(sheet); };
+        sheetImage.src = sheet.meta.image;
+        apply(sheet);
+        var obs = new MutationObserver(function () { apply(sheet); });
+        obs.observe(document.body, { childList: true, subtree: true });
+        var anim = sheet.animations && sheet.animations['tap-hand'];
+        if (!anim) return;
+        var step = 0;
+        function advance() {
+          step = (step + 1) % anim.frames.length;
+          var nodes = document.querySelectorAll('[data-sprite="tap-hand"]');
+          for (var i = 0; i < nodes.length; i++) {
+            nodes[i]._hopFrame = step;
+            nodes[i].dataset.painted = '';
+          }
+          apply(sheet);
+          setTimeout(advance, anim.durations[step] || 500);
+        }
+        setTimeout(advance, anim.durations[0] || 500);
+      }
+      function start() { ready.then(boot); }
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+      else start();
+    })();
+  </script>
   <style>
     /* Fredoka bundled locally (SIL OFL 1.1, license in public/fonts/OFL.txt).
        Variable font: one woff2 covers weights 300-700. No third-party font
@@ -22,12 +84,12 @@
       --lock-overlay-alpha: 0.10;
       --lock-overlay-blur: 10px;
 
-      /* Tap-to-play overlay (tap-to-play.gif) tuning.
-         --tap-size     : square size of the GIF overlay (CSS width).
+      /* Tap-to-play overlay (the hand on the icon sheet) tuning.
+         --tap-size     : square size of the hand overlay (CSS width).
          --tap-offset-x : screen-space horizontal nudge from the ball's center (px).
          --tap-offset-y : screen-space vertical nudge from the ball's center (px,
-                          + shifts the GIF down, - floats it up).
-         --tap-text-gap : gap between "tap to play" and the GIF.
+                          + shifts the hand down, - floats it up).
+         --tap-text-gap : gap between "tap to play" and the hand.
          --tap-fade-in  : seconds the overlay fades in.
          --tap-hold     : seconds it stays fully visible.
          --tap-fade-out : seconds it fades out.
@@ -352,9 +414,11 @@
       font-size: clamp(11px, 2.2vmin, 14px);
       font-weight: 900;
       letter-spacing: 1px;
-      color: #111;
+      color: #fff;
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
       pointer-events: none;
-      text-shadow: 0 0 5px rgba(255, 255, 255, 0.25);
+      text-shadow: 2px 2px 0 rgba(17, 17, 17, 0.25);
       text-align: center;
       line-height: 1.2;
     }
@@ -365,8 +429,9 @@
       line-height: 1;
       pointer-events: none;
     }
-    .nav-chevron img {
+    .nav-chevron .ui-sprite {
       width: clamp(24px, 5.5vmin, 36px);
+      aspect-ratio: 1;
       height: auto;
       display: block;
       /* Keep the arrow upright when the button is rotated by a world theme. */
@@ -378,7 +443,7 @@
       cursor: pointer;
       box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.15);
     }
-    .nav-arrow.locked .nav-chevron img {
+    .nav-arrow.locked .nav-chevron .ui-sprite {
       opacity: 0.45;
     }
     /* Far-future world: teaser arrow, present but never clickable. */
@@ -455,6 +520,7 @@
     }
     .lock-svg {
       width: clamp(200px, 24vmin, 200px);
+      aspect-ratio: 1;
       height: auto;
       filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
     }
@@ -882,10 +948,9 @@
       vertical-align: middle;
       position: relative;
     }
-    .coin-icon img {
+    .coin-icon .ui-sprite {
       width: 100%;
       height: 100%;
-      object-fit: contain;
     }
 
     /* Middle group: play button centered vertically */
@@ -1116,6 +1181,7 @@
     }
     #best-score-crown {
       width: clamp(26px, 5.5vmin, 42px);
+      aspect-ratio: 1;
       height: auto;
       filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.4));
     }
@@ -1557,10 +1623,9 @@
       align-items: center;
       justify-content: center;
     }
-    .shop-coin img {
+    .shop-coin .ui-sprite {
       width: 100%;
       height: 100%;
-      object-fit: contain;
     }
     .notify-bubble {
       position: absolute;
@@ -1671,6 +1736,7 @@
     }
     #go-best-crown {
       width: clamp(16px, 3.2vmin, 22px);
+      aspect-ratio: 1;
       height: auto;
       display: block;
     }
@@ -1680,7 +1746,9 @@
     }
     #go-new-best-crown {
       width: clamp(20px, 4vmin, 28px);
+      aspect-ratio: 1;
       height: auto;
+      display: inline-block;
       vertical-align: -2px;
       margin-right: 4px;
     }
@@ -2302,16 +2370,19 @@
       box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25);
       transform: translateY(1px);
     }
-    #settings-btn img,
-    #stats-btn img {
+    .ui-sprite {
+      display: block;
+      background-repeat: no-repeat;
+    }
+    #settings-btn .ui-sprite,
+    #stats-btn .ui-sprite {
       width: 95%;
       height: 95%;
-      object-fit: contain;
       display: block;
       transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
     }
     /* Settings hover: subtle rewarding spin — not too much, 180deg with ease */
-    #settings-btn:hover img {
+    #settings-btn:hover .ui-sprite {
       transform: rotate(180deg);
     }
     /* Keep SVG fallback if you swap back from <img> */
@@ -2333,33 +2404,34 @@
     #coin-card {
       display: flex;
       align-items: center;
-      gap: 5px;
-      padding: clamp(4px, 1vmin, 8px) clamp(10px, 2.2vmin, 18px);
+      box-sizing: border-box;
+      height: clamp(46px, 9vmin, 62px);
+      gap: 4px;
+      padding: 0 clamp(8px, 1.6vmin, 12px);
       background: #fff;
-      border: 3px solid #111;
+      border: clamp(4px, 1vmin, 6px) solid #111;
       border-radius: 999px;
       box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.25);
       font-family: 'Arial Black', sans-serif;
-      font-size: clamp(14px, 2.8vmin, 19px);
+      font-size: clamp(12px, 2.2vmin, 15px);
       font-weight: 900;
       color: #b8860b;
-      line-height: 1.2;
+      line-height: 1;
       user-select: none;
       pointer-events: auto;
       white-space: nowrap;
     }
     .coin-card-icon {
-      width: clamp(16px, 3.2vmin, 22px);
-      height: clamp(16px, 3.2vmin, 22px);
+      width: clamp(22px, 4vmin, 28px);
+      height: clamp(22px, 4vmin, 28px);
       display: flex;
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
     }
-    .coin-card-icon img {
+    .coin-card-icon .ui-sprite {
       width: 100%;
       height: 100%;
-      object-fit: contain;
     }
     #coin-card-amount {
       color: #b8860b;
@@ -2737,7 +2809,7 @@
     <div id="game-container">
       <div id="ui-overlay">
         <div id="score-wrap"><div id="score">0</div></div>
-        <div id="coin-counter"><span class="coin-icon"><img src="Coin.png" alt="coin"></span><span id="coin-amount">0</span></div>
+        <div id="coin-counter"><span class="coin-icon"><span class="ui-sprite" data-sprite="coin" role="img" aria-label="coin"></span></span><span id="coin-amount">0</span></div>
         <div id="perfect-popup-container"></div>
         <button id="pause-btn" title="Pause" aria-label="Pause"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="7.5" y="7" width="4" height="10" rx="1.4"/><rect x="12.5" y="7" width="4" height="10" rx="1.4"/></svg></button>
         <div id="pause-overlay">
@@ -2800,29 +2872,29 @@
           <div id="best-score" class="hidden">
             <span id="best-score-label">BEST SCORE</span>
             <div id="best-score-line">
-              <img id="best-score-crown" src="crown.svg" alt="">
+              <span id="best-score-crown" class="ui-sprite" data-sprite="crown" role="img" aria-label="best"></span>
               <span id="best-score-value">0</span>
             </div>
             <span id="best-score-callout">can you beat this?</span>
           </div>
           <div id="world-prev" class="nav-arrow hidden" title="">
             <span class="nav-label">World 1</span>
-            <span class="nav-chevron"><img src="arrow-left.png" alt="back"></span>
+            <span class="nav-chevron"><span class="ui-sprite" data-sprite="arrow-left" role="img" aria-label="back"></span></span>
           </div>
           <div id="world-nav">
             <div id="world-next" class="nav-arrow locked" title="">
               <span class="nav-label">World 2</span>
-              <span class="nav-chevron"><img src="arrow-right.png" alt="next"></span>
+              <span class="nav-chevron"><span class="ui-sprite" data-sprite="arrow-right" role="img" aria-label="next"></span></span>
             </div>
             <div id="world-far" class="nav-arrow locked coming-soon hidden" title="Coming soon">
-              <span class="nav-chevron"><img src="arrow-right.png" alt="next"></span>
+              <span class="nav-chevron"><span class="ui-sprite" data-sprite="arrow-right" role="img" aria-label="next"></span></span>
             </div>
             <div id="world-bubble"></div>
           </div>
           <div class="start-middle">
             <div id="play-btn" role="button" title="Tap to play">
               <span id="tap-text">tap to play</span>
-              <img id="tap-hand" src="tap-to-play.gif" alt="" draggable="false">
+              <span id="tap-hand" class="ui-sprite" data-sprite="tap-hand" aria-hidden="true"></span>
             </div>
           </div>
           <div id="menu-btns" class="menu-btns">
@@ -2841,7 +2913,7 @@
             </div>
             <div class="menu-item">
               <button id="shop-btn">
-                <span class="shop-coin"><img src="cart.png" alt="shop"></span>
+                <span class="shop-coin"><span class="ui-sprite" data-sprite="cart" role="img" aria-label="shop"></span></span>
                 <span class="notify-bubble" id="shop-notify" hidden></span>
               </button>
               <span class="menu-label">shop</span>
@@ -2850,16 +2922,16 @@
           <div id="top-right-btns">
             <div class="top-btn-wrap">
               <button id="settings-btn" title="Settings">
-                <img src="settings-gear.png" alt="">
+                <span class="ui-sprite" data-sprite="settings-gear" aria-hidden="true"></span>
               </button>
             </div>
             <div class="top-btn-wrap">
               <button id="stats-btn" title="Stats">
-                <img src="stats-icon.png" alt="">
+                <span class="ui-sprite" data-sprite="stats-icon" aria-hidden="true"></span>
               </button>
             </div>
             <div id="coin-card" class="coin-card" title="Coins">
-              <span class="coin-card-icon"><img src="Coin.png" alt="coin"></span>
+              <span class="coin-card-icon"><span class="ui-sprite" data-sprite="coin" role="img" aria-label="coin"></span></span>
               <span id="coin-card-amount">0</span>
             </div>
           </div>
@@ -2875,7 +2947,7 @@
         <div id="lock-overlay">
           <div class="lock-card">
             <button id="lock-close" title="Close">&#x2715;</button>
-            <img src="lock-icon.png" alt="" class="lock-svg" style="object-fit:contain;display:block;">
+            <span class="ui-sprite lock-svg" data-sprite="lock-icon" role="img" aria-label="Locked"></span>
             <div id="lock-world-name">????</div>
             <div id="lock-desc"></div>
             <div id="lock-tagline">Unlocks at 1,000 total score</div>
@@ -2888,26 +2960,26 @@
           <h1>GAME OVER</h1>
           <div id="go-score-label">SCORE</div>
           <div id="go-score">0</div>
-          <div id="go-best-score"><img id="go-best-crown" src="crown.svg" alt=""><span id="go-best-label">Best</span><span id="go-best-val">0</span></div>
-          <div id="go-new-best" style="display:none"><img id="go-new-best-crown" src="crown.svg" alt="">NEW BEST!</div>
+          <div id="go-best-score"><span id="go-best-crown" class="ui-sprite" data-sprite="crown" role="img" aria-label="best"></span><span id="go-best-label">Best</span><span id="go-best-val">0</span></div>
+          <div id="go-new-best" style="display:none"><span id="go-new-best-crown" class="ui-sprite" data-sprite="crown" role="img" aria-label="best"></span>NEW BEST!</div>
           <div id="go-coins-row">
-            <span class="coin-icon"><img src="Coin.png" alt="coin"></span>
+            <span class="coin-icon"><span class="ui-sprite" data-sprite="coin" role="img" aria-label="coin"></span></span>
             <span id="go-round-coins">+0</span>
           </div>
           <div id="go-total-row">
-            TOTAL <span class="coin-icon"><img src="Coin.png" alt="coin"></span>
+            TOTAL <span class="coin-icon"><span class="ui-sprite" data-sprite="coin" role="img" aria-label="coin"></span></span>
             <span id="go-total-coins">0</span>
           </div>
           <div id="go-world"></div>
           <div id="go-unlock-callout" style="display:none">
-            <img src="sparkle-star.png" alt="" class="go-sparkle go-sparkle--left" aria-hidden="true">
-            <img src="sparkle-star.png" alt="" class="go-sparkle go-sparkle--right" aria-hidden="true">
+            <span class="ui-sprite go-sparkle go-sparkle--left" data-sprite="sparkle-star" aria-hidden="true"></span>
+            <span class="ui-sprite go-sparkle go-sparkle--right" data-sprite="sparkle-star" aria-hidden="true"></span>
             <div class="go-unlock-title">NEW WORLD UNLOCKED!</div>
             <div class="go-unlock-hint">Tap HOME to explore it</div>
           </div>
           <div id="go-missions-callout" style="display:none">
-            <img src="sparkle-star.png" alt="" class="go-sparkle go-sparkle--left" aria-hidden="true">
-            <img src="sparkle-star.png" alt="" class="go-sparkle go-sparkle--right" aria-hidden="true">
+            <span class="ui-sprite go-sparkle go-sparkle--left" data-sprite="sparkle-star" aria-hidden="true"></span>
+            <span class="ui-sprite go-sparkle go-sparkle--right" data-sprite="sparkle-star" aria-hidden="true"></span>
             <div class="go-missions-title">MISSIONS UNLOCKED!</div>
             <div class="go-missions-hint">Visit HOME to check them out</div>
           </div>
@@ -2938,7 +3010,7 @@
       </div>
       <div id="shop-scroll" class="shop-scroll"></div>
       <div class="shop-footer">
-        <span class="coin-icon"><img src="Coin.png" alt="coin"></span>
+        <span class="coin-icon"><span class="ui-sprite" data-sprite="coin" role="img" aria-label="coin"></span></span>
         <span id="shop-coin-display">0</span>
       </div>
     </div>

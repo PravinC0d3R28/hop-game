@@ -11,6 +11,7 @@ import type { RendererSystem } from '../systems/RendererSystem';
 import type { ShadowSystem } from '../systems/ShadowSystem';
 import type { BackgroundSystem } from '../systems/BackgroundSystem';
 import type { BallEntity } from '../entities/BallEntity';
+import type { UiSound } from '../systems/AudioSystem';
 import { FireOverlay } from '../systems/FireOverlay';
 import { gsap } from 'gsap';
 import { Vector3 } from 'three';
@@ -164,7 +165,7 @@ export class UIManager {
 
   /** Fired when the "sound" volume slider changes (0–100). Wired by Game to AudioSystem. */
   onSoundVolumeChange: (volume: number) => void = () => {};
-  /** Fired when the "music" volume slider changes (0–100). Reserved for a future track. */
+  /** Fired when the music volume slider changes (0–100). Scales the world song only. */
   onMusicVolumeChange: (volume: number) => void = () => {};
 
   /** Check circle for claimed rows. Green circle + a 2px black ring drawn fully
@@ -231,14 +232,17 @@ export class UIManager {
   private bind(): void {
     this.shopBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      this.cue('tick');
       this.openShop();
     });
     this.missionsBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      this.cue('tick');
       this.openMissions();
     });
     this.missionsClose.addEventListener('click', (e) => {
       e.stopPropagation();
+      this.cue('tick');
       this.closeMissions();
     });
     this.missionsTabs.forEach((tab) =>
@@ -246,6 +250,7 @@ export class UIManager {
         e.stopPropagation();
         const kind = tab.dataset.tab as MissionKind | undefined;
         if (!kind || kind === this.activeMissionTab) return;
+        this.cue('tick');
         this.activeMissionTab = kind;
         this.missionsTabs.forEach((t) => t.classList.toggle('active', t === tab));
         this.missionsScroll.scrollTop = 0;
@@ -253,7 +258,10 @@ export class UIManager {
       })
     );
     this.missionsOverlay.addEventListener('click', (e) => {
-      if (e.target === this.missionsOverlay) this.closeMissions();
+      if (e.target === this.missionsOverlay) {
+        this.cue('tick');
+        this.closeMissions();
+      }
     });
     this.missionsList.addEventListener('click', (e) => {
       const claim = (e.target as HTMLElement).closest<HTMLElement>('[data-claim]');
@@ -263,36 +271,53 @@ export class UIManager {
     });
     this.settingsBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      this.cue('tick');
       this.openSettings();
     });
     this.settingsClose.addEventListener('click', (e) => {
       e.stopPropagation();
+      this.cue('tick');
       this.closeSettings();
     });
     this.settingsOverlay.addEventListener('click', (e) => {
-      if (e.target === this.settingsOverlay) this.closeSettings();
+      if (e.target === this.settingsOverlay) {
+        this.cue('tick');
+        this.closeSettings();
+      }
     });
     this.soundSlider.addEventListener('input', () => this.applySoundVolume());
     this.musicSlider.addEventListener('input', () => this.applyMusicVolume());
     this.sensitivitySlider.addEventListener('input', () => this.applySensitivity());
-    this.sensitivityReset.addEventListener('click', () => this.resetSensitivity());
+    this.sensitivityReset.addEventListener('click', () => {
+      this.cue('tick');
+      this.resetSensitivity();
+    });
     this.statsBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      this.cue('tick');
       this.openStats();
     });
     this.statsClose.addEventListener('click', (e) => {
       e.stopPropagation();
+      this.cue('tick');
       this.closeStats();
     });
     this.statsOverlay.addEventListener('click', (e) => {
-      if (e.target === this.statsOverlay) this.closeStats();
+      if (e.target === this.statsOverlay) {
+        this.cue('tick');
+        this.closeStats();
+      }
     });
     this.shopClose.addEventListener('click', (e) => {
       e.stopPropagation();
+      this.cue('tick');
       this.shopOverlay.style.display = 'none';
     });
     this.shopOverlay.addEventListener('click', (e) => {
-      if (e.target === this.shopOverlay) this.shopOverlay.style.display = 'none';
+      if (e.target === this.shopOverlay) {
+        this.cue('tick');
+        this.shopOverlay.style.display = 'none';
+      }
     });
     this.shopScroll.addEventListener('click', (e) => this.onShopClick(e));
     this.continueBtn.addEventListener('pointerdown', (e) => {
@@ -300,18 +325,27 @@ export class UIManager {
       e.preventDefault();
     });
     this.continueBtn.addEventListener('click', () => {
-      if (this.gameOverScreen.style.display === 'flex') this.onContinue();
+      if (this.gameOverScreen.style.display === 'flex') {
+        this.cue('confirm');
+        this.onContinue();
+      }
     });
     this.homeBtn.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
       e.preventDefault();
     });
     this.homeBtn.addEventListener('click', () => {
-      if (this.gameOverScreen.style.display === 'flex') this.onHome();
+      if (this.gameOverScreen.style.display === 'flex') {
+        this.cue('back');
+        this.onHome();
+      }
     });
     this.pauseBtn.addEventListener('click', () => this.onPause());
     this.pauseResumeBtn.addEventListener('click', () => this.onResume());
-    this.pauseHomeBtn.addEventListener('click', () => this.onPauseHome());
+    this.pauseHomeBtn.addEventListener('click', () => {
+      this.cue('back');
+      this.onPauseHome();
+    });
     this.pauseOverlay.addEventListener('click', (e) => {
       if (e.target === this.pauseOverlay) this.onResume();
     });
@@ -327,13 +361,18 @@ export class UIManager {
     });
     this.lockClose.addEventListener('click', (e) => {
       e.stopPropagation();
+      this.cue('tick');
       this.closeLockOverlay();
     });
     this.lockOverlay.addEventListener('click', (e) => {
-      if (e.target === this.lockOverlay) this.closeLockOverlay();
+      if (e.target === this.lockOverlay) {
+        this.cue('tick');
+        this.closeLockOverlay();
+      }
     });
     this.unlockClose.addEventListener('click', (e) => {
       e.stopPropagation();
+      this.cue('tick');
       this.closeUnlockDialog();
     });
     this.unlockDialog.addEventListener('click', (e) => {
@@ -343,6 +382,7 @@ export class UIManager {
       e.stopPropagation();
       // Capture the clicked world BEFORE closing: closing pumps the unlock
       // queue and the next intro takes over pendingUnlockWorld.
+      this.cue('confirm');
       const world = this.pendingUnlockWorld;
       this.pendingUnlockWorld = null;
       this.closeUnlockDialog();
@@ -350,10 +390,12 @@ export class UIManager {
     });
     this.shieldCardClose.addEventListener('click', (e) => {
       e.stopPropagation();
+      this.cue('tick');
       this.closeShieldCard();
     });
     this.shieldCardGotit.addEventListener('click', (e) => {
       e.stopPropagation();
+      this.cue('confirm');
       this.closeShieldCard();
     });
     this.shieldCardDialog.addEventListener('click', (e) => {
@@ -378,8 +420,13 @@ export class UIManager {
   onResume: () => void = () => {};
   onPauseHome: () => void = () => {};
   onSkinApplied: () => void = () => {};
-  /** Fired when a mission reward is claimed (Game plays the coin jingle). */
+  /** Fired when a mission reward is claimed (Game plays the claim chime). */
   onMissionClaim: () => void = () => {};
+  /** Button ticks. Game routes these to the sound slider. */
+  onUiSound: (kind: UiSound) => void = () => {};
+  private cue(kind: UiSound): void {
+    this.onUiSound(kind);
+  }
   /** Fired after a successful world selection (Game re-seeds platform ramps). */
   onWorldSelect: (id: WorldId) => void = () => {};
 
@@ -459,6 +506,7 @@ export class UIManager {
       if (!data.revealedWorlds.includes(id)) data.revealedWorlds.push(id);
     }
     if (this.state.selectWorld(id)) {
+      this.cue('tick');
       this.state.clearPreview();
       this.onWorldSelect(id);
       this.closeLockOverlay();
@@ -466,6 +514,7 @@ export class UIManager {
       return;
     }
     if (world && !this.state.canSelectWorld(world)) {
+      this.cue('deny');
       this.state.previewWorld(id);
       this.onWorldSelect(id);
       this.renderStartScreen();
@@ -518,7 +567,7 @@ export class UIManager {
       // is the reveal. Dimmed arrow hints the world isn't ready yet.
       this.worldNext.classList.toggle('locked', !unlocked);
       this.worldNext.innerHTML =
-        `<span class="nav-chevron"><img src="${this.asset('arrow-right.png')}" alt="next"></span>`;
+        `<span class="nav-chevron"><span class="ui-sprite" data-sprite="arrow-right" role="img" aria-label="next"></span></span>`;
       this.setNavLabel(this.worldNext, this.navLabelFor(next));
       this.worldNext.title = unlocked
         ? `Go to ${next.name}`
@@ -1167,6 +1216,7 @@ export class UIManager {
 
   /** Reveal the newly unlocked world behind a lock screen with confetti. */
   private showUnlockDialog(world: WorldConfig): void {
+    this.cue('reveal');
     this.pendingUnlockWorld = world.id;
     this.unlockCardTitle.textContent = world.name.toUpperCase();
     this.unlockCardTitle.style.color = this.WORLD_TITLE_COLORS[world.id];
@@ -1213,6 +1263,7 @@ export class UIManager {
   }
 
   private openShieldCard(): void {
+    this.cue('reveal');
     this.shieldCardDialog.classList.remove('hidden');
     const card = this.shieldCardDialog.querySelector<HTMLElement>('#shield-card');
     if (card) {
@@ -1597,7 +1648,7 @@ export class UIManager {
     void this.persistSettings();
   }
 
-  /** Persist the music volume (music channel is reserved for a future track). */
+  /** Persist the music volume and update the world-bed gain. */
   private applyMusicVolume(): void {
     const volume = Number(this.musicSlider.value);
     this.musicValue.textContent = String(volume);
@@ -1882,7 +1933,7 @@ export class UIManager {
           claim.className = 'm-claim-btn';
           claim.dataset.claim = m.id;
           claim.innerHTML =
-            `<span class="coin-icon"><img src="${this.asset('Coin.png')}" alt="coin"></span> ` +
+            `<span class="coin-icon"><span class="ui-sprite" data-sprite="coin" role="img" aria-label="coin"></span></span> ` +
             `<span class="claim-amount">+${m.reward}</span>`;
           row.appendChild(claim);
         }
@@ -1902,6 +1953,7 @@ export class UIManager {
   private claimMission(id: string, btn?: HTMLElement): void {
     const reward = this.state.claimMissionReward(id);
     if (!reward) {
+      this.cue('deny');
       this.refreshMissionNotify();
       return;
     }
@@ -2070,7 +2122,7 @@ export class UIManager {
         action.dataset.action = 'buy';
         action.dataset.skin = skin.id;
         action.disabled = !affordable;
-        action.innerHTML = `<span class="coin-icon"><img src="${this.asset('Coin.png')}" alt="coin"></span> ${skin.price}`;
+        action.innerHTML = `<span class="coin-icon"><span class="ui-sprite" data-sprite="coin" role="img" aria-label="coin"></span></span> ${skin.price}`;
       }
 
       item.appendChild(preview);
@@ -2092,13 +2144,18 @@ export class UIManager {
     const action = target.dataset.action;
     const skinId = target.dataset.skin!;
     if (action === 'buy') {
-      if (!this.state.buySkin(skinId)) return;
+      if (!this.state.buySkin(skinId)) {
+        this.cue('deny');
+        return;
+      }
+      this.cue('confirm');
       this.onSkinApplied();
       this.onDataChanged();
       this.renderShop();
       this.refreshCoins();
     } else if (action === 'equip') {
       if (!this.state.equipSkin(skinId)) return;
+      this.cue('confirm');
       this.onSkinApplied();
       this.onDataChanged();
       this.renderShop();
@@ -2317,11 +2374,6 @@ export class UIManager {
 
   get scoreElement(): HTMLElement {
     return this.scoreEl;
-  }
-
-  private asset(name: string): string {
-    const base = import.meta.env.BASE_URL || './';
-    return `${base}${name}`;
   }
 
   private onResize(): void {

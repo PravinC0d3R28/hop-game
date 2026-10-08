@@ -9,7 +9,7 @@
 > spec), `IMPLEMENTATION_PLAN.md` (iteration history), `DEV_COMMANDS.md`
 > (debug helpers), `CUSTOMIZATION_GUIDE.md` (tuning surface), `LOADING_AND_TUTORIAL.md`
 > (onboarding design).
-> Verify with `npm run typecheck` + `npm run test` (181 tests across 13 files).
+> Verify with `npm run typecheck` + `npm run test` (277 tests across 20 files).
 
 ---
 
@@ -54,10 +54,18 @@
   size).
 - **Swaying platforms** (Dusk + Void): `sin(t·speed + index·1.7)·amp`, de-phased
   per index; the hit-check consumes the shifted position so sway affects landing.
+- **How they look.** Sunrise is a bright crystal field over a cloud sea.
+  Dusk is a sunset canyon city; its tiles keep a cyan ribbon. Deep Void is a
+  dark sky with an aurora, one crescent, warm stars, rocks, broken rings,
+  gates, and planets beside the path. The next tile stays in an open lane.
+  These looks are data in `WorldLooks.ts`, applied when you select a world,
+  preview a locked one, or start a run.
 - **World nav** on the start screen: back/next arrows (center-left/right,
-  vertically centered), labeled `World N` once unlocked (else `???`), a green ▶
-  when unlocked, a lock + threshold when locked. Nav reveals at 250 lifetime
-  score. `world-far` = "coming soon" teaser for a 4th slot.
+  vertically centered). The label above each arrow is white with a black
+  stroke: `World N` once that world can be selected, otherwise `???`.
+  A locked arrow opens the lock card; it does not switch the selected world.
+  Nav reveals at 250 lifetime score. `world-far` = "coming soon" teaser for
+  a 4th slot.
 - **Locked-world flow:** clicking a locked arrow "loads" ~350ms then shows a
   **gaussian-blur lock overlay**: name hidden as `????`, description, unlock
   progress bar, points remaining. Back arrow stays usable above the blur; menu
@@ -195,37 +203,51 @@ On a miss:
 
 ## 9. Settings
 
-- **Sound volume** slider (0–100, drives all procedural SFX live).
-- **Music volume** slider (0–100 — channel reserved for a future track, only
-  persists for now).
+- **Sound volume** slider (0–100, drives the synthesized effects live).
+- **Music volume** slider (0–100, drives the world song only). 0 silences the
+  song and leaves the effects. 100 during a run is 75% of the everyday effect
+  loudness. The menu is quieter. Game over drops the song to half the run level.
 - **Sensitivity** slider (0–100, 50 = original feel) + **reset** button.
 - All persisted via the normal save path.
 
-## 10. Audio (100% procedural WebAudio)
+## 10. Audio
 
-| Event | Sound |
-|---|---|
-| jump | sine `440 + (score%8)·30` + octave |
-| coin | 880 → 1100 → 1320 Hz ascending |
-| perfect | `660 + min(streak,10)·60` arpeggio (×1.25/×1.5/×2 at high streaks) |
-| mission complete | short success chime |
-| milestone | streak-10 fanfare |
-| shield break | burst/glass |
-| game over | sawtooth 200 Hz + square 150 Hz (detuned) |
+Three local songs, one per world, in `public/audio/`. The same song plays on
+that world's tap-to-play screen and during the run. A locked world does not
+get its song until it can be selected. Provenance is in
+`docs/ART/MUSIC/Music_License.md`.
 
-- Lazy `AudioContext`, resumed on first user gesture, suspended when the tab is
-  hidden. `AUDIO_ENABLED` master switch.
+Effects are synthesized in the game, on their own gain, half again as loud as
+the first mix so the song does not cover them. Landings follow the world
+(Sunrise high and glassy, Dusk warm, Deep Void quiet). A perfect is that same
+hit with one higher note. The coin is one chime. Claiming a mission is that
+chime, one step bigger. Buttons tick. Fire, shield break, the miss, the flag
+impact, a new best, and the unlock cards each have their own short cue.
+
+- The song starts when the splash ends. Pause freezes it. A hidden tab
+  suspends the audio context. Play Again keeps the same song. Home returns it
+  to the quieter menu level.
+- `AUDIO_ENABLED` is the master switch.
 
 ## 11. Rendering & Environment
 
 - Three.js r152, WebGL, GSAP 3.14. Halftone-toon shader: tri-planar dot
   sampling + 4-step toon gradient + shadow-dot mask (`MaterialFactory`).
+- **One outline choice:** thick black inverted hulls on the ball, tiles, coins,
+  and props. Decided 2026-09-02 and kept.
 - Camera: follow with ±0.5 dead-band, positional lerps, FOV widens on portrait
-  (`55 + (1−aspect)·30`), game-over shake.
+  (`55 + (1−aspect)·30`), pixel ratio capped at 2, game-over shake.
 - Blob shadow under the ball (scales/fades with height).
-- 10 background rock clusters (bob + recycle), themed decoration colors.
-- Platform palette cycling: 8 pastel `{base, light}` pairs, cycle every 12
-  platforms, random start per run.
+- Backgrounds are per world and recycle in segments. Sunrise uses the crystal
+  field. Dusk uses the city. Deep Void uses its own rocks, rings, gates, and
+  planets. They are not the old shared rock clusters.
+- Tile colors come from the active world's look. Sunrise still cycles bright
+  faces. Dusk and Void use their own face colors.
+- **Pictures** (arrows, coin, cart, crown, gear, chart, lock, sparkle, tap
+  hand) are one sheet, `ui-icons.png`, with rectangles named in
+  `ui-icons.json`. The coin on a tile uses that same coin rectangle, turned
+  to face the camera, in the artwork's own colors. The browser-tab icon stays
+  a separate file.
 
 ## 12. Persistence & Saves
 
@@ -259,7 +281,7 @@ On a miss:
   `showFPS`, `showHitboxes`.
 - **Test tip:** `Math.random = () => 0.5` forces straight deterministic lanes.
 
-## 14. Test Suite (13 files, 181 tests)
+## 14. Test Suite (20 files, 277 tests)
 
 | File | Tests | Covers |
 |---|---|---|
@@ -268,20 +290,27 @@ On a miss:
 | state.test.ts | 23 | sanitize/merge/economy/missions state + baseline |
 | difficulty.test.ts | 15 | sawtooth ramps per world |
 | worlds.test.ts | 12 | unlock thresholds, selection, tier math |
+| worldlook.test.ts | 12 | one complete look per world |
+| platformlook.test.ts | 4 | tile face colors per look |
 | platforms.test.ts | 15 | sway, recycling, hitboxes |
 | streak.test.ts | 10 | streak tiers + shield |
 | missions.test.ts | 37 | daily pool, banking, claims, semantics, baseline |
 | progression.test.ts | 18 | ledger, mission rows, countdown |
 | persistence.test.ts | 11 | save/load/merge round-trips |
 | effects.test.ts | 11 | perfect fx, speed lines, failure flag, debris |
-| audio.test.ts | 3 | procedural presets |
+| audio.test.ts | 6 | mission chime, music gain, landing pitches |
 | input.test.ts | 6 | duplicate-press guard, first-jump anticipation |
+| crystal.test.ts | 17 | Sunrise crystal structures |
+| crystalfield.test.ts | 20 | Sunrise field layout |
+| structures.test.ts | 10 | authored structure data |
+| dusk.test.ts | 7 | Dusk city placement |
+| void.test.ts | 26 | Deep Void placement and corridor |
 
 ---
 
 ## 15. Pause & Flow Polish
 
-- **Pause:** Top-left `⏸` button visible only during a run; manual tap or auto `visibilitychange`/`blur` freezes `gameLoop` + `gsap.globalTimeline` (ball mid-jump frozen), shows `PAUSED` card (`Resume` yellow + `Home` green, circular) + `3-2-1` CSS pop countdown with blur overlay. Resume re-shows pause button; Home clears perfect popups and returns to start screen.
+- **Pause:** Top-left pause button visible only during a run; manual tap or auto `visibilitychange`/`blur` freezes `gameLoop` + `gsap.globalTimeline` (ball mid-jump frozen), shows `PAUSED` card (`Resume` yellow + `Home` green, circular) + `3-2-1` CSS pop countdown with blur overlay. Resume re-shows pause button; Home clears perfect popups and returns to start screen.
 - **Perfect ×N pop-ups:** Tiered colors (`×1-2` white, `×3-4` gold, `×5-6` orange, `×7-9` orange-red, `×10+` fire red, `20+` green, `30+` purple) at `28%` (laptop `28%-5px`), `FIRE!` at `30%`, `keep-hopping` at `20-26%` — mutually exclusive via `lastFireTime` 2.6s suppression. Hidden during tutorial (streak starts at tile 11).
 - **Tutorial checkpoint retries:** Miss on lessons 1–5 restores same lesson in place (`GuidedCheckpoint`: source platform, score/coins before attempt, ball reset) — no game over, no farming. Ramp misses (6–10) are normal game over. `tutorialDone` persisted.
 
@@ -291,6 +320,7 @@ On a miss:
 |---|---|
 | All tunables | `src/config/GameConfig.ts` |
 | World configs | `src/config/Worlds.ts` |
+| World looks | `src/config/WorldLooks.ts` |
 | Mission pool + daily logic | `src/config/Missions.ts` |
 | Themes | `src/config/Themes.ts` |
 | Pure game logic (difficulty, economy, shield, missions, save) | `src/core/GameStateManager.ts` |
@@ -302,3 +332,13 @@ On a miss:
 | Audio | `src/systems/AudioSystem.ts` |
 | Input | `src/systems/InputSystem.ts` |
 | Persistence | `src/managers/PersistenceManager.ts` |
+
+## 16. Still open
+
+Music gets its own notes when the tracks exist.
+
+- **Music.** The settings slider saves a number. It does not play anything yet.
+- **A real phone play,** and a first look by someone who did not build it.
+- **Week 3:** skins painted against these three lights, a matching icon set,
+  game-over layout polish, a streak indicator, and unlock progress near
+  selection and game over.
