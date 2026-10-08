@@ -759,7 +759,10 @@ export class Game {
                 this.totalStreakReward();
               }
             } else {
-              if (!inTutorial) st.perfectStreak = 0;
+              if (!inTutorial) {
+                st.perfectStreak = 0;
+                this.ui.clearPerfectPopups();
+              }
               this.audio.playJump(st.score, this.state.getActiveWorld().id);
             }
             this.checkMissions();

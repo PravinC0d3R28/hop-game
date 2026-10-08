@@ -2233,6 +2233,8 @@ export class UIManager {
    *  to avoid clutter with keep-hopping, and fire at 10+ is separate (top 18%) so no overlap.
    *  Tiered gold/orange/fire palette, single instance, auto-fades. */
   showPerfectPopup(streak: number): void {
+    // One centered hop is the landing itself. The count starts when it becomes a streak.
+    if (streak < 2) return;
     // At 10, FIRE banner takes the same spot — suppress Perfect x10, counter resumes at 11
     if (streak === 10) return;
     if (Date.now() - this.lastFireTime < 2600) return;
