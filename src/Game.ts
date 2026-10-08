@@ -10,6 +10,7 @@ import { RendererSystem } from './systems/RendererSystem';
 import { CameraController } from './systems/CameraController';
 import { ShadowSystem } from './systems/ShadowSystem';
 import { MaterialFactory } from './systems/MaterialFactory';
+import { ballSkinMaterial, paintedBall } from './systems/BallSkins';
 import { BackgroundSystem } from './systems/BackgroundSystem';
 import { EffectsSystem } from './systems/EffectsSystem';
 import { AudioSystem, type MusicLevel } from './systems/AudioSystem';
@@ -76,6 +77,10 @@ export class Game {
   private firstJumpArmed = false;
   /** Seconds elapsed since the automatic first jump was armed. */
   private firstJumpWait = 0;
+  /** Last ground position used to roll the ball. A teleport is not a roll. */
+  private rolledX = 0;
+  private rolledZ = 0;
+  private rollReady = false;
   /** Wind-up squash tween during the anticipation beat (killed on first jump). */
   private anticipationTween: gsap.core.Animation | null = null;
   private isPaused = false;
@@ -860,8 +865,34 @@ export class Game {
   }
 
   private applySkin(skinId: string): void {
+    const paintedId = skinId === 'default' ? 'paper-core' : skinId;
+    if (paintedBall(paintedId)) {
+      this.ball.applySkinMaterial(ballSkinMaterial(paintedId));
+      return;
+    }
     const skin = GAME_CONFIG.SHOP_SKINS.find((s) => s.id === skinId);
     if (skin) this.ball.setSkinColor(skin.color);
+  }
+
+  /**
+   * Turn the ball by how far it moved across the ground this frame.
+   * A respawn or a runway reseed jumps farther than one tile and is ignored.
+   */
+  private rollBallWithTravel(): void {
+    const p = this.ball.group.position;
+    if (!this.rollReady) {
+      this.rolledX = p.x;
+      this.rolledZ = p.z;
+      this.rollReady = true;
+      return;
+    }
+    const dx = p.x - this.rolledX;
+    const dz = p.z - this.rolledZ;
+    this.rolledX = p.x;
+    this.rolledZ = p.z;
+    const span = GAME_CONFIG.PLATFORM_SPACING_Z;
+    if (dx * dx + dz * dz > span * span) return;
+    this.ball.rollBy(dx, dz);
   }
 
   // ---- main loop ----
@@ -878,6 +909,7 @@ export class Game {
       st.ballX += (st.xTarget - st.ballX) * GAME_CONFIG.X_LERP;
       this.ball.group.position.x = st.ballX;
     }
+    this.rollBallWithTravel();
 
     // One-action Play (normal runs only): once the run is armed, the first jump
     // fires automatically after the anticipation beat. A tap inside the window

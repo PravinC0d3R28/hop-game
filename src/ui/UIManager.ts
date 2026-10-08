@@ -13,6 +13,7 @@ import type { BackgroundSystem } from '../systems/BackgroundSystem';
 import type { BallEntity } from '../entities/BallEntity';
 import type { UiSound } from '../systems/AudioSystem';
 import { FireOverlay } from '../systems/FireOverlay';
+import { paintedIdForShop, startShopSpinners, stopShopSpinners } from '../systems/BallSkins';
 import { gsap } from 'gsap';
 import { Vector3 } from 'three';
 
@@ -311,12 +312,12 @@ export class UIManager {
     this.shopClose.addEventListener('click', (e) => {
       e.stopPropagation();
       this.cue('tick');
-      this.shopOverlay.style.display = 'none';
+      this.closeShop();
     });
     this.shopOverlay.addEventListener('click', (e) => {
       if (e.target === this.shopOverlay) {
         this.cue('tick');
-        this.shopOverlay.style.display = 'none';
+        this.closeShop();
       }
     });
     this.shopScroll.addEventListener('click', (e) => this.onShopClick(e));
@@ -2088,21 +2089,26 @@ export class UIManager {
       const item = document.createElement('div');
       item.className = `shop-item${equipped ? ' selected' : ''}`;
 
-      const color = owned ? `#${skin.color.toString(16).padStart(6, '0')}` : '#111111';
-      const preview = document.createElement('div');
-      preview.className = 'shop-item-preview';
-      preview.style.background = color;
-
-      const info = document.createElement('div');
-      info.className = 'shop-item-info';
+      const gate = skin.world ? WORLDS.find((world) => world.id === skin.world) : undefined;
+      const worldOpen = !gate || this.state.canSelectWorld(gate);
+      // A locked world hides the design. Once that world is open the ball
+      // shows, and the name stays ??? until it is bought.
+      const revealed = owned || worldOpen;
+      const paintedId = revealed ? paintedIdForShop(skin.id) : null;
+      const stage = document.createElement('div');
+      stage.className = 'shop-item-stage';
+      const canvas = document.createElement('canvas');
+      canvas.className = 'shop-item-ball';
+      canvas.dataset.painted = paintedId ?? '';
+      canvas.dataset.color = String(revealed ? skin.color : 0xc8c4bc);
+      stage.appendChild(canvas);
       const name = document.createElement('div');
-      name.className = 'shop-item-name';
-      name.textContent = owned ? skin.name : '???';
-      const status = document.createElement('div');
-      status.className = 'shop-item-status';
-      status.textContent = owned ? 'Owned' : `${skin.price} coins`;
-      info.appendChild(name);
-      info.appendChild(status);
+      name.className = `shop-item-name${!owned && !worldOpen ? ' locked' : ''}`;
+      name.textContent = owned
+        ? skin.name
+        : worldOpen
+          ? '???'
+          : `Unlock World ${WORLDS.indexOf(gate!) + 1}`;
 
       let action: HTMLButtonElement;
       if (equipped) {
@@ -2121,15 +2127,21 @@ export class UIManager {
         action.className = 'shop-item-btn';
         action.dataset.action = 'buy';
         action.dataset.skin = skin.id;
-        action.disabled = !affordable;
+        action.disabled = !affordable || !worldOpen;
         action.innerHTML = `<span class="coin-icon"><span class="ui-sprite" data-sprite="coin" role="img" aria-label="coin"></span></span> ${skin.price}`;
       }
 
-      item.appendChild(preview);
-      item.appendChild(info);
+      item.appendChild(stage);
+      item.appendChild(name);
       item.appendChild(action);
       this.shopScroll.appendChild(item);
     }
+    const slots = [...this.shopScroll.querySelectorAll<HTMLCanvasElement>('.shop-item-ball')].map((canvas) => ({
+      canvas,
+      paintedId: canvas.dataset.painted || null,
+      color: Number(canvas.dataset.color)
+    }));
+    startShopSpinners(slots);
   }
 
   openShop(): void {
@@ -2352,6 +2364,11 @@ export class UIManager {
   }
 
   hideShop(): void {
+    this.closeShop();
+  }
+
+  private closeShop(): void {
+    stopShopSpinners();
     this.shopOverlay.style.display = 'none';
   }
 

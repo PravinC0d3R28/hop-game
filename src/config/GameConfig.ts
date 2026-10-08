@@ -5,6 +5,8 @@ export interface Skin {
   name: string;
   color: number;
   price: number;
+  /** Stays a teaser until this world is unlocked. */
+  world?: WorldId;
 }
 
 export interface ColorPalette {
@@ -319,16 +321,20 @@ export const GAME_CONFIG: GameConfig = {
     studio: 'STUDIO'
   },
 
+  // Sunrise first, then each later world as one block. A World 2 ball must not
+  // sit after the World 3 cards, or it only appears once those are scrolled past.
   SHOP_SKINS: [
-    { id: 'default', name: 'Classic', color: 0xd0d8f0, price: 0 },
-    { id: 'red', name: 'Ruby Red', color: 0xff4444, price: 50 },
-    { id: 'blue', name: 'Ocean Blue', color: 0x4488ff, price: 50 },
-    { id: 'green', name: 'Emerald', color: 0x44ff88, price: 75 },
-    { id: 'gold', name: 'Golden', color: 0xffd700, price: 100 },
-    { id: 'purple', name: 'Violet', color: 0x8844ff, price: 100 },
-    { id: 'pink', name: 'Bubblegum', color: 0xff44aa, price: 125 },
-    { id: 'cyan', name: 'Cyber Cyan', color: 0x44ffff, price: 150 },
-    { id: 'shadow', name: 'Shadow', color: 0x333333, price: 200 }
+    { id: 'default', name: 'Paper Core', color: 0xf3ead7, price: 0 },
+    { id: 'rings', name: 'Rings', color: 0x3d7ec4, price: 50 },
+    { id: 'court-line', name: 'Court Line', color: 0xc6d63a, price: 75 },
+    { id: 'confetti-plus', name: 'Confetti Plus', color: 0xf6f0e4, price: 75 },
+    { id: 'lantern', name: 'Lantern', color: 0xf07a62, price: 100, world: 'dusk' },
+    { id: 'marble', name: 'Marble', color: 0xf0d8b0, price: 100, world: 'dusk' },
+    { id: 'star-play', name: 'Star Play', color: 0x3a7adf, price: 100, world: 'dusk' },
+    { id: 'night-glass', name: 'Night Glass', color: 0x1a1460, price: 125, world: 'void' },
+    { id: 'prism-swirl', name: 'Prism Swirl', color: 0xf8e0f0, price: 150, world: 'void' },
+    { id: 'hopper', name: 'Hopper', color: 0xf3ead8, price: 150, world: 'void' },
+    { id: 'crinkle', name: 'Crinkle', color: 0xd4a017, price: 200, world: 'void' }
   ],
 
   DEBUG: {

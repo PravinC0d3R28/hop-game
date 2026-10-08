@@ -8,8 +8,9 @@ import {
   TorusGeometry,
   DoubleSide,
   AdditiveBlending,
-  type Scene,
-  type Vector3
+  Quaternion,
+  Vector3,
+  type Scene
 } from 'three';
 import { GAME_CONFIG } from '../config/GameConfig';
 import { MaterialFactory } from '../systems/MaterialFactory';
@@ -26,18 +27,25 @@ export class BallEntity {
   outlineMesh: Mesh;
   private blobMesh: Mesh;
   private blobMaterial: MeshBasicMaterial;
-  private meshMaterial: MeshToonMaterial;
+  private meshMaterial: MeshToonMaterial | MeshBasicMaterial;
+  private baseGeo: SphereGeometry;
+  /** False once a shared skin material is installed. That material is cached. */
+  private ownsMaterial = true;
+  /** One solid material for the shop cards. Not the shared photo cache. */
+  private solidPreview: MeshToonMaterial | null = null;
+  private readonly rollAxis = new Vector3();
+  private readonly rollQuat = new Quaternion();
   private shieldShell: Mesh;
   private shieldShellMat: MeshBasicMaterial;
   private shieldRing: Mesh;
   private shieldRingMat: MeshBasicMaterial;
 
   constructor(private scene: Scene) {
-    const ballGeo = new SphereGeometry(GAME_CONFIG.BALL_RADIUS, 24, 16);
+    this.baseGeo = new SphereGeometry(GAME_CONFIG.BALL_RADIUS, 24, 16);
     this.meshMaterial = MaterialFactory.createMaterial(GAME_CONFIG.COLOR_BALL);
-    this.mesh = new Mesh(ballGeo, this.meshMaterial);
+    this.mesh = new Mesh(this.baseGeo, this.meshMaterial);
 
-    this.outlineMesh = this.makeOutline(ballGeo, 1.06);
+    this.outlineMesh = this.makeOutline(this.baseGeo, 1.06);
 
     // blob highlight (partial sphere), from the original Hd mesh
     const blobGeo = new SphereGeometry(GAME_CONFIG.BALL_RADIUS * 0.92, 16, 8, 0.3, 1.2, 0.2, 1);
@@ -93,7 +101,68 @@ export class BallEntity {
   }
 
   setSkinColor(color: number): void {
+    this.usePlayGeo();
+    if (!this.ownsMaterial) {
+      this.meshMaterial = MaterialFactory.createMaterial(color);
+      this.mesh.material = this.meshMaterial;
+      this.ownsMaterial = true;
+    }
     this.meshMaterial.color.setHex(color);
+    this.blobMaterial.opacity = 0.55;
+  }
+
+  /**
+   * Install a cached skin material. The previous owned color material is
+   * released. The shared skin material is left for the cache to dispose.
+   * Photo skins (userData.photo) keep the picture's own light, so the shine
+   * sticker stays off and the hull is smooth enough to hold the photo.
+   */
+  applySkinMaterial(material: MeshToonMaterial | MeshBasicMaterial): void {
+    if (this.ownsMaterial) this.meshMaterial.dispose();
+    this.ownsMaterial = false;
+    this.meshMaterial = material;
+    this.mesh.material = material;
+    if (material.userData.photo === true) {
+      this.usePhotoGeo();
+      this.blobMaterial.opacity = 0;
+    } else {
+      this.usePlayGeo();
+      this.blobMaterial.opacity = 0.2;
+    }
+  }
+
+  /**
+   * Shop card: a shared material on the smooth hull. The caller owns the
+   * material. A solid color keeps a soft shine so the turn is visible.
+   */
+  wearShared(material: MeshToonMaterial | MeshBasicMaterial): void {
+    if (this.ownsMaterial) {
+      this.meshMaterial.dispose();
+      this.ownsMaterial = false;
+    }
+    this.meshMaterial = material;
+    this.mesh.material = material;
+    this.usePhotoGeo();
+    this.blobMaterial.opacity = material.userData.photo === true ? 0 : 0.4;
+  }
+
+  wearSolid(color: number): void {
+    if (!this.solidPreview) this.solidPreview = MaterialFactory.createMaterial(color);
+    this.solidPreview.color.setHex(color);
+    this.wearShared(this.solidPreview);
+  }
+
+  private usePlayGeo(): void {
+    this.mesh.geometry = this.baseGeo;
+    this.outlineMesh.geometry = this.baseGeo;
+    this.outlineMesh.scale.set(1.06, 1.06, 1.06);
+  }
+
+  private usePhotoGeo(): void {
+    const geo = photoSphere();
+    this.mesh.geometry = geo;
+    this.outlineMesh.geometry = geo;
+    this.outlineMesh.scale.set(1.06, 1.06, 1.06);
   }
 
   /** Show/hide the shield glow shell + ring. */
@@ -118,6 +187,25 @@ export class BallEntity {
     gsap.killTweensOf(this.group.scale);
     this.group.position.set(0, GAME_CONFIG.PLATFORM_HEIGHT / 2 + GAME_CONFIG.BALL_RADIUS, 0);
     this.group.scale.set(1, 1, 1);
+    this.mesh.quaternion.identity();
+    this.outlineMesh.quaternion.identity();
+    this.blobMesh.quaternion.identity();
+  }
+
+  /**
+   * Roll from horizontal travel. The axis stays on the ground, so a hop
+   * forward and a steer to the side both turn the ball. Jump height is ignored.
+   * A full roll hides the skin, so each hop only turns part of the way.
+   */
+  rollBy(dx: number, dz: number): void {
+    const dist = Math.hypot(dx, dz);
+    if (dist < 1e-5) return;
+    const ROLL = 0.15;
+    this.rollAxis.set(-dz / dist, 0, dx / dist);
+    this.rollQuat.setFromAxisAngle(this.rollAxis, (dist / GAME_CONFIG.BALL_RADIUS) * ROLL);
+    this.mesh.quaternion.premultiply(this.rollQuat);
+    this.outlineMesh.quaternion.premultiply(this.rollQuat);
+    this.blobMesh.quaternion.premultiply(this.rollQuat);
   }
 
   /**
@@ -199,8 +287,9 @@ export class BallEntity {
     gsap.killTweensOf(this.group.scale);
     gsap.killTweensOf(this.shieldShellMat);
     gsap.killTweensOf(this.shieldRingMat);
-    this.mesh.geometry.dispose();
-    (this.mesh.material as MeshBasicMaterial).dispose();
+    this.baseGeo.dispose();
+    if (this.ownsMaterial) this.meshMaterial.dispose();
+    this.solidPreview?.dispose();
     this.blobMesh.geometry.dispose();
     this.blobMaterial.dispose();
     (this.outlineMesh.material as MeshBasicMaterial).dispose();
@@ -214,4 +303,12 @@ export class BallEntity {
   private lerp(a: number, b: number, t: number): number {
     return a + (b - a) * t;
   }
+}
+
+/** One smooth hull for every photo skin. Same radius as the play ball. */
+let sharedPhotoGeo: SphereGeometry | null = null;
+
+function photoSphere(): SphereGeometry {
+  if (!sharedPhotoGeo) sharedPhotoGeo = new SphereGeometry(GAME_CONFIG.BALL_RADIUS, 96, 64);
+  return sharedPhotoGeo;
 }

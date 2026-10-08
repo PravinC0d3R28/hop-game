@@ -534,6 +534,7 @@ export class GameStateManager {
     const skin = GAME_CONFIG.SHOP_SKINS.find((s) => s.id === id);
     if (!skin) return false;
     if (this.playerData.purchasedSkins.includes(id)) return false;
+    if (!this.isSkinWorldOpen(skin)) return false;
     if (this.playerData.totalCoins < skin.price) return false;
     this.playerData.totalCoins -= skin.price;
     this.playerData.purchasedSkins.push(id);
@@ -549,6 +550,13 @@ export class GameStateManager {
 
   ownsSkin(id: string): boolean {
     return this.playerData.purchasedSkins.includes(id);
+  }
+
+  /** A skin with no world is for sale from the start. */
+  private isSkinWorldOpen(skin: { world?: WorldId }): boolean {
+    if (!skin.world) return true;
+    const world = getWorldById(skin.world);
+    return !world || this.canSelectWorld(world);
   }
 
   // ---- theme ----
@@ -613,8 +621,9 @@ export class GameStateManager {
  * produced by the UI and must not be honored on load.
  */
 export function sanitizePlayerData(raw: Partial<PlayerData> | null | undefined): PlayerData {
+  const knownSkins = new Set(GAME_CONFIG.SHOP_SKINS.map((skin) => skin.id));
   const purchased = Array.isArray(raw?.purchasedSkins)
-    ? (raw.purchasedSkins as string[]).filter((s) => typeof s === 'string')
+    ? (raw.purchasedSkins as string[]).filter((s) => typeof s === 'string' && knownSkins.has(s))
     : [];
   if (!purchased.includes('default')) purchased.unshift('default');
 

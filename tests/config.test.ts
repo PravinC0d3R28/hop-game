@@ -48,14 +48,26 @@ describe('GameConfig constants (verified verbatim from the original)', () => {
     expect(GAME_CONFIG.COLOR_CYCLE_STEPS).toBe(12);
   });
 
-  it('has 9 shop skins with the documented colors', () => {
-    expect(GAME_CONFIG.SHOP_SKINS).toHaveLength(9);
+  it('has the locked picture skins', () => {
+    expect(GAME_CONFIG.SHOP_SKINS).toHaveLength(11);
     const byId = Object.fromEntries(GAME_CONFIG.SHOP_SKINS.map((s) => [s.id, s]));
-    expect(byId.default.color).toBe(0xd0d8f0);
-    expect(byId.green.color).toBe(0x44ff88);
-    expect(byId.cyan.color).toBe(0x44ffff);
-    expect(byId.shadow.color).toBe(0x333333);
-    expect(byId.gold.color).toBe(0xffd700);
+    expect(byId.default.color).toBe(0xf3ead7);
+    expect(byId.default.name).toBe('Paper Core');
+    expect(byId.rings.price).toBe(50);
+    expect(byId['court-line'].price).toBe(75);
+    expect(byId['confetti-plus'].name).toBe('Confetti Plus');
+    expect(byId['night-glass'].price).toBe(125);
+    expect(byId.hopper.name).toBe('Hopper');
+    expect(byId.crinkle.price).toBe(200);
+    expect(byId['star-play'].price).toBe(100);
+    expect(byId.sunband).toBeUndefined();
+    expect(byId.court).toBeUndefined();
+    expect(byId.confetti).toBeUndefined();
+    expect(byId.starglass).toBeUndefined();
+    expect(byId.foil).toBeUndefined();
+    expect(byId.red).toBeUndefined();
+    expect(byId.gold).toBeUndefined();
+    expect(byId.shadow).toBeUndefined();
   });
 });
 

@@ -48,10 +48,19 @@ describe('sanitizePlayerData (mirrors original QM)', () => {
   });
 
   it('always keeps default skin first', () => {
-    const out = sanitizePlayerData({ purchasedSkins: ['red', 'blue'] } as never);
+    const out = sanitizePlayerData({ purchasedSkins: ['rings', 'court-line'] } as never);
     expect(out.purchasedSkins[0]).toBe('default');
-    expect(out.purchasedSkins).toContain('red');
-    expect(out.purchasedSkins).toContain('blue');
+    expect(out.purchasedSkins).toContain('rings');
+    expect(out.purchasedSkins).toContain('court-line');
+  });
+
+  it('drops a skin that left the shop and unequips it', () => {
+    const out = sanitizePlayerData({
+      purchasedSkins: ['default', 'sunband', 'confetti-plus'],
+      selectedSkin: 'sunband'
+    } as never);
+    expect(out.purchasedSkins).toEqual(['default', 'confetti-plus']);
+    expect(out.selectedSkin).toBe('default');
   });
 
   it('rejects an invalid selectedSkin and invalid theme', () => {
@@ -125,10 +134,10 @@ describe('mergePlayerData (mirrors original cloud-merge)', () => {
   });
 
   it('unions purchased skins', () => {
-    const base = { ...DEFAULT_PLAYER_DATA, purchasedSkins: ['default', 'red'] };
-    const incoming = { ...DEFAULT_PLAYER_DATA, purchasedSkins: ['default', 'green'] };
+    const base = { ...DEFAULT_PLAYER_DATA, purchasedSkins: ['default', 'rings'] };
+    const incoming = { ...DEFAULT_PLAYER_DATA, purchasedSkins: ['default', 'court-line'] };
     const out = mergePlayerData(base, incoming);
-    expect(out.purchasedSkins).toEqual(expect.arrayContaining(['default', 'red', 'green']));
+    expect(out.purchasedSkins).toEqual(expect.arrayContaining(['default', 'rings', 'court-line']));
   });
 
   it('always merges to the light theme (day/night toggle removed)', () => {
@@ -165,32 +174,40 @@ describe('shop economy', () => {
   it('buySkin deducts coins and equips', () => {
     const gm = new GameStateManager();
     gm.getMutablePlayerData().totalCoins = 200;
-    expect(gm.buySkin('gold')).toBe(true);
+    expect(gm.buySkin('court-line')).toBe(true);
     const data = gm.getPlayerData();
-    expect(data.totalCoins).toBe(100);
-    expect(data.purchasedSkins).toContain('gold');
-    expect(data.selectedSkin).toBe('gold');
+    expect(data.totalCoins).toBe(125);
+    expect(data.purchasedSkins).toContain('court-line');
+    expect(data.selectedSkin).toBe('court-line');
+  });
+
+  it('refuses a later-world skin until that world is open', () => {
+    const gm = new GameStateManager();
+    gm.getMutablePlayerData().totalCoins = 500;
+    expect(gm.buySkin('lantern')).toBe(false);
+    gm.setTotalScore(1000);
+    expect(gm.buySkin('lantern')).toBe(true);
   });
 
   it('cannot buy an unaffordable skin', () => {
     const gm = new GameStateManager();
     gm.getMutablePlayerData().totalCoins = 40;
-    expect(gm.buySkin('gold')).toBe(false);
-    expect(gm.getPlayerData().purchasedSkins).not.toContain('gold');
+    expect(gm.buySkin('court-line')).toBe(false);
+    expect(gm.getPlayerData().purchasedSkins).not.toContain('court-line');
   });
 
   it('cannot buy the same skin twice', () => {
     const gm = new GameStateManager();
     gm.getMutablePlayerData().totalCoins = 1000;
-    expect(gm.buySkin('red')).toBe(true);
-    expect(gm.buySkin('red')).toBe(false);
+    expect(gm.buySkin('rings')).toBe(true);
+    expect(gm.buySkin('rings')).toBe(false);
   });
 
   it('equipSkin requires ownership', () => {
     const gm = new GameStateManager();
-    expect(gm.equipSkin('cyan')).toBe(false);
-    gm.getMutablePlayerData().purchasedSkins.push('cyan');
-    expect(gm.equipSkin('cyan')).toBe(true);
-    expect(gm.getPlayerData().selectedSkin).toBe('cyan');
+    expect(gm.equipSkin('rings')).toBe(false);
+    gm.getMutablePlayerData().purchasedSkins.push('rings');
+    expect(gm.equipSkin('rings')).toBe(true);
+    expect(gm.getPlayerData().selectedSkin).toBe('rings');
   });
 });

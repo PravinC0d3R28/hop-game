@@ -1,9 +1,15 @@
 import { Game } from './Game';
+import { preloadBallSkins } from './systems/BallSkins';
 import { GAME_CONFIG } from './config/GameConfig';
 import { WORLDS } from './config/Worlds';
 import type { WorldId } from './config/Worlds';
 
-function bootstrap(): void {
+async function bootstrap(): Promise<void> {
+  try {
+    await preloadBallSkins();
+  } catch (err) {
+    console.error('HOP: ball pictures failed to load.', err);
+  }
   const container = document.getElementById('game-container');
   if (!container) {
     console.error('HOP: #game-container not found');
@@ -31,6 +37,7 @@ function bootstrap(): void {
     window.setTimeout(() => {
       try {
         game = new Game(container, devMode ? { persistenceKey: 'hop_dev_player_data' } : {});
+        attachDevTools(game);
       } catch (err2) {
         console.error('HOP: boot init failed again.', err2);
       }
@@ -79,22 +86,26 @@ function bootstrap(): void {
   // production build this whole branch — and createDebugApi with it — is
   // dead-code-eliminated: no debug surface ships, and `?dev=1` on a portal
   // build only isolates the save key, it never enables debug access.
+  attachDevTools(game);
+}
+
+function attachDevTools(game: Game | null): void {
+  if (!game) return;
+  if (!(import.meta.env.DEV || import.meta.env.VITE_DEV_MODE === 'true')) return;
   const accessor = game as unknown as DebugAccessor;
-  if (import.meta.env.DEV || import.meta.env.VITE_DEV_MODE === 'true') {
-    (window as unknown as { gameDebug?: Record<string, unknown> }).gameDebug =
-      createDebugApi(accessor);
-    // Dev art review: /?world=dusk opens that world without touching the
-    // production build. The branch is eliminated from portal builds.
-    const params = new URLSearchParams(location.search);
-    const requested = params.get('world');
-    if (requested === 'sunrise' || requested === 'dusk' || requested === 'void') {
-      accessor.devForceWorld(requested);
-    }
-    // Dev art shots: hide the menu so the world itself is what gets captured.
-    if (params.get('shot') === '1') {
-      const start = document.getElementById('start-screen');
-      if (start) start.style.display = 'none';
-    }
+  (window as unknown as { gameDebug?: Record<string, unknown> }).gameDebug =
+    createDebugApi(accessor);
+  // Dev art review: /?world=dusk opens that world without touching the
+  // production build. The branch is eliminated from portal builds.
+  const params = new URLSearchParams(location.search);
+  const requested = params.get('world');
+  if (requested === 'sunrise' || requested === 'dusk' || requested === 'void') {
+    accessor.devForceWorld(requested);
+  }
+  // Dev art shots: hide the menu so the world itself is what gets captured.
+  if (params.get('shot') === '1') {
+    const start = document.getElementById('start-screen');
+    if (start) start.style.display = 'none';
   }
 }
 
