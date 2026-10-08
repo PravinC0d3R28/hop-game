@@ -12,6 +12,20 @@ describe('sanitizePlayerData (mirrors original QM)', () => {
     expect(sanitizePlayerData(undefined)).toEqual(DEFAULT_PLAYER_DATA);
   });
 
+  it('backdates the distance-line quiet period for a save that already unlocked a world', () => {
+    const old = sanitizePlayerData({ totalScore: 2000, runsPlayed: 40, tutorialDone: true } as never);
+    expect(old.nextGoalNotedUnlock).toBe(1000);
+    expect(old.nextGoalQuietFromRun).toBe(37);
+    const stamped = sanitizePlayerData({
+      totalScore: 1500,
+      runsPlayed: 12,
+      nextGoalNotedUnlock: 1000,
+      nextGoalQuietFromRun: 10
+    } as never);
+    expect(stamped.nextGoalNotedUnlock).toBe(1000);
+    expect(stamped.nextGoalQuietFromRun).toBe(10);
+  });
+
   it('fills missing fields', () => {
     const out = sanitizePlayerData({ totalCoins: 7 } as never);
     expect(out.totalCoins).toBe(7);
@@ -124,6 +138,38 @@ describe('sanitizePlayerData (mirrors original QM)', () => {
   });
 });
 
+describe('dev profile controls', () => {
+  it('setLifetimeScore persists the unlock score and drops a world the score can no longer reach', () => {
+    const gm = new GameStateManager();
+    gm.getMutablePlayerData().selectedWorld = 'dusk';
+    gm.getMutablePlayerData().runsPlayed = 8;
+    gm.setLifetimeScore(2500);
+    expect(gm.getTotalScore()).toBe(2500);
+    expect(gm.getPlayerData().totalScore).toBe(2500);
+    expect(gm.getPlayerData().nextGoalNotedUnlock).toBe(1000);
+    expect(gm.getPlayerData().selectedWorld).toBe('dusk');
+    gm.setLifetimeScore(400);
+    expect(gm.getPlayerData().totalScore).toBe(400);
+    expect(gm.getPlayerData().nextGoalNotedUnlock).toBe(0);
+    expect(gm.getPlayerData().selectedWorld).toBe('sunrise');
+  });
+
+  it('resetMissions clears progress and leaves coins and score alone', () => {
+    const gm = new GameStateManager();
+    gm.getMutablePlayerData().totalCoins = 40;
+    gm.getMutablePlayerData().totalScore = 500;
+    gm.getMutablePlayerData().completedMissions = ['a'];
+    gm.getMutablePlayerData().claimedMissions = ['a'];
+    gm.getMutablePlayerData().missionProgress = { a: 3 };
+    gm.resetMissions();
+    expect(gm.getPlayerData().completedMissions).toEqual([]);
+    expect(gm.getPlayerData().claimedMissions).toEqual([]);
+    expect(gm.getPlayerData().missionProgress).toEqual({});
+    expect(gm.getPlayerData().totalCoins).toBe(40);
+    expect(gm.getPlayerData().totalScore).toBe(500);
+  });
+});
+
 describe('mergePlayerData (mirrors original cloud-merge)', () => {
   it('takes max coins and best score', () => {
     const base = { ...DEFAULT_PLAYER_DATA, totalCoins: 10, bestScore: 50 };
@@ -185,7 +231,7 @@ describe('shop economy', () => {
     const gm = new GameStateManager();
     gm.getMutablePlayerData().totalCoins = 500;
     expect(gm.buySkin('lantern')).toBe(false);
-    gm.setTotalScore(1000);
+    gm.setLifetimeScore(1000);
     expect(gm.buySkin('lantern')).toBe(true);
   });
 

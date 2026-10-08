@@ -269,10 +269,15 @@ Retired. One agent does the work. Do not route tasks to `@screens`, `@playtest`,
 
 1. Week 2's build is in: three worlds, three local songs, and synthesized effects. Do not restyle Sunrise or Dusk, and do not reopen Deep Void, unless the user asks.
 2. The owner finished the two human checks on 2026-10-08: a real phone, and a first look by people who did not build the game. No code changes came out of that.
-3. Week 3 (skins, icon family, game-over hierarchy) waits until the user asks.
+3. Week 3 is in: the painted-ball shop, the perfect count from ×2, the game-over distance line, the profile-independent run log, and the dev-only admin panel. Week 4 is prices, the 1,000 and 5,000 unlocks, and mission targets, and only after `gameDebug.measure()` has normal runs. Trails and a personal-best marker are Week 4 as well. Do not change those numbers in a follow-up.
 4. Run the three gates before any new commit.
 5. Keep the tree clean and `COMMIT_LOG.md` current after each commit.
 
 ## 12. Locked decisions
 
 - **Sway tell: do not build.** Week 2 workstream C (a mark only on tiles that will slide) is declined, 2026-10-07. The moving tiles are already visible in play, including the attract demo. Leave the Dusk cyan ribbon as it is. Do not add a Void sway mark, and do not hide the ribbon on static tiles.
+- **Start-screen next-world line: do not build.** Week 3 workstream A is declined, 2026-10-08. The spotlight already points at the next arrow, and the lock card already shows the fraction and a bar. Do not add a line under the world title.
+- **Admin panel: dev builds only.** A bottom-left Admin button sets lifetime score, run score, coins, runs, world, and missions, and can restart the dev profile. A player build does not include it. Delete `src/dev/AdminMenu.ts` and its mount in `main.ts` to remove it. Do not move those controls into the player settings.
+- **Game-over distance line.** One sentence, the next locked world only. Before Dusk unlocks it names Dusk. After Dusk unlocks it names Deep Void, on a Sunrise game over and a Dusk game over alike, but only after three later runs. The unlocking game over keeps its card and does not show the line. Play Again does not require Home. There is no fourth world, so the line stays empty once Deep Void is open. Do not add a mission, skin, or "from your best" line.
+- **Prices, unlocks, and mission targets wait for Week 4.** The temporary skin prices, the 1,000 and 5,000 world gates, and the mission targets stay as they are. Week 4 reads `hop_measure` through `gameDebug.measure()` before changing any of them. A profile reset does not delete that log.
+- **Trails and a personal-best marker wait for Week 4.** Do not add them because Week 3 is otherwise in.

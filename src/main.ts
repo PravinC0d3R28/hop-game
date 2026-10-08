@@ -1,4 +1,5 @@
 import { Game } from './Game';
+import { markMeasureUnnatural, summarizeMeasure } from './core/RunLog';
 import { preloadBallSkins } from './systems/BallSkins';
 import { GAME_CONFIG } from './config/GameConfig';
 import { WORLDS } from './config/Worlds';
@@ -107,6 +108,7 @@ function attachDevTools(game: Game | null): void {
     const start = document.getElementById('start-screen');
     if (start) start.style.display = 'none';
   }
+  void import('./dev/AdminMenu').then(({ mountAdminMenu }) => mountAdminMenu(game));
 }
 
 /** Shape of the Game surface the debug API reaches into (see bootstrap). */
@@ -118,6 +120,7 @@ type DebugAccessor = {
     setUnlockAllWorlds(v: boolean): void;
     setWorldOverride(id: string | null): void;
     setTotalScore(n: number): void;
+    setLifetimeScore(n: number): void;
     forceCompleteAllMissions(): void;
     claimAllMissions(): unknown[];
   };
@@ -127,6 +130,7 @@ type DebugAccessor = {
     renderShop(): void;
     triggerWorldCallout(): void;
     openMissions(): void;
+    renderStartScreen(): void;
   };
   persistence: { save(d: unknown): Promise<void>; clear(): Promise<void> };
   platforms: { coinCount(): number };
@@ -145,16 +149,19 @@ type DebugAccessor = {
 function createDebugApi(accessor: DebugAccessor): Record<string, unknown> {
   return {
     setScore: (n: number) => {
+      markMeasureUnnatural();
       accessor.state.setScore(n);
       accessor.ui.setScore(n);
     },
     giveCoins: (n: number) => {
+      markMeasureUnnatural();
       const data = accessor.state.getMutablePlayerData();
       data.totalCoins += n;
       accessor.ui.refreshCoins();
       void accessor.persistence.save(data);
     },
     unlockAllSkins: () => {
+      markMeasureUnnatural();
       const data = accessor.state.getMutablePlayerData();
       for (const skin of GAME_CONFIG.SHOP_SKINS) {
         if (!data.purchasedSkins.includes(skin.id)) data.purchasedSkins.push(skin.id);
@@ -163,21 +170,26 @@ function createDebugApi(accessor: DebugAccessor): Record<string, unknown> {
       void accessor.persistence.save(data);
     },
     toggleInvincible: () => {
+      markMeasureUnnatural();
       GAME_CONFIG.DEBUG.invincible = !GAME_CONFIG.DEBUG.invincible;
     },
     unlockAllWorlds: () => {
+      markMeasureUnnatural();
       GAME_CONFIG.DEBUG.unlockAllWorlds = !GAME_CONFIG.DEBUG.unlockAllWorlds;
       accessor.state.setUnlockAllWorlds(GAME_CONFIG.DEBUG.unlockAllWorlds);
     },
     forceWorld: (id: string | null) => {
+      markMeasureUnnatural();
       const world: WorldId | null = WORLDS.some((w) => w.id === id) ? (id as WorldId) : null;
       accessor.devForceWorld(world);
     },
     straightLane: (on: boolean) => {
+      markMeasureUnnatural();
       GAME_CONFIG.DEBUG.straightLane = on;
       accessor.devReseedRunway();
     },
     noSway: (on: boolean) => {
+      markMeasureUnnatural();
       GAME_CONFIG.DEBUG.noSway = on;
       accessor.devReseedRunway();
     },
@@ -193,7 +205,10 @@ function createDebugApi(accessor: DebugAccessor): Record<string, unknown> {
       accessor.devReseedRunway();
     },
     setTotalScore: (n: number) => {
-      accessor.state.setTotalScore(n);
+      accessor.state.setLifetimeScore(n);
+      const start = document.getElementById('start-screen');
+      if (start && start.style.display !== 'none') accessor.ui.renderStartScreen();
+      void accessor.persistence.save(accessor.state.getMutablePlayerData());
     },
     completeAllMissions: () => {
       accessor.state.forceCompleteAllMissions();
@@ -209,6 +224,7 @@ function createDebugApi(accessor: DebugAccessor): Record<string, unknown> {
     resetProgress: () => {
       void accessor.persistence.clear().then(() => window.location.reload());
     },
+    measure: () => summarizeMeasure(),
     triggerWorldCallout: () => {
       accessor.ui.triggerWorldCallout();
     },

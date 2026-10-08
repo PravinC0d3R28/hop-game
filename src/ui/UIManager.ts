@@ -6,7 +6,7 @@ import type { WorldId } from '../config/Worlds';
 import { getNextWorld, getPreviousWorld, getWorldById } from '../core/WorldLogic';
 import { WORLDS, type WorldConfig } from '../config/Worlds';
 import type { MissionKind, MissionReward } from '../config/Missions';
-import { getMissionProgressList, getTimeUntilNextReset, formatCountdown } from '../core/Progression';
+import { getMissionProgressList, getTimeUntilNextReset, formatCountdown, nextUnlockGoalText } from '../core/Progression';
 import type { RendererSystem } from '../systems/RendererSystem';
 import type { ShadowSystem } from '../systems/ShadowSystem';
 import type { BackgroundSystem } from '../systems/BackgroundSystem';
@@ -77,6 +77,9 @@ export class UIManager {
   private lockRemaining = this.el<HTMLElement>('lock-remaining');
   private menuBtns = this.el<HTMLElement>('menu-btns');
   private goWorld = this.el<HTMLElement>('go-world');
+  private goNextGoal = this.el<HTMLElement>('go-next-goal');
+  /** The missions card is announced once per page load. Play Again must not keep it up, or the distance line can never appear. */
+  private missionsAnnounceUsed = false;
   private playBtn = this.el<HTMLElement>('play-btn');
   private firstRunGuide = this.el<HTMLElement>('first-run-guide');
   private frgRing = this.el<HTMLElement>('frg-ring');
@@ -1110,14 +1113,19 @@ export class UIManager {
   /** Game-over world-unlock reveal: when the run's banked score crossed an
    *  unlock gate, queue the new world (its intro dialog fires on the start
    *  screen via checkWorldUnlocks) and surface a "NEW WORLD UNLOCKED" callout
-   *  that guides the player to the HOME button. The callout persists on every
-   *  game-over screen until the player visits Home and the dialog is shown —
-   *  PLAY AGAIN stays fully usable (guide, not force). */
+   *  on that game over only. Play Again leaves the dialog queued for Home
+   *  and does not repeat the card, so the distance line can appear later
+   *  without a Home visit. PLAY AGAIN stays fully usable. */
   private maybeShowWorldUnlockCallout(): void {
+    const queuedBefore = this.unlockQueue.length;
     this.queueNewWorldUnlocks();
-    if (this.unlockQueue.length === 0) return;
+    // Only the game over that just crossed the gate. Play Again leaves the
+    // intro queued for Home, but does not repeat this card, so a later run
+    // can show the distance line without a Home visit.
+    if (this.unlockQueue.length === queuedBefore) return;
     this.goUnlockCallout.style.display = 'flex';
     this.homeBtn.classList.add('go-home-highlight');
+    if (this.state.hasPendingMissionsUnlock()) this.missionsAnnounceUsed = true;
     // Rewarding burst: pop confetti from the callout center so the unlock
     // feels celebratory even though PLAY AGAIN stays usable underneath.
     this.spawnGoUnlockConfetti();
@@ -1134,8 +1142,10 @@ export class UIManager {
    *  fires only when the player visits HOME. World unlock takes precedence if both
    *  fire on the same run. */
   private maybeShowMissionsUnlockCallout(): boolean {
-    if (this.unlockQueue.length > 0) return false;
+    if (this.unlockQueue.length > 0 && this.goUnlockCallout.style.display !== 'none') return false;
     if (!this.state.hasPendingMissionsUnlock()) return false;
+    if (this.missionsAnnounceUsed) return false;
+    this.missionsAnnounceUsed = true;
     this.goMissionsCallout.style.display = 'flex';
     this.homeBtn.classList.add('go-home-highlight');
     this.spawnGoMissionsConfetti();
@@ -2205,6 +2215,7 @@ export class UIManager {
     if (this.goUnlockCallout.style.display === 'none') {
       this.maybeShowMissionsUnlockCallout();
     }
+    this.renderNextGoal();
 
     if (roundCoins > 0) {
       const duration = Math.min(0.8 + roundCoins * 0.05, 2);
@@ -2227,6 +2238,31 @@ export class UIManager {
     this.goWorld.textContent = '';
     this.hideWorldUnlockCallout();
     this.hideMissionsUnlockCallout();
+    this.goNextGoal.style.display = 'none';
+    this.goNextGoal.textContent = '';
+  }
+
+  /** Distance to the next locked world. Hidden while an unlock or missions card owns this screen. */
+  private renderNextGoal(): void {
+    const data = this.state.getPlayerData();
+    const announcementVisible =
+      this.goUnlockCallout.style.display !== 'none' ||
+      this.goMissionsCallout.style.display !== 'none';
+    const text = nextUnlockGoalText({
+      totalScore: data.totalScore,
+      runsPlayed: data.runsPlayed,
+      tutorialDone: data.tutorialDone,
+      nextGoalNotedUnlock: data.nextGoalNotedUnlock,
+      nextGoalQuietFromRun: data.nextGoalQuietFromRun,
+      announcementVisible
+    });
+    if (!text) {
+      this.goNextGoal.style.display = 'none';
+      this.goNextGoal.textContent = '';
+      return;
+    }
+    this.goNextGoal.textContent = text;
+    this.goNextGoal.style.display = 'block';
   }
 
   /** Perfect xN pop-up — research decision: hidden during tutorial (guidedFirst / !tutorialDone)

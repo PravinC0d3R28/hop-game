@@ -6,7 +6,10 @@ import {
   getMetricValue,
   getMissionProgressList,
   getTimeUntilNextReset,
-  getWorldProgress
+  getWorldProgress,
+  nextUnlockGoalText,
+  stampNextGoalQuiet,
+  NEXT_GOAL_QUIET_RUNS
 } from '../src/core/Progression';
 import { getDailyMissions } from '../src/config/Missions';
 import type { PlayerData } from '../src/core/Types';
@@ -41,6 +44,47 @@ describe('ledger derivation', () => {
     expect(getLedgerInfo(1000).nextUnlock?.id).toBe('void');
     expect(getLedgerInfo(4999).nextUnlock?.id).toBe('void');
     expect(getLedgerInfo(5000).nextUnlock).toBeNull();
+  });
+});
+
+describe('game-over distance line', () => {
+  const ready = {
+    tutorialDone: true,
+    nextGoalNotedUnlock: 0,
+    nextGoalQuietFromRun: 0,
+    announcementVisible: false
+  };
+
+  it('stays quiet until missions unlock or the world-nav teach, including a Play Again that never went Home', () => {
+    expect(nextUnlockGoalText({ ...ready, totalScore: 100, runsPlayed: 1 })).toBeNull();
+    expect(nextUnlockGoalText({ ...ready, totalScore: 100, runsPlayed: 2 })).toBeNull();
+    expect(nextUnlockGoalText({ ...ready, totalScore: 400, runsPlayed: 1 })).toBe('600 to Dusk District');
+    expect(nextUnlockGoalText({ ...ready, totalScore: 100, runsPlayed: 3 })).toBe('900 to Dusk District');
+  });
+
+  it('names Dusk until Dusk is unlocked, then Deep Void from either earlier world after three runs', () => {
+    expect(nextUnlockGoalText({ ...ready, totalScore: 999, runsPlayed: 5 })).toBe('1 to Dusk District');
+    const justUnlocked = { ...ready, totalScore: 1000, runsPlayed: 10, nextGoalNotedUnlock: 1000, nextGoalQuietFromRun: 10 };
+    expect(nextUnlockGoalText(justUnlocked)).toBeNull();
+    expect(nextUnlockGoalText({ ...justUnlocked, totalScore: 1200, runsPlayed: 12 })).toBeNull();
+    expect(nextUnlockGoalText({ ...justUnlocked, totalScore: 1200, runsPlayed: 10 + NEXT_GOAL_QUIET_RUNS })).toBe('3,800 to Deep Void');
+  });
+
+  it('yields to an unlock or missions card and stays empty once every world is open', () => {
+    expect(nextUnlockGoalText({ ...ready, totalScore: 400, runsPlayed: 4, announcementVisible: true })).toBeNull();
+    expect(nextUnlockGoalText({ ...ready, totalScore: 400, runsPlayed: 4, tutorialDone: false })).toBeNull();
+    expect(nextUnlockGoalText({ ...ready, totalScore: 5000, runsPlayed: 20, nextGoalNotedUnlock: 5000, nextGoalQuietFromRun: 8 })).toBeNull();
+  });
+
+  it('starts the quiet clock on the run that unlocks a world and does not restart it', () => {
+    const data = { ...FRESH_PLAYER, totalScore: 1000, runsPlayed: 6 };
+    stampNextGoalQuiet(data);
+    expect(data.nextGoalNotedUnlock).toBe(1000);
+    expect(data.nextGoalQuietFromRun).toBe(6);
+    data.runsPlayed = 9;
+    data.totalScore = 1400;
+    stampNextGoalQuiet(data);
+    expect(data.nextGoalQuietFromRun).toBe(6);
   });
 });
 

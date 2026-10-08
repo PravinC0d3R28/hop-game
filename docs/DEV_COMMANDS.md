@@ -82,10 +82,11 @@ or `vite build --mode dev`) — see the 6.4 gate above. On a production build
 | Command | Effect |
 |---|---|
 | `gameDebug.setScore(n)` | Set the current run's score to `n` (updates HUD). |
-| `gameDebug.setTotalScore(n)` | Set the **lifetime** total score to `n` (drives world unlocks, lifetime missions). |
+| `gameDebug.setTotalScore(n)` | Set the **lifetime** total score to `n` and save it (world unlocks, the distance line, lifetime missions). |
 | `gameDebug.giveCoins(n)` | Add `n` coins to the wallet. |
 | `gameDebug.unlockAllSkins()` | Grant every shop skin (and re-render the shop). |
 | `gameDebug.toggleInvincible()` | Toggle no-fail mode. |
+| `gameDebug.measure()` | Read the profile-independent run log: median score and coins, runs to each unlock, runs to afford each skin, and whether one run meets each mission target. Does not change any of those numbers. |
 
 ### Worlds
 
@@ -126,7 +127,7 @@ or `vite build --mode dev`) — see the 6.4 gate above. On a production build
 
 ```
 ballPos  claimAllMissions  coins  completeAllMissions  forceWorld
-giveCoins  hitboxes  noSway  reseedRunway  resetProgress
+giveCoins  hitboxes  measure  noSway  reseedRunway  resetProgress
 setScore  setTotalScore  straightLane  toggleInvincible  triggerWorldCallout
 unlockAllSkins  unlockAllWorlds
 ```

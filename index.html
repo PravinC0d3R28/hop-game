@@ -1265,6 +1265,10 @@
       font-size: clamp(44px, 9vmin, 64px);
       line-height: 1;
       display: block;
+      /* A color emoji ignores text-stroke, so the black edge is a hard ring. */
+      text-shadow:
+        0 -3px 0 #111, 0 3px 0 #111, -3px 0 0 #111, 3px 0 0 #111,
+        -2px -2px 0 #111, 2px -2px 0 #111, -2px 2px 0 #111, 2px 2px 0 #111;
     }
     #unlock-card-kicker {
       display: block;
@@ -1803,8 +1807,21 @@
       color: #ffd54d;
       -webkit-text-stroke: var(--stroke-width) #111;
       paint-order: stroke fill;
-      margin-bottom: clamp(6px, 1.2vh, 12px);
+      margin-bottom: clamp(4px, 0.8vh, 8px);
       letter-spacing: 1px;
+    }
+    #go-next-goal {
+      display: none;
+      font-size: clamp(14px, 3.1vmin, 20px);
+      font-weight: 800;
+      color: #fff;
+      -webkit-text-stroke: var(--stroke-width) #111;
+      paint-order: stroke fill;
+      margin-bottom: clamp(8px, 1.6vh, 14px);
+      letter-spacing: 0.4px;
+      text-align: center;
+      max-width: min(92vw, 520px);
+      line-height: 1.2;
     }
     /* Game-over actions — circular icon buttons with labels below. Both buttons
        share the same size and purple fill; hierarchy is carried by order +
@@ -2986,6 +3003,7 @@
             <span id="go-total-coins">0</span>
           </div>
           <div id="go-world"></div>
+          <div id="go-next-goal"></div>
           <div id="go-unlock-callout" style="display:none">
             <span class="ui-sprite go-sparkle go-sparkle--left" data-sprite="sparkle-star" aria-hidden="true"></span>
             <span class="ui-sprite go-sparkle go-sparkle--right" data-sprite="sparkle-star" aria-hidden="true"></span>

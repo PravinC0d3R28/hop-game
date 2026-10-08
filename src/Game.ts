@@ -5,6 +5,7 @@ import { GAME_CONFIG } from './config/GameConfig';
 import type { WorldConfig, WorldId } from './config/Worlds';
 import { getWorldLook } from './config/WorldLooks';
 import { GameStateManager } from './core/GameStateManager';
+import { recordRun, snapshotMissions } from './core/RunLog';
 import { EventBus, GAME_EVENTS } from './core/EventBus';
 import { RendererSystem } from './systems/RendererSystem';
 import { CameraController } from './systems/CameraController';
@@ -81,6 +82,10 @@ export class Game {
   private rolledX = 0;
   private rolledZ = 0;
   private rollReady = false;
+  /** Wall clock when this run began. Pause time is included. */
+  private runStartedAt = 0;
+  /** Missions already finished before this run, so the log can see which one this run cleared. */
+  private missionsAtRunStart = new Set<string>();
   /** Wind-up squash tween during the anticipation beat (killed on first jump). */
   private anticipationTween: gsap.core.Animation | null = null;
   private isPaused = false;
@@ -360,6 +365,8 @@ export class Game {
    *  machine, show the run UI, and begin the one-action first-jump preparation
    *  (normal runs) or the guided tutorial's tap-to-start. */
   private beginRun(): void {
+    this.runStartedAt = performance.now();
+    this.missionsAtRunStart = new Set(this.state.getPlayerData().completedMissions);
     this.stopAttractDemo();
     // The demo may have left the ball mid-runway — start every run clean
     // (resetEntities applies the guided lesson layout via guidedFirst).
@@ -630,6 +637,7 @@ export class Game {
     const wasUnlocked = this.state.isMissionsUnlocked();
     this.state.trackRunPlayed();
     if (wasUnlocked) this.checkMissions();
+    this.recordMeasure(isNewBest);
     void this.persistence.save(this.state.getMutablePlayerData());
 
     setTimeout(() => {
@@ -855,6 +863,30 @@ export class Game {
   /** Flame glow mirrors the fire streak: ≥10 perfects on, anything else off. */
   private updateStreakGlow(): void {
     this.ui.setStreakGlow(this.state.getState().perfectStreak >= GAME_CONFIG.STREAK_FIRE ? 'fire' : 'off');
+  }
+
+  /** Append this death to the profile-independent measure log. */
+  private recordMeasure(isNewBest: boolean): void {
+    const st = this.state.getMutableState();
+    const player = this.state.getPlayerData();
+    const world = this.state.getActiveWorld().id;
+    const missionsOn = this.state.isMissionsUnlocked();
+    const elapsed = this.runStartedAt > 0 ? (performance.now() - this.runStartedAt) / 1000 : 0;
+    recordRun({
+      practice: this.guidedFirst,
+      world,
+      skin: player.selectedSkin,
+      score: st.score,
+      landings: Math.max(0, st.currentStep - 1),
+      coins: st.roundCoins,
+      perfects: st.runPerfects,
+      bestStreak: st.maxStreak,
+      shieldSpent: st.shieldAwarded,
+      seconds: Math.round(elapsed * 10) / 10,
+      newBest: isNewBest,
+      missionsOn,
+      missions: missionsOn ? snapshotMissions(player, world, this.missionsAtRunStart) : []
+    });
   }
 
   /** Evaluate missions; toast any that just completed and persist the one-time marks. */

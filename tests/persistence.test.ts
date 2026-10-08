@@ -90,6 +90,20 @@ describe('PersistenceManager round-trip', () => {
 });
 
 describe('game-over banking', () => {
+  it('the run that unlocks a world starts the three-run quiet clock', () => {
+    const gm = new GameStateManager();
+    gm.setScore(1000);
+    gm.bankTotalScore();
+    gm.trackRunPlayed();
+    expect(gm.getPlayerData().nextGoalNotedUnlock).toBe(1000);
+    expect(gm.getPlayerData().nextGoalQuietFromRun).toBe(1);
+    gm.resetGame();
+    gm.setScore(50);
+    gm.bankTotalScore();
+    gm.trackRunPlayed();
+    expect(gm.getPlayerData().nextGoalQuietFromRun).toBe(1);
+  });
+
   it('bankTotalScore adds the run score to the ledger once', () => {
     const gm = new GameStateManager();
     gm.setScore(120);

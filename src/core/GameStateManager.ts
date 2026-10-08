@@ -6,7 +6,8 @@ import { WORLDS } from '../config/Worlds';
 import type { WorldConfig, WorldId } from '../config/Worlds';
 import { getActiveMissions, getMissionById, todayKey, MISSIONS } from '../config/Missions';
 import type { MissionKind, MissionReward } from '../config/Missions';
-import { getMetricValue } from './Progression';
+import { NEXT_GOAL_QUIET_RUNS, getMetricValue, stampNextGoalQuiet } from './Progression';
+import { markMeasureUnnatural, recordBuy, recordClaim } from './RunLog';
 
 export const DEFAULT_PLAYER_DATA: PlayerData = {
   totalCoins: 0,
@@ -35,7 +36,9 @@ export const DEFAULT_PLAYER_DATA: PlayerData = {
   worldSpotlightSeen: [],
   missionsSpotlightSeen: false,
   firstDuskCalloutSeen: false,
-  selectedWorld: 'sunrise'
+  selectedWorld: 'sunrise',
+  nextGoalNotedUnlock: 0,
+  nextGoalQuietFromRun: 0
 };
 
 export const DEFAULT_STATE: GameState = {
@@ -120,6 +123,7 @@ export class GameStateManager {
   }
 
   setUnlockAllWorlds(enabled: boolean): void {
+    if (enabled) markMeasureUnnatural();
     this.unlockAllWorlds = enabled;
   }
 
@@ -131,6 +135,54 @@ export class GameStateManager {
   /** Cumulative lifetime score for unlock checks (wired from persistence). */
   setTotalScore(total: number): void {
     this.totalScore = total;
+  }
+
+  /**
+   * Dev: set the lifetime score that unlocks worlds, persist it on the save,
+   * and keep the distance-line clock consistent with the gates that score
+   * actually reaches. The selected world falls back if it is now locked.
+   */
+  setLifetimeScore(total: number): void {
+    markMeasureUnnatural();
+    const score = Math.max(0, Math.floor(Number.isFinite(total) ? total : 0));
+    this.playerData.totalScore = score;
+    this.setTotalScore(score);
+    let highest = 0;
+    for (const world of WORLDS) {
+      if (world.unlockScore > 0 && score >= world.unlockScore) highest = world.unlockScore;
+    }
+    this.playerData.nextGoalNotedUnlock = highest;
+    this.playerData.nextGoalQuietFromRun = Math.max(0, this.playerData.runsPlayed - NEXT_GOAL_QUIET_RUNS);
+    if (!this.unlockAllWorlds && !this.worldOverride) {
+      const selected = getWorldById(this.playerData.selectedWorld);
+      if (selected && !isWorldUnlocked(selected, this.totalScore)) {
+        let fallback: WorldConfig = WORLDS[0];
+        for (const w of WORLDS) {
+          if (isWorldUnlocked(w, this.totalScore)) fallback = w;
+        }
+        this.playerData.selectedWorld = fallback.id;
+      }
+    }
+  }
+
+  /** Dev: set the wallet to an exact coin count. */
+  setCoins(n: number): void {
+    markMeasureUnnatural();
+    this.playerData.totalCoins = Math.max(0, Math.floor(Number.isFinite(n) ? n : 0));
+  }
+
+  /** Dev: set how many runs are on the profile. */
+  setRunsPlayed(n: number): void {
+    markMeasureUnnatural();
+    this.playerData.runsPlayed = Math.max(0, Math.floor(Number.isFinite(n) ? n : 0));
+  }
+
+  /** Dev: clear mission progress, completions, and claims. The rest of the profile stays. */
+  resetMissions(): void {
+    markMeasureUnnatural();
+    this.playerData.completedMissions = [];
+    this.playerData.claimedMissions = [];
+    this.playerData.missionProgress = {};
   }
 
   /** Cumulative lifetime score for unlock checks (wired from persistence). */
@@ -494,6 +546,7 @@ export class GameStateManager {
     this.playerData.claimedMissions.push(id);
     this.playerData.totalCoins += mission.reward;
     this.playerData.totalCoinsEarned += mission.reward;
+    recordClaim(mission.id, mission.reward);
     return {
       id: mission.id,
       title: mission.title,
@@ -507,6 +560,7 @@ export class GameStateManager {
   /** Dev: force every mission into its completed state, unlocking the missions
    *  gate too, so the whole feature can be QA'd without playing N runs. */
   forceCompleteAllMissions(): void {
+    markMeasureUnnatural();
     if (this.playerData.runsPlayed < GAME_CONFIG.MISSIONS_UNLOCK_RUNS) {
       this.playerData.runsPlayed = GAME_CONFIG.MISSIONS_UNLOCK_RUNS;
     }
@@ -521,6 +575,7 @@ export class GameStateManager {
 
   /** Dev: claim every completed-but-unclaimed mission (banks all their coins). */
   claimAllMissions(): MissionReward[] {
+    markMeasureUnnatural();
     const rewards: MissionReward[] = [];
     for (const id of this.getClaimableMissionIds()) {
       const reward = this.claimMissionReward(id);
@@ -539,6 +594,7 @@ export class GameStateManager {
     this.playerData.totalCoins -= skin.price;
     this.playerData.purchasedSkins.push(id);
     this.playerData.selectedSkin = id;
+    recordBuy(id, skin.price);
     return true;
   }
 
@@ -607,6 +663,7 @@ export class GameStateManager {
         bestStreak: this.playerData.bestStreak,
       };
     }
+    stampNextGoalQuiet(this.playerData);
   }
 }
 
@@ -665,8 +722,36 @@ export function sanitizePlayerData(raw: Partial<PlayerData> | null | undefined):
   missionsSpotlightSeen: raw?.missionsSpotlightSeen === true,
   firstDuskCalloutSeen: raw?.firstDuskCalloutSeen === true,
   selectedWorld: sanitizeWorldId(raw?.selectedWorld),
-  missionsBaseline: sanitizeMissionsBaseline(raw?.missionsBaseline, raw)
+  missionsBaseline: sanitizeMissionsBaseline(raw?.missionsBaseline, raw),
+  ...sanitizeNextGoalQuiet(raw)
   };
+}
+
+function sanitizeNextGoalQuiet(
+  raw: Partial<PlayerData> | null | undefined
+): Pick<PlayerData, 'nextGoalNotedUnlock' | 'nextGoalQuietFromRun'> {
+  const totalScore = typeof raw?.totalScore === 'number' && raw.totalScore >= 0 ? raw.totalScore : 0;
+  const runsPlayed = typeof raw?.runsPlayed === 'number' && raw.runsPlayed >= 0 ? raw.runsPlayed : 0;
+  let highest = 0;
+  for (const world of WORLDS) {
+    if (world.unlockScore > 0 && totalScore >= world.unlockScore) highest = world.unlockScore;
+  }
+  const hasNoted = typeof raw?.nextGoalNotedUnlock === 'number' && raw.nextGoalNotedUnlock >= 0;
+  const hasQuiet = typeof raw?.nextGoalQuietFromRun === 'number' && raw.nextGoalQuietFromRun >= 0;
+  if (hasNoted && hasQuiet) {
+    return {
+      nextGoalNotedUnlock: Math.min(raw.nextGoalNotedUnlock as number, highest),
+      nextGoalQuietFromRun: raw.nextGoalQuietFromRun as number
+    };
+  }
+  // Saves from before this line existed already did their grinding.
+  if (highest > 0) {
+    return {
+      nextGoalNotedUnlock: highest,
+      nextGoalQuietFromRun: Math.max(0, runsPlayed - NEXT_GOAL_QUIET_RUNS)
+    };
+  }
+  return { nextGoalNotedUnlock: 0, nextGoalQuietFromRun: 0 };
 }
 
 function sanitizeMissionsBaseline(
@@ -888,7 +973,23 @@ export function mergePlayerData(base: PlayerData, incoming: PlayerData): PlayerD
     firstDuskCalloutSeen: base.firstDuskCalloutSeen || incoming.firstDuskCalloutSeen,
     selectedWorld: WORLDS.some((w) => w.id === incoming.selectedWorld)
       ? incoming.selectedWorld
-      : base.selectedWorld
+      : base.selectedWorld,
+    ...mergeNextGoalQuiet(base, incoming)
+  };
+}
+
+/** Keep the later unlock's quiet clock. An equal stamp keeps the earlier run so a merge cannot stretch the wait. */
+function mergeNextGoalQuiet(base: PlayerData, incoming: PlayerData): Pick<PlayerData, 'nextGoalNotedUnlock' | 'nextGoalQuietFromRun'> {
+  if (base.nextGoalNotedUnlock === incoming.nextGoalNotedUnlock) {
+    return {
+      nextGoalNotedUnlock: base.nextGoalNotedUnlock,
+      nextGoalQuietFromRun: Math.min(base.nextGoalQuietFromRun, incoming.nextGoalQuietFromRun)
+    };
+  }
+  const later = base.nextGoalNotedUnlock > incoming.nextGoalNotedUnlock ? base : incoming;
+  return {
+    nextGoalNotedUnlock: later.nextGoalNotedUnlock,
+    nextGoalQuietFromRun: later.nextGoalQuietFromRun
   };
 }
 

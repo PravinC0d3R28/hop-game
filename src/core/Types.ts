@@ -58,6 +58,10 @@ export interface PlayerData {
   missionProgress: Record<string, number>;
   /** The world the player is currently set to play (persisted selection). */
   selectedWorld: WorldId;
+  /** Highest gated unlock score whose post-unlock quiet period has started. 0 until Dusk or a later world is actually unlocked. */
+  nextGoalNotedUnlock: number;
+  /** `runsPlayed` at the moment `nextGoalNotedUnlock` was recorded. The next world's distance line waits three runs after this. */
+  nextGoalQuietFromRun: number;
 }
 
 export interface GameState {

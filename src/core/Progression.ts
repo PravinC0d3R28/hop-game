@@ -1,3 +1,4 @@
+import { GAME_CONFIG } from '../config/GameConfig';
 import { WORLDS, type WorldConfig, type WorldId } from '../config/Worlds';
 import { getWorldById } from './WorldLogic';
 import { MISSIONS, getDailyMissions, todayKey, type MissionConfig, type MissionMetric } from '../config/Missions';
@@ -70,6 +71,66 @@ export interface LedgerInfo {
   done: boolean;
   /** First world whose unlock score exceeds the ledger (null when all open). */
   nextUnlock: WorldConfig | null;
+}
+
+/** Runs after a world unlock before the next world's distance may appear. */
+export const NEXT_GOAL_QUIET_RUNS = 3;
+
+function formatPoints(n: number): string {
+  return Math.max(0, Math.floor(n)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+export interface NextGoalInput {
+  totalScore: number;
+  runsPlayed: number;
+  tutorialDone: boolean;
+  nextGoalNotedUnlock: number;
+  nextGoalQuietFromRun: number;
+  /** This game over is already showing a world-unlock or missions card. */
+  announcementVisible: boolean;
+}
+
+/**
+ * One game-over sentence naming the next locked world, or null.
+ *
+ * The sentence does not depend on which world was just played. Before Dusk
+ * is unlocked it names Dusk. After Dusk is unlocked, and three later runs
+ * have finished, it names Deep Void on a Sunrise game over and a Dusk game
+ * over alike. There is no world after Deep Void, so the line stays empty
+ * once every current world is open. A future world would follow the same
+ * rule: wait three runs, then name it from every world already open.
+ *
+ * It stays hidden until missions are unlocked or the lifetime score has
+ * reached the world-nav teach. Those are save facts, so Play Again shows
+ * the line without a Home visit. The card on the unlocking game over still
+ * wins: pass `announcementVisible` and the line stays empty.
+ */
+export function nextUnlockGoalText(input: NextGoalInput): string | null {
+  if (!input.tutorialDone || input.announcementVisible) return null;
+  const next = getLedgerInfo(input.totalScore).nextUnlock;
+  if (!next || next.unlockScore <= 0) return null;
+  const taught =
+    input.runsPlayed >= GAME_CONFIG.MISSIONS_UNLOCK_RUNS ||
+    input.totalScore >= GAME_CONFIG.WORLD_NAV_REVEAL_SCORE;
+  if (!taught) return null;
+  if (input.nextGoalNotedUnlock > 0 && next.unlockScore > input.nextGoalNotedUnlock) {
+    if (input.runsPlayed < input.nextGoalQuietFromRun + NEXT_GOAL_QUIET_RUNS) return null;
+  }
+  const remaining = next.unlockScore - Math.max(0, input.totalScore);
+  if (remaining <= 0) return null;
+  return `${formatPoints(remaining)} to ${next.name}`;
+}
+
+/** Start the three-run quiet period when a gated world is newly unlocked. */
+export function stampNextGoalQuiet(data: PlayerData): void {
+  let highest = 0;
+  for (const world of WORLDS) {
+    if (world.unlockScore > 0 && data.totalScore >= world.unlockScore) highest = world.unlockScore;
+  }
+  if (highest > data.nextGoalNotedUnlock) {
+    data.nextGoalNotedUnlock = highest;
+    data.nextGoalQuietFromRun = data.runsPlayed;
+  }
 }
 
 export function getLedgerInfo(totalScore: number): LedgerInfo {

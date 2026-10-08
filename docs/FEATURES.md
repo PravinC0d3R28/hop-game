@@ -189,17 +189,28 @@ On a miss:
    world-unlock gate, a `NEW WORLD UNLOCKED!` callout appears with a hint
    guiding the player to HOME (golden pulsing ring on the HOME button) — the
    unlock dialog fires when they visit the start screen; PLAY AGAIN stays fully
-   usable (guide, not force).
+   usable (guide, not force). The unlocking game over keeps that card and hides
+   the distance line. Later game overs can show one sentence, the points
+   left to the next locked world (`580 to Dusk District`, then
+   `3,800 to Deep Void`). There is no fourth world, so the line stays empty
+   once Deep Void is open.
 
 ## 8. Shop
 
-- **9 skins** (`SHOP_SKINS`), prices 0–200 coins: Classic (free), Ruby Red 50,
-  Ocean Blue 50, Emerald 75, Golden 100, Violet 100, Bubblegum 125,
-  Cyber Cyan 150, Shadow 200.
-- Buy (deducts coins + **auto-equips**), equip, owns. Preview circle shows the
-  skin color; names show `???` until owned.
-- DOM overlay (`#shop-overlay`), coin footer shows wallet. Sales badge on the
-  shop button when something is affordable-but-unowned.
+- **11 painted skins.** Prices are temporary, 0–200 coins, until Week 4
+  reads the measure log. Do not treat this list as the final ladder.
+  Sunrise: Paper Core (free), Rings 50, Court Line 75, Confetti Plus 75.
+  Dusk, after World 2 unlocks: Lantern, Marble, and Star Play at 100.
+  Deep Void, after World 3 unlocks: Night Glass 125, Prism Swirl 150,
+  Hopper 150, Crinkle 200.
+- The shop is a grid of three cards. Each card shows the ball turning, the
+  name, and a full-width button. A locked world shows a plain ball labeled
+  `Unlock World 2` or `Unlock World 3`, and the buy button stays gray.
+  Once that world is open the ball shows and the name stays `???` until it
+  is bought. Buying deducts coins once and equips the skin.
+- An old save that still names a removed skin falls back to Paper Core.
+- In play the ball rolls with travel, slowly enough that the pattern stays
+  readable. The shop uses one tilted spin for every card.
 
 ## 9. Settings
 
@@ -252,6 +263,11 @@ impact, a new best, and the unlock cards each have their own short cue.
 ## 12. Persistence & Saves
 
 - `localStorage["hop_player_data"]` (production), `hop_dev_player_data` (dev).
+  Restarting a profile clears that key only.
+- `hop_measure` is a separate run log. It records finished runs, mission
+  claims, and skin buys, and it survives a profile reset. Read it in a dev
+  build with `gameDebug.measure()`. It does not change prices, unlocks, or
+  mission targets.
 - `sanitizePlayerData()` on load (defaults, clamps, coerce), `mergePlayerData`
   = **max per field** (union skins), write-on-change.
 - Saved on: coin collect, game over (banked once), skin buy/equip, theme,
@@ -271,23 +287,27 @@ impact, a new best, and the unlock cards each have their own short cue.
   under `hop_dev_player_data`. **6.4 gate:** `window.gameDebug` is exposed only
   in dev *builds* (`import.meta.env.DEV` or `VITE_DEV_MODE=true`) — production
   builds ship without it; `?dev=1` never enables debug on a portal build.
+- **Admin button** (bottom-left, dev builds only): set lifetime score, this run's
+  score, coins, and runs played; jump to a world; reset, complete, or claim
+  missions; restart the dev profile. It is not in a player build. Removing
+  `src/dev/AdminMenu.ts` and its mount leaves the hop unchanged.
 - **`window.gameDebug` helpers:** `setScore`, `setTotalScore`, `giveCoins`,
   `unlockAllSkins`, `toggleInvincible`, `unlockAllWorlds`, `forceWorld`,
   `straightLane`, `noSway`, `hitboxes`, `reseedRunway`, `completeAllMissions`,
-  `claimAllMissions`, `triggerWorldCallout`, `resetProgress`, `ballPos`,
-  `coins`. (Full table in `docs/DEV_COMMANDS.md`.)
+  `claimAllMissions`, `triggerWorldCallout`, `resetProgress`, `measure`,
+  `ballPos`, `coins`. (Full table in `docs/DEV_COMMANDS.md`.)
 - **`GAME_CONFIG.DEBUG` flags:** `enabled`, `invincible`, `unlockAllSkins`,
   `infiniteCoins`, `unlockAllWorlds`, `forceWorld`, `straightLane`, `noSway`,
   `showFPS`, `showHitboxes`.
 - **Test tip:** `Math.random = () => 0.5` forces straight deterministic lanes.
 
-## 14. Test Suite (20 files, 277 tests)
+## 14. Test Suite (21 files, 296 tests)
 
 | File | Tests | Covers |
 |---|---|---|
 | config.test.ts | 9 | verified constants |
 | mechanics.test.ts | 11 | difficulty curves + scoring |
-| state.test.ts | 23 | sanitize/merge/economy/missions state + baseline |
+| state.test.ts | 28 | sanitize/merge/economy/missions state + baseline |
 | difficulty.test.ts | 15 | sawtooth ramps per world |
 | worlds.test.ts | 12 | unlock thresholds, selection, tier math |
 | worldlook.test.ts | 12 | one complete look per world |
@@ -295,8 +315,9 @@ impact, a new best, and the unlock cards each have their own short cue.
 | platforms.test.ts | 15 | sway, recycling, hitboxes |
 | streak.test.ts | 10 | streak tiers + shield |
 | missions.test.ts | 37 | daily pool, banking, claims, semantics, baseline |
-| progression.test.ts | 18 | ledger, mission rows, countdown |
-| persistence.test.ts | 11 | save/load/merge round-trips |
+| progression.test.ts | 22 | ledger, mission rows, countdown, game-over distance line |
+| persistence.test.ts | 12 | save/load/merge round-trips |
+| runlog.test.ts | 6 | profile-independent run log |
 | effects.test.ts | 11 | perfect fx, speed lines, failure flag, debris |
 | audio.test.ts | 6 | mission chime, music gain, landing pitches |
 | input.test.ts | 6 | duplicate-press guard, first-jump anticipation |
@@ -332,12 +353,22 @@ impact, a new best, and the unlock cards each have their own short cue.
 | Audio | `src/systems/AudioSystem.ts` |
 | Input | `src/systems/InputSystem.ts` |
 | Persistence | `src/managers/PersistenceManager.ts` |
+| Run log (not the profile) | `src/core/RunLog.ts` |
 
 ## 16. Still open
 
-- **Week 3:** skins painted against these three lights, a matching icon set,
-  game-over layout polish, a streak indicator, and unlock progress near
-  selection and game over.
+Week 3 is in. The shop is eleven painted balls. The perfect count starts at
+×2. Game over can show one distance sentence to the next locked world. A
+dev build has the admin panel and `gameDebug.measure()`.
 
-The owner finished the real-phone play and the first look by people who
-did not build the game on 2026-10-08. No code changes came out of that.
+**Week 4, do not start these inside a Week 3 follow-up:**
+
+- Skin prices, the 1,000 and 5,000 unlocks, and mission targets. Read
+  `gameDebug.measure()` from normal runs first. Do not change the numbers
+  before that.
+- Ball trails.
+- A personal-best marker during a run.
+
+The start-screen progress line stays declined. The icon sheet stays as it
+is. The owner finished the real-phone play and the first look by people who
+did not build the game on 2026-10-08.
